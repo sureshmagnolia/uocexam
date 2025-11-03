@@ -1,128 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UOC Exam Management (V91 Modular)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>UOC Exam Management (Modular)</title>
 
-  <!-- ✅ TailwindCSS -->
+  <!-- Tailwind (dev CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- ✅ Main Styles -->
+  <!-- Main styles -->
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="styles/print.css" media="print">
 
-  <!-- ✅ PyScript (optional, used for PDF extraction logic) -->
+  <!-- PyScript (optional) -->
   <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
   <script defer src="https://pyscript.net/latest/pyscript.js"></script>
-</head>
 
+  <style>
+    /* quick safety: make pre logs monospace and small */
+    pre#status { white-space:pre-wrap; font-family:monospace; font-size:12px; }
+  </style>
+</head>
 <body class="bg-gray-100 font-sans">
-  <!-- 🌐 Main Navigation -->
+
+  <!-- NAV -->
   <nav id="main-nav" class="bg-indigo-700 text-white sticky top-0 z-50 shadow-md">
-    <div id="top-banner" class="text-center py-3">
+    <div class="text-center py-3 bg-indigo-800">
       <h1 class="text-xl font-extrabold tracking-wider">UOC Exam Management</h1>
     </div>
-
-    <div id="main-nav-tabs" class="container max-w-3xl mx-auto flex justify-center flex-wrap gap-2 py-2">
-      <button data-target="view-extractor" class="nav-button nav-button-active bg-blue-600">Main Extractor</button>
+    <div class="container max-w-3xl mx-auto flex flex-wrap justify-center gap-2 py-2">
+      <button data-target="view-extractor" class="nav-button bg-blue-600">Main Extractor</button>
       <button data-target="view-settings" class="nav-button bg-green-600">Settings</button>
       <button data-target="view-room" class="nav-button bg-purple-600">Room Settings</button>
       <button data-target="view-qpcodes" class="nav-button bg-yellow-600">QP Codes</button>
       <button data-target="view-reports" class="nav-button bg-red-600">Reports</button>
       <button data-target="view-absentees" class="nav-button bg-pink-600">Absentees</button>
+      <button data-target="view-csv" class="nav-button bg-teal-600">CSV Correction</button>
     </div>
   </nav>
 
-  <!-- 🌐 View: Extractor -->
+  <!-- MAIN -->
   <main id="app-content" class="container max-w-3xl mx-auto p-4">
+    <!-- Extractor -->
     <section id="view-extractor" class="view-section active">
       <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Data Extractor</h2>
+        <h2 class="text-2xl font-semibold mb-4">Data Extractor</h2>
 
-        <p class="text-sm text-gray-600 mb-4">
-          Upload your PDF nominal rolls and extract consolidated CSV data.
+        <p class="text-sm text-gray-600 mb-3">
+          Upload PDF nominal rolls. Extracted data will be saved locally and downloadable as CSV.
         </p>
 
         <input type="file" id="pdf-file" accept=".pdf" multiple
-          class="block w-full text-sm text-gray-500 mb-4
-                 file:mr-4 file:py-2 file:px-4 file:rounded-md
-                 file:border-0 file:text-sm file:font-semibold
-                 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+               class="block w-full text-sm text-gray-500 mb-4 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
 
-        <button id="run-button" class="w-full bg-indigo-600 hover:bg-indigo-700
-                text-white py-2 rounded-md font-semibold flex justify-center items-center gap-2">
-          <span class="loader-spin hidden" id="spinner"></span>
+        <button id="run-button" class="w-full inline-flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-md font-semibold">
+          <span id="spinner" class="loader-spin hidden"></span>
           <span>Run Batch Extraction</span>
         </button>
 
         <div class="mt-6">
           <h3 class="font-medium text-gray-700 mb-2">Processing Log:</h3>
-          <pre id="status" class="bg-gray-900 text-gray-200 p-3 rounded-md h-48 overflow-y-auto text-xs font-mono"></pre>
+          <pre id="status" class="bg-gray-900 text-gray-200 p-3 rounded-md h-48 overflow-y-auto"></pre>
         </div>
       </div>
     </section>
 
-    <!-- 🌐 Other Views -->
+    <!-- Settings -->
     <section id="view-settings" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">General Settings</h2>
-        <label class="block text-sm font-medium text-gray-700">Exam Name:</label>
-        <input id="exam-name" type="text" class="input-text" placeholder="e.g. Third Semester FYUG 2025">
-
-        <label class="block text-sm font-medium text-gray-700 mt-3">Exam Date:</label>
+        <h2 class="text-2xl font-semibold mb-4">General Settings</h2>
+        <label class="block text-sm font-medium text-gray-700">Exam Name</label>
+        <input id="exam-name" type="text" class="input-text" placeholder="Third Semester FYUG 2025">
+        <label class="block text-sm font-medium text-gray-700 mt-3">Exam Date</label>
         <input id="exam-date" type="date" class="input-text">
-
-        <button class="btn-save mt-4" onclick="saveAppState()">Save Settings</button>
+        <div class="mt-4">
+          <button class="btn-save" onclick="saveAppState()">Save Settings</button>
+        </div>
       </div>
     </section>
 
+    <!-- Room Settings -->
     <section id="view-room" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Room Settings</h2>
-        <textarea id="room-settings" class="input-text h-40"
-          placeholder="Room name and capacity per line (e.g. A101=25)"></textarea>
-        <button class="btn-save mt-4" onclick="saveAppState()">Save Room Data</button>
+        <h2 class="text-2xl font-semibold mb-4">Room Settings</h2>
+        <textarea id="room-settings" class="input-text h-40" placeholder="One room per line. Format: RoomName=Capacity (e.g. A101=30)"></textarea>
+        <div class="mt-4">
+          <button class="btn-save" onclick="saveAppState()">Save Room Data</button>
+        </div>
       </div>
     </section>
 
+    <!-- QP Codes -->
     <section id="view-qpcodes" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Question Paper Codes</h2>
-        <textarea id="qp-codes" class="input-text h-40"
-          placeholder="Enter Course Code=QP Code per line"></textarea>
-        <button class="btn-save mt-4" onclick="saveAppState()">Save QP Codes</button>
+        <h2 class="text-2xl font-semibold mb-4">Question Paper Codes</h2>
+        <textarea id="qp-codes" class="input-text h-40" placeholder="CourseCode=QPCode per line"></textarea>
+        <div class="mt-4">
+          <button class="btn-save" onclick="saveAppState()">Save QP Codes</button>
+        </div>
       </div>
     </section>
 
+    <!-- Reports -->
     <section id="view-reports" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Reports</h2>
-        <p>Generate seating lists, day-wise summaries, or question paper counts.</p>
-        <button class="btn-save mt-4" onclick="generateReport()">Generate</button>
+        <h2 class="text-2xl font-semibold mb-4">Reports</h2>
+        <p class="text-sm text-gray-600 mb-3">Generate seating lists, day-wise lists and printable reports.</p>
+        <div class="flex gap-3">
+          <button class="btn-save" onclick="generateReport()">Generate Report</button>
+          <button class="btn-save" onclick="window.print()">Print</button>
+        </div>
         <div id="report-output" class="mt-4"></div>
       </div>
     </section>
 
+    <!-- Absentees -->
     <section id="view-absentees" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
-        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Absentees</h2>
-        <textarea id="absentee-list" class="input-text h-40"
-          placeholder="Enter register numbers separated by commas"></textarea>
-        <button class="btn-save mt-4" onclick="saveAppState()">Save Absentees</button>
+        <h2 class="text-2xl font-semibold mb-4">Absentees</h2>
+        <textarea id="absentee-list" class="input-text h-40" placeholder="Enter register numbers separated by commas or newlines"></textarea>
+        <div class="mt-4">
+          <button class="btn-save" onclick="saveAppState()">Save Absentees</button>
+        </div>
       </div>
     </section>
+
+    <!-- CSV Correction -->
+    <section id="view-csv" class="view-section hidden">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold mb-4">CSV Correction & Upload</h2>
+        <p class="text-sm text-gray-600 mb-3">Load a CSV to edit records inline, save corrections locally and export corrected CSV.</p>
+
+        <input type="file" id="csv-upload" accept=".csv" class="block w-full text-sm text-gray-500 mb-3">
+
+        <div class="flex gap-3">
+          <button id="load-csv-btn" class="btn-save bg-teal-600 hover:bg-teal-700">Load CSV</button>
+          <button id="save-corrections-btn" class="btn-save bg-green-600 hover:bg-green-700">Save Corrections</button>
+          <button id="download-csv-btn" class="btn-save bg-indigo-600 hover:bg-indigo-700">Download Corrected CSV</button>
+          <button id="merge-corrections-btn" class="btn-save bg-yellow-600 hover:bg-yellow-700">Merge to Extracted Data</button>
+        </div>
+
+        <div id="csv-table-container" class="mt-4 overflow-auto"></div>
+      </div>
+    </section>
+
   </main>
 
-  <!-- ✅ Main Scripts -->
+  <!-- Scripts -->
   <script defer src="scripts/navigation.js"></script>
   <script defer src="scripts/storage.js"></script>
   <script defer src="scripts/main.js"></script>
+  <script defer src="scripts/reports.js"></script>
+  <script defer src="scripts/csv_manager.js"></script>
 
-  <!-- ✅ Optional: Python for PDF Extraction -->
-  <py-script>
-from js import document, console
-console.log("PyScript initialized successfully.")
-  </py-script>
+  <!-- PyScript extraction (optional) -->
+  <py-script src="pyscript/extraction.py"></py-script>
 </body>
 </html>
