@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UOC Exam Management (V91 Modular)</title>
+
+  <!-- ✅ TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ✅ Main Styles -->
+  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/print.css" media="print">
+
+  <!-- ✅ PyScript (optional, used for PDF extraction logic) -->
+  <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+</head>
+
+<body class="bg-gray-100 font-sans">
+  <!-- 🌐 Main Navigation -->
+  <nav id="main-nav" class="bg-indigo-700 text-white sticky top-0 z-50 shadow-md">
+    <div id="top-banner" class="text-center py-3">
+      <h1 class="text-xl font-extrabold tracking-wider">UOC Exam Management</h1>
+    </div>
+
+    <div id="main-nav-tabs" class="container max-w-3xl mx-auto flex justify-center flex-wrap gap-2 py-2">
+      <button data-target="view-extractor" class="nav-button nav-button-active bg-blue-600">Main Extractor</button>
+      <button data-target="view-settings" class="nav-button bg-green-600">Settings</button>
+      <button data-target="view-room" class="nav-button bg-purple-600">Room Settings</button>
+      <button data-target="view-qpcodes" class="nav-button bg-yellow-600">QP Codes</button>
+      <button data-target="view-reports" class="nav-button bg-red-600">Reports</button>
+      <button data-target="view-absentees" class="nav-button bg-pink-600">Absentees</button>
+    </div>
+  </nav>
+
+  <!-- 🌐 View: Extractor -->
+  <main id="app-content" class="container max-w-3xl mx-auto p-4">
+    <section id="view-extractor" class="view-section active">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Data Extractor</h2>
+
+        <p class="text-sm text-gray-600 mb-4">
+          Upload your PDF nominal rolls and extract consolidated CSV data.
+        </p>
+
+        <input type="file" id="pdf-file" accept=".pdf" multiple
+          class="block w-full text-sm text-gray-500 mb-4
+                 file:mr-4 file:py-2 file:px-4 file:rounded-md
+                 file:border-0 file:text-sm file:font-semibold
+                 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+
+        <button id="run-button" class="w-full bg-indigo-600 hover:bg-indigo-700
+                text-white py-2 rounded-md font-semibold flex justify-center items-center gap-2">
+          <span class="loader-spin hidden" id="spinner"></span>
+          <span>Run Batch Extraction</span>
+        </button>
+
+        <div class="mt-6">
+          <h3 class="font-medium text-gray-700 mb-2">Processing Log:</h3>
+          <pre id="status" class="bg-gray-900 text-gray-200 p-3 rounded-md h-48 overflow-y-auto text-xs font-mono"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 🌐 Other Views -->
+    <section id="view-settings" class="view-section hidden">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">General Settings</h2>
+        <label class="block text-sm font-medium text-gray-700">Exam Name:</label>
+        <input id="exam-name" type="text" class="input-text" placeholder="e.g. Third Semester FYUG 2025">
+
+        <label class="block text-sm font-medium text-gray-700 mt-3">Exam Date:</label>
+        <input id="exam-date" type="date" class="input-text">
+
+        <button class="btn-save mt-4" onclick="saveAppState()">Save Settings</button>
+      </div>
+    </section>
+
+    <section id="view-room" class="view-section hidden">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Room Settings</h2>
+        <textarea id="room-settings" class="input-text h-40"
+          placeholder="Room name and capacity per line (e.g. A101=25)"></textarea>
+        <button class="btn-save mt-4" onclick="saveAppState()">Save Room Data</button>
+      </div>
+    </section>
+
+    <section id="view-qpcodes" class="view-section hidden">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Question Paper Codes</h2>
+        <textarea id="qp-codes" class="input-text h-40"
+          placeholder="Enter Course Code=QP Code per line"></textarea>
+        <button class="btn-save mt-4" onclick="saveAppState()">Save QP Codes</button>
+      </div>
+    </section>
+
+    <section id="view-reports" class="view-section hidden">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Reports</h2>
+        <p>Generate seating lists, day-wise summaries, or question paper counts.</p>
+        <button class="btn-save mt-4" onclick="generateReport()">Generate</button>
+        <div id="report-output" class="mt-4"></div>
+      </div>
+    </section>
+
+    <section id="view-absentees" class="view-section hidden">
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Absentees</h2>
+        <textarea id="absentee-list" class="input-text h-40"
+          placeholder="Enter register numbers separated by commas"></textarea>
+        <button class="btn-save mt-4" onclick="saveAppState()">Save Absentees</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ✅ Main Scripts -->
+  <script defer src="scripts/navigation.js"></script>
+  <script defer src="scripts/storage.js"></script>
+  <script defer src="scripts/main.js"></script>
+
+  <!-- ✅ Optional: Python for PDF Extraction -->
+  <py-script>
+from js import document, console
+console.log("PyScript initialized successfully.")
+  </py-script>
+</body>
+</html>
