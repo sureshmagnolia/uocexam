@@ -1,159 +1,111 @@
-"""
-extraction.py — PyScript module for extracting student data from PDF nominal rolls.
-UOC Exam Management (Modular Version)
-"""
-
-from js import document, console, localStorage, URL, FileReader
+# pyscript/extraction.py
+# Lightweight PyScript extractor (browser-friendly)
+from js import document, console, localStorage, URL, Blob
 from pyodide.ffi import create_proxy
-import asyncio
-import re
-import json
-
-# -----------------------------------------------
-# Utility Functions
-# -----------------------------------------------
+import asyncio, re, json
 
 def log(msg: str):
-    """Append a message to the status log <pre> element."""
-    status_el = document.getElementById("status")
-    if not status_el:
-        console.warn("Status element missing")
+    status = document.getElementById("status")
+    if status is None:
+        console.warn("status element not found")
         return
-    status_el.innerHTML += f"&gt; {msg}<br>"
-    status_el.scrollTop = status_el.scrollHeight
+    # append safely (use innerText/new line)
+    status.innerText += f"> {msg}\n"
+    status.scrollTop = status.scrollHeight
 
-
-async def read_pdf_text(file) -> str:
+async def read_file_text(file):
     """
-    Reads a PDF file as text using pdf.js if available, otherwise as base64.
-    This function acts as a placeholder for browser-side parsing.
+    Reads a file as text using FileReader asynchronously.
+    For PDF real parsing please use extraction_real.py with pdfminer.
     """
-    future = asyncio.Future()
-
-    def onload(event):
-        result = event.target.result
-        future.set_result(result)
-
-    reader = FileReader.new()
-    reader.onload = create_proxy(onload)
-    reader.readAsText(file)
-    return await future
-
-
-# -----------------------------------------------
-# Main Extraction Logic
-# -----------------------------------------------
-
-async def start_extraction(event=None):
-    """
-    Main batch extraction entry point. Called from 'Run Batch Extraction' button.
-    """
-    log("Starting batch extraction...")
-    spinner = document.getElementById("spinner")
-    button = document.getElementById("run-button")
-    pdf_input = document.getElementById("pdf-file")
-
-    if not pdf_input or not pdf_input.files.length:
-        log("No PDF files selected.")
-        return
-
-    spinner.classList.remove("hidden")
-    button.disabled = True
-
-    combined_data = []
-    total_files = pdf_input.files.length
-    log(f"Found {total_files} file(s) to process.")
-
-    for i in range(total_files):
-        pdf_file = pdf_input.files.item(i)
-        log(f"--- Processing file {i+1}/{total_files}: {pdf_file.name} ---")
-
-        try:
-            # Read PDF text (placeholder)
-            text = await read_pdf_text(pdf_file)
-
-            # Simulate data extraction
-            extracted = extract_students_from_text(text)
-            combined_data.extend(extracted)
-
-            log(f"✓ Found {len(extracted)} student record(s).")
-
-        except Exception as e:
-            log(f"❌ Error processing {pdf_file.name}: {e}")
-
-        # Yield to UI event loop
-        await asyncio.sleep(0.05)
-
-    # Save combined data to localStorage
-    save_to_local_storage(combined_data)
-
-    # Enable download
-    create_csv_download(combined_data)
-
-    spinner.classList.add("hidden")
-    button.disabled = False
-    log("✅ Extraction complete. Data saved to localStorage and ready for download.")
-
-
-# -----------------------------------------------
-# Simulated PDF Parsing (replace with pdfminer if needed)
-# -----------------------------------------------
+    fut = asyncio.Future()
+    def onload(evt):
+        fut.set_result(evt.target.result)
+    fr = __new__(FileReader())
+    fr.onload = create_proxy(onload)
+    fr.readAsText(file)
+    return await fut
 
 def extract_students_from_text(text: str):
-    """
-    Mock function that simulates extracting students from a PDF page text.
-    This can be replaced with pdfminer.six-based parsing when supported.
-    """
-    # Example pattern: "12345 John Doe BOT3CJ201"
-    pattern = r"(\d{5,})\s+([A-Za-z][A-Za-z\s]+)\s+([A-Z]{3}\d+[A-Z]*\d*)"
+    # A simple regex: reg no (5+ digits), name (words), course code (alphanumeric with letters)
+    pattern = r"(\d{4,})\s+([A-Za-z][A-Za-z\s\.\-']{1,80}?)\s+([A-Z]{2,}[0-9A-Z\-]*)"
     matches = re.findall(pattern, text)
-    students = [
-        {"reg_no": reg.strip(), "name": name.strip(), "course_code": code.strip()}
-        for reg, name, code in matches
-    ]
+    students = []
+    for m in matches:
+        reg = m[0].strip()
+        name = m[1].strip()
+        code = m[2].strip()
+        students.append({"reg_no": reg, "name": name, "course_code": code})
     return students
 
-
-# -----------------------------------------------
-# Data Saving & CSV Generation
-# -----------------------------------------------
-
-def save_to_local_storage(data):
-    """Save extracted data to localStorage as JSON."""
+async def start_extraction(event=None):
+    log("Starting batch extraction...")
+    pdf_input = document.getElementById("pdf-file")
+    spinner = document.getElementById("spinner")
+    runbtn = document.getElementById("run-button")
+    if not pdf_input or pdf_input.files.length == 0:
+        log("No PDF files selected.")
+        return
+    spinner.classList.remove("hidden")
+    runbtn.disabled = True
+    combined = []
+    total = pdf_input.files.length
+    log(f"Found {total} file(s).")
+    for i in range(total):
+        f = pdf_input.files.item(i)
+        log(f"Processing {i+1}/{total}: {f.name}")
+        try:
+            text = await read_file_text(f)
+            extracted = extract_students_from_text(text)
+            combined.extend(extracted)
+            log(f"Found {len(extracted)} students in {f.name}")
+        except Exception as e:
+            log(f"Error processing {f.name}: {e}")
+        await asyncio.sleep(0.05)
+    # Save to localStorage
     try:
-        localStorage.setItem("uocExam_extractedData", json.dumps(data))
+        localStorage.setItem("uocExam_extractedData", json.dumps(combined))
+        log(f"Saved {len(combined)} records to localStorage (uocExam_extractedData).")
     except Exception as e:
-        log(f"⚠️ Failed to save to localStorage: {e}")
-
+        log(f"Failed to save extracted data: {e}")
+    # create downloadable CSV
+    create_csv_download(combined)
+    spinner.classList.add("hidden")
+    runbtn.disabled = False
+    # expose start_extraction to JS fallback
+    window = __import__("js").window
+    window.start_extraction = start_extraction
 
 def create_csv_download(data):
-    """Create and attach a downloadable CSV link to the page."""
     if not data:
-        log("No data to save.")
+        log("No data to generate CSV.")
         return
-
-    # Convert list of dicts to CSV text
     keys = ["reg_no", "name", "course_code"]
-    header = ",".join(keys)
-    rows = [header] + [",".join(str(item.get(k, "")) for k in keys) for item in data]
+    rows = [",".join(keys)]
+    for row in data:
+        rows.append(",".join([escape_csv(str(row.get(k,""))) for k in keys]))
     csv_text = "\n".join(rows)
-
-    # Create Blob and download link
-    blob = __new__(Blob([csv_text], { "type": "text/csv" }))
+    blob = Blob.new([csv_text], { "type": "text/csv" })
     url = URL.createObjectURL(blob)
-    link = document.createElement("a")
-    link.href = url
-    link.download = "Combined_Nominal_Roll.csv"
-    link.textContent = "📥 Download Combined_Nominal_Roll.csv"
-    link.classList.add("mt-4", "block", "text-indigo-600", "font-semibold")
+    # append link into status
+    status = document.getElementById("status")
+    a = document.createElement("a")
+    a.href = url
+    a.download = "Combined_Nominal_Roll.csv"
+    a.textContent = "📥 Download Combined_Nominal_Roll.csv"
+    a.style.display = "block"
+    a.style.marginTop = "6px"
+    status.appendChild(a)
 
-    output_div = document.getElementById("status")
-    output_div.innerHTML += "<br>"
-    output_div.appendChild(link)
+def escape_csv(val):
+    if '"' in val or ',' in val or '\n' in val:
+        val = val.replace('"', '""')
+        return f'"{val}"'
+    return val
 
-
-# -----------------------------------------------
-# Register Python callback for PyScript
-# -----------------------------------------------
-# This line connects the <button py-click="start_extraction"> in HTML
-# to this Python function.
+# expose to window so JS fallback can call it if needed
+try:
+    window = __import__("js").window
+    window.start_extraction = start_extraction
+except Exception:
+    pass
