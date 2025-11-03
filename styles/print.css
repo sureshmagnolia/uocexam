@@ -1,78 +1,28 @@
-/* styles/print.css */
-/* ---------------------------------------
-   Print Styles — UOC Exam Management
-   --------------------------------------- */
+/* styles/print.css - print-specific styles */
 
 @media print {
+  @page { size: A4 portrait; margin: 12mm; }
 
-  /* Reset default margins for clean A4 output */
-  @page {
-    margin: 12mm;
-    size: A4 portrait;
-  }
+  body { background: #fff !important; color: #000 !important; font-size: 11pt; }
 
-  body {
-    background: white !important;
-    color: black !important;
-    font-size: 11pt;
-    line-height: 1.4;
-  }
-
-  nav, #main-nav, .nav-button, .btn-save {
+  nav, .nav-button, .btn-save, input[type="file"], #csv-upload, #load-csv-btn,
+  #save-corrections-btn, #download-csv-btn, #merge-corrections-btn {
     display: none !important;
   }
 
-  .view-section {
-    display: block !important;
-  }
+  .view-section { display: block !important; }
+  .print-container { page-break-after: always; padding: 8mm; border: 0; }
 
-  .print-container {
-    page-break-after: always;
-    padding: 10mm;
-    border: 1px solid #ccc;
-  }
+  .print-title { text-align: center; font-weight: 700; font-size: 16pt; margin-bottom: 8px; }
+  .print-meta { font-size: 10pt; margin-bottom: 6px; }
 
-  .print-title {
-    text-align: center;
-    font-weight: 700;
-    font-size: 16pt;
-    margin-bottom: 10px;
-  }
-
-  .print-meta {
-    font-size: 10pt;
-    margin-bottom: 6px;
-  }
-
-  .print-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 10pt;
-  }
-
-  .print-table th,
-  .print-table td {
+  table.print-table, table.print-table th, table.print-table td {
     border: 1px solid #000;
-    padding: 4px 6px;
-    text-align: left;
-  }
-
-  .print-table th {
-    background: #f2f2f2;
-    font-weight: bold;
-  }
-
-  .signature-line {
-    margin-top: 20px;
-    display: flex;
-    justify-content: space-between;
-  }
-
-  .signature-line div {
-    width: 40%;
-    border-top: 1px solid black;
-    text-align: center;
+    border-collapse: collapse;
+    padding: 4px;
     font-size: 10pt;
-    padding-top: 4px;
   }
+
+  .signature-line { margin-top: 20mm; display:flex; justify-content:space-between; }
+  .signature-line div { width: 40%; border-top: 1px solid #000; text-align: center; padding-top: 6px; font-size:10pt; }
 }
