@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>UOC Exam Management (PyScript)</title>
+  <title>UOC Exam Management</title>
 
-  <!-- Tailwind CSS -->
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Main styles -->
+  <!-- Styles -->
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="styles/print.css" media="print">
 
@@ -100,7 +100,6 @@
     <section id="view-reports" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
         <h2 class="text-2xl font-semibold mb-4">Reports</h2>
-        <p class="text-sm text-gray-600 mb-3">Generate seating lists, day-wise lists and printable reports.</p>
         <div class="flex gap-3">
           <button class="btn-save" onclick="generateReport()">Generate Report</button>
           <button class="btn-save" onclick="window.print()">Print</button>
@@ -124,8 +123,6 @@
     <section id="view-csv" class="view-section hidden">
       <div class="bg-white p-6 rounded-lg shadow">
         <h2 class="text-2xl font-semibold mb-4">CSV Correction & Upload</h2>
-        <p class="text-sm text-gray-600 mb-3">Load a CSV to edit records inline, save corrections locally and export corrected CSV.</p>
-
         <input type="file" id="csv-upload" accept=".csv" class="block w-full text-sm text-gray-500 mb-3">
         <div class="flex gap-3">
           <button id="load-csv-btn" class="btn-save bg-teal-600 hover:bg-teal-700">Load CSV</button>
@@ -139,15 +136,15 @@
 
   </main>
 
-  <!-- JS modules -->
+  <!-- Scripts -->
   <script defer src="scripts/navigation.js"></script>
   <script defer src="scripts/storage.js"></script>
   <script defer src="scripts/reports.js"></script>
   <script defer src="scripts/csv_manager.js"></script>
 
-  <!-- PyScript configuration -->
+  <!-- PyScript -->
   <py-config>
-    packages = []
+    packages = ["pandas", "pdfplumber==0.9.0"]
   </py-config>
   <py-script src="pyscript/extraction.py"></py-script>
 </body>
