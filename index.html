@@ -1,345 +1,405 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>UOC Exam — Room Assign (Single-file)</title>
-  <style>
-    :root{--bg:#f7fafc;--card:#fff;--accent:#0ea5a4;--muted:#6b7280}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;background:var(--bg);color:#111}
-    .container{max-width:1100px;margin:28px auto;padding:20px}
-    header{display:flex;align-items:center;gap:16px}
-    h1{margin:0;font-size:20px}
-    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-top:14px}
-    .grid{display:grid;gap:12px}
-    .cols-2{grid-template-columns:1fr 420px}
-    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-    input,select,textarea,button{font-size:14px;padding:8px;border-radius:8px;border:1px solid #e6eef0;width:100%;box-sizing:border-box}
-    button{background:var(--accent);color:white;border:none;cursor:pointer}
-    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(14,165,164,0.14)}
-    .small{padding:6px 8px;font-size:13px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:8px;border-bottom:1px solid #eef2f6;text-align:left;font-size:13px}
-    .muted{color:var(--muted)}
-    .flex{display:flex;gap:8px;align-items:center}
-    .tabs{display:flex;gap:8px}
-    .tab{padding:8px 12px;border-radius:8px;cursor:pointer}
-    .tab.active{background:linear-gradient(90deg,#ecfeff,#f0f9ff);border:1px solid rgba(14,165,164,0.12)}
-    .preview{max-height:280px;overflow:auto;border-radius:8px;padding:8px;background:#fcfeff;border:1px solid #eef7f6}
-    .log{white-space:pre-wrap;font-family:monospace;font-size:12px;color:#0f172a}
-    @media (max-width:900px){.cols-2{grid-template-columns:1fr}
-      header{flex-direction:column;align-items:flex-start;gap:6px}
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UOC Exam Management V9.9</title>
+    
+    <script src="https://cdn-tailwindcss.vercel.app/"></script>
+    
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+
 </head>
-<body>
-  <div class="container">
-    <header>
-      <div>
-        <h1>UOC Exam — Room Assignment (single-file)</h1>
-        <div style="font-size:13px;color:var(--muted)">Upload CSV of students or paste data, create rooms & capacities, auto-assign and export.</div>
-      </div>
-    </header>
-
-    <div class="card grid cols-2">
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <strong>Students</strong>
-          <div class="flex">
-            <input id="fileInput" type="file" accept="text/csv" style="width:250px" />
-            <button id="pasteBtn" class="small ghost">Paste CSV / TSV</button>
-          </div>
+<body class="bg-gray-100 font-sans">
+    
+    <nav id="main-nav" class="bg-indigo-600 text-white sticky top-0 z-50 shadow-lg">
+        <div id="top-banner" class="w-full bg-indigo-700 text-center py-2">
+            <h1 class="text-xl font-extrabold tracking-wider text-white">UOC Exam Management (V90)</h1>
         </div>
-
-        <div class="card" style="margin-bottom:10px">
-          <label>Preview / Paste area</label>
-          <textarea id="rawData" rows="7" placeholder="RegNo,Name,DOB,Course (optional). Example:\nABC123,John Doe,12-05-2000,BSC" style="width:100%"></textarea>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button id="parseBtn">Parse Students</button>
-            <button id="clearStudents" class="ghost">Clear</button>
-          </div>
+        
+        <div id="main-nav-tabs" class="container max-w-2xl mx-auto flex justify-center gap-2">
+            <button id="nav-extractor" class="nav-button nav-button-active">Main Extractor</button>
+            <button id="nav-settings" class="nav-button nav-button-inactive">Settings</button>
+            <button id="nav-room-settings" class="nav-button nav-button-inactive">Room Settings</button> 
+            <button id="nav-qpcodes" class="nav-button nav-button-inactive">QP Codes</button>
+            <button id="nav-room-allotment" class="nav-button nav-button-inactive">Room Allotment</button>
+            <button id="nav-reports" class="nav-button nav-button-inactive">Reports</button>
+            <button id="nav-absentees" class="nav-button nav-button-inactive">Absentees</button>
         </div>
+    </nav>
 
-        <div class="card">
-          <label>Parsed students (<span id="studentCount">0</span>)</label>
-          <div id="studentsPreview" class="preview muted">No students parsed yet.</div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <button id="saveStudents">Save to local</button>
-            <button id="downloadStudents" class="ghost">Download CSV</button>
-          </div>
+    <div id="view-extractor" class="container max-w-2xl mx-auto p-4 min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+            
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Data Extractor</h1>
+
+            <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-md mb-6">
+                <h4 class="font-semibold text-gray-800">How to Use:</h4>
+                <ol class="list-decimal list-inside text-sm text-gray-700 mt-2 space-y-1">
+                    <li>Go to **Room Settings** and define capacities and locations. Save changes.</li>
+                    <li>Click 'Select PDF Files' and choose 1 or 100+ PDF files.</li>
+                    <li>Click 'Run Batch Extraction'. Check the **Status Log** for errors.</li>
+                    <li>Click 'Download Combined_Nominal_Roll.csv' for raw data.</li>
+                    <li>(Optional) Go to **QP Codes** to assign codes to each course.</li>
+                    <li>Go to **Reports** to generate seating lists, day-wise lists, and question paper counts.</li>
+                    <li>Go to **Absentees** to mark absentees and generate the final statement.</li>
+                </ol>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label for="pdf-file" class="block text-sm font-medium text-gray-700">1. Select PDF Files:</label>
+                    <input type="file" id="pdf-file" accept=".pdf" multiple class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"/>
+                </div>
+                
+                <button id="run-button" 
+                        py-click="start_extraction" 
+                        class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50">
+                    <span id="spinner" class="loader-spin -ml-1 mr-3 h-5 w-5 text-white hidden"></span>
+                    <span id="button-text">2. Run Batch Extraction</span>
+                </button>
+            </div>
+            
+
+            <div class="mt-6">
+                <h3 class="text-lg font-medium text-gray-900">Processing Log:</h3>
+                <div id="status" class="w-full h-48 p-3 mt-2 bg-gray-900 text-gray-200 text-sm font-mono rounded-md overflow-y-auto">
+                    Waiting for file...
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <h3 class="text-lg font-medium text-gray-900">Status Log:</h3>
+                <div id="status-log" class="w-full h-48 p-3 mt-2 bg-gray-100 border border-gray-300 text-gray-800 text-sm font-mono rounded-md overflow-y-auto">
+                    Waiting for extraction to complete...
+                </div>
+            </div>
+
+            <div id="download-area" class="mt-6 space-y-3">
+                <div id="csv-download-container"></div>
+            </div>
+            
+            <div class="bg-gray-50 border border-gray-200 p-4 rounded-md mt-6">
+                <h4 class="font-semibold text-gray-800">3. Load Corrected Data (Optional)</h4>
+                <p class="text-sm text-gray-600 mt-1 mb-3">
+                    Upload a corrected `Combined_Nominal_Roll.csv` file to overwrite the extracted data.
+                    This is your base data source for all reports.
+                </p>
+                <div class="flex items-center gap-2">
+                    <input type="file" id="corrected-csv-upload" accept=".csv" class="block w-full text-sm text-gray-500
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-md file:border-0
+                                  file:text-sm file:font-semibold
+                                  file:bg-green-50 file:text-green-700
+                                  hover:file:bg-green-100"/>
+                    <button id="load-csv-button" class="inline-flex justify-center items-center rounded-md border border-transparent bg-gray-600 py-2 px-3 text-sm font-medium text-white shadow-sm hover:bg-gray-700">
+                        Load CSV
+                    </button>
+                </div>
+                <span id="csv-load-status" class="text-sm font-medium text-green-600 mt-2 block h-5"></span>
+            </div>
+            </div>
+    </div>
+    
+    <div id="view-settings" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">General Settings</h1>
+            
+            <div class="bg-red-50 border border-red-200 p-4 rounded-lg mb-6">
+                 <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
+                    College Name
+                </h2>
+                <div class="mb-6 flex gap-2 items-end">
+                    <div class="flex-grow">
+                        <label for="college-name-input" class="block text-sm font-medium text-gray-700 mb-1">College Name (for Reports)</label>
+                        <input type="text" id="college-name-input" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm" placeholder="e.g., University of Calicut">
+                    </div>
+                    <button id="save-college-name-button" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-500 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-600">
+                        Save
+                    </button>
+                </div>
+                <div id="college-name-status" class="text-sm font-medium text-green-600 mt-2 block h-5"></div>
+                 
+                 <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
+                    Master Reset
+                </h2>
+                 <button id="master-reset-button" class="w-full inline-flex justify-center items-center rounded-md border border-red-700 bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 mt-2">
+                    Master Reset: Clear ALL Local Data
+                </button>
+            </div>
         </div>
-
-      </div>
-
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <strong>Rooms</strong>
-          <div class="flex">
-            <button id="addRoomBtn" class="small">Add Room</button>
-            <button id="clearRooms" class="small ghost">Clear</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <label>Create / Edit Rooms</label>
-          <div id="roomsList"></div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input id="defaultCapacity" type="number" min="1" placeholder="Default cap" style="width:130px" />
-            <button id="applyDefault" class="ghost">Apply to empty</button>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:10px">
-          <label>Assignment</label>
-          <div style="display:flex;gap:8px;margin-bottom:8px">
-            <button id="autoAssignBtn">Auto Assign</button>
-            <button id="clearAssign" class="ghost">Clear Assignment</button>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button id="exportAssignments">Export Assignments (CSV)</button>
-            <button id="printReport" class="ghost">Print Report</button>
-          </div>
-        </div>
-
-      </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <strong>Assignments / Logs</strong>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <div style="flex:1">
-          <label>Assignments Table</label>
-          <div id="assignTable" class="preview muted">No assignments yet.</div>
+    <div id="view-room-settings" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+             <h1 class="text-3xl font-bold text-gray-800 mb-6">Room Capacity & Location</h1>
+
+            <p class="text-gray-600 mb-4">
+                Define the number of students per room. This list is automatically saved to your browser.
+                If a capacity is left blank, it will default to 30 when saved.
+            </p>
+            
+            <div class="space-y-4">
+                <div class="flex items-center gap-3 px-2">
+                    <label class="font-semibold text-gray-700 w-24 shrink-0">Room Name</label>
+                    <label class="font-semibold text-gray-700 w-20">Capacity</label>
+                    <label class="font-semibold text-gray-700 flex-grow">Location (e.g., Commerce Block)</label>
+                </div>
+                
+                <div id="room-config-container" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                    </div>
+                
+                <button id="add-room-button" class="w-full inline-flex justify-center items-center rounded-md border border-dashed border-gray-400 bg-gray-50 py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100">
+                    + Add New Room
+                </button>
+                
+                <hr class="my-4">
+                
+                <button id="save-room-config-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+                    Save Room Settings
+                </button>
+                <div id="room-config-status" class="text-sm text-green-600 font-medium text-center h-5"></div>
+            </div>
         </div>
-        <div style="width:360px">
-          <label>Activity Log</label>
-          <div id="log" class="preview log">Ready.</div>
+    </div>
+    
+    <div id="view-qpcodes" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">QP Code Settings</h1>
+            
+            <div id="qpcode-content-wrapper" class="hidden">
+                <div class="mb-4">
+                    <label for="session-select-qp" class="block text-sm font-medium text-gray-700 mb-1">Select Exam Session:</label>
+                    <select id="session-select-qp" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm">
+                        <option value="">-- Select a Session --</option>
+                    </select>
+                </div>
+
+                <div id="qp-entry-section" class="hidden">
+                    <p class="text-gray-600 mb-4">
+                        Assign a Question Paper (QP) Code to each course. This code will be used in the Absentee Statement.
+                        **Click 'Save QP Codes' below to commit changes to local memory.**
+                    </p>
+                
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3 px-2">
+                            <label class="font-semibold text-gray-700 w-2/3">Course Name</label>
+                            <label class="font-semibold text-gray-700 w-1/3">QP Code</label>
+                        </div>
+                        
+                        <div id="qp-code-container" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                            </div>
+                    </div>
+                    <div id="qp-code-status" class="text-sm text-green-600 font-medium text-center h-5 mt-4"></div>
+                    
+                    <button id="save-qp-codes-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 mt-4">
+                        Save QP Codes
+                    </button>
+                </div>
+
+            </div>
+            
+            <div id="qpcode-loader" class="text-center text-gray-600">
+                <p>Please run a data extraction or load a corrected CSV to enable this feature.</p>
+            </div>
+            
         </div>
-      </div>
+    </div>
+    
+    <div id="view-reports" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Reports</h1>
+            
+            <p class="text-gray-600 mb-4">
+                Generate reports based on the last loaded data. (Buttons are enabled after extraction or CSV load.)
+            </p>
+
+            <div id="report-filter-section" class="bg-gray-100 p-4 rounded-lg mb-6 hidden">
+                <h4 class="font-semibold text-gray-700 mb-2">Filter Reports By:</h4>
+                <div class="flex flex-col sm:flex-row gap-4 mb-3">
+                    <div class="flex items-center">
+                        <input type="radio" id="filter-all" name="report-filter" value="all" class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                        <label for="filter-all" class="ml-2 text-sm text-gray-700 font-medium">All Sessions (Bulk Print)</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="radio" id="filter-session" name="report-filter" value="session" checked class="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                        <label for="filter-session" class="ml-2 text-sm text-gray-700 font-medium">Specific Session</label>
+                    </div>
+                </div>
+                
+                <div id="reports-session-dropdown-container" class="">
+                    <select id="reports-session-select" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm">
+                        <option value="">-- Select a Session --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <button id="generate-report-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-blue-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50" disabled>
+                    Generate Room-wise Seating Report
+                </button>
+                
+                <button id="generate-daywise-report-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-blue-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" disabled>
+                    Generate Seating Details for Candidates (Compact)
+                </button>
+
+                <button id="generate-qpaper-report-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-blue-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" disabled>
+                    Generate Question Paper Report
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="view-absentees" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Mark Absentees</h1>
+            
+            <div id="absentee-content-wrapper" class="hidden">
+                <div class="mb-4">
+                    <label for="session-select" class="block text-sm font-medium text-gray-700 mb-1">Select Exam Session:</label>
+                    <select id="session-select" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm">
+                        <option value="">-- Select a Session --</option>
+                    </select>
+                </div>
+
+                <div id="absentee-search-section" class="mb-6 hidden">
+                    <label for="absentee-search" class="block text-sm font-medium text-gray-700 mb-1">Search Register Number:</label>
+                    <div class="autocomplete-container">
+                        <input type="text" id="absentee-search" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm" placeholder="Type 3 chars...">
+                        <div id="autocomplete-results" class="autocomplete-results hidden"></div>
+                    </div>
+                    
+                    <div id="selected-student-details" class="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-md hidden">
+                        <div class="font-medium text-gray-800" id="selected-student-name"></div>
+                        <div class="text-sm text-gray-600" id="selected-student-course"></div>
+                        <div class="text-sm text-gray-600" id="selected-student-room"></div>
+                        <button id="add-absentee-button" class="mt-2 w-full inline-flex justify-center items-center rounded-md border border-transparent bg-red-600 py-2 px-3 text-sm font-medium text-white shadow-sm hover:bg-red-700">
+                            Add to Absentee List
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="absentee-list-section" class="hidden">
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Current Absentee List for this Session:</h3>
+                    <div id="current-absentee-list" class="min-h-[50px] bg-gray-50 border border-gray-200 rounded-md p-3 space-y-2">
+                        </div>
+                </div>
+                
+                <button id="generate-absentee-report-button" class="mt-6 w-full inline-flex justify-center items-center rounded-md border border-transparent bg-blue-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50" disabled>
+                    Generate Absentee Statement
+                </button>
+            </div>
+            
+            <div id="absentee-loader" class="text-center text-gray-600">
+                <p>Please run a data extraction or load a corrected CSV on the "Reports" tab to enable this feature.</p>
+            </div>
+
+        </div>
     </div>
 
-  </div>
+    <div id="view-room-allotment" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Room Allotment</h1>
+            
+            <div id="room-allotment-content-wrapper" class="hidden">
+                <div class="mb-4">
+                    <label for="allotment-session-select" class="block text-sm font-medium text-gray-700 mb-1">Select Exam Session:</label>
+                    <select id="allotment-session-select" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm">
+                        <option value="">-- Select a Session --</option>
+                    </select>
+                </div>
 
-  <script>
-    // Simple single-file working app for room assignment
-    // Data structures
-    const STORAGE_PREFIX = 'uoc_exam_v1_';
-    const studentsKey = STORAGE_PREFIX + 'students';
-    const roomsKey = STORAGE_PREFIX + 'rooms';
-    const assignmentsKey = STORAGE_PREFIX + 'assigns';
+                <div id="allotment-student-count-section" class="mb-6 hidden">
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">Total Students:</h3>
+                                <p class="text-2xl font-bold text-blue-600" id="total-students-count">0</p>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">Awaiting Room Allotment:</h3>
+                                <p class="text-2xl font-bold text-orange-600" id="remaining-students-count">0</p>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-800">Allotted:</h3>
+                                <p class="text-2xl font-bold text-green-600" id="allotted-students-count">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    let students = []; // {reg,name,dob,course}
-    let rooms = []; // {id,name,capacity}
-    let assignments = {}; // roomId -> [studentIndices]
+                <div id="add-room-section" class="mb-6 hidden">
+                    <button id="add-room-allotment-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+                        + Add Room
+                    </button>
+                </div>
 
-    const el = id => document.getElementById(id);
-    const log = (m) => {
-      const lg = el('log');
-      lg.textContent = new Date().toLocaleTimeString() + ' - ' + m + '\n' + lg.textContent;
-    }
+                <div id="room-selection-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                        <div class="mt-3">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Select Room</h3>
+                            <div id="room-selection-list" class="space-y-2 max-h-96 overflow-y-auto">
+                                </div>
+                            <div class="mt-4">
+                                <button id="close-room-modal" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    // CSV parser (simple)
-    function parseCSVText(text){
-      // try split lines, detect delimiter
-      const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>0);
-      if(lines.length===0) return [];
-      // detect delimiter from first line
-      const first = lines[0];
-      const delim = first.includes(',') ? ',' : (first.includes('\t') ? '\t' : ',');
-      const cols = lines.map(l=>l.split(delim).map(c=>c.trim()));
-      // If header row contains Reg or RegNo, drop it
-      let start = 0;
-      const header = cols[0].map(c=>c.toLowerCase());
-      if(header.some(h=>h.includes('reg'))||header.some(h=>h.includes('roll'))||header.some(h=>h.includes('name'))){start=1}
-      const mapped = [];
-      for(let i=start;i<cols.length;i++){
-        const row = cols[i];
-        if(row.length===0) continue;
-        const reg = row[0] || '';
-        const name = row[1] || '';
-        const dob = row[2] || '';
-        const course = row[3] || '';
-        if(!reg && !name) continue;
-        mapped.push({reg,name,dob,course});
-      }
-      return mapped;
-    }
+                <div id="allotted-rooms-section" class="mb-6 hidden">
+                    <h3 class="text-lg font-medium text-gray-900 mb-3">Allotted Rooms:</h3>
+                    <div id="allotted-rooms-list" class="space-y-3">
+                        </div>
+                </div>
 
-    // File input
-    el('fileInput').addEventListener('change', e=>{
-      const f = e.target.files[0];
-      if(!f) return;
-      const reader = new FileReader();
-      reader.onload = function(ev){ el('rawData').value = ev.target.result; log('Loaded file: '+f.name); }
-      reader.readAsText(f);
-    });
+                <div id="save-allotment-section" class="hidden">
+                    <button id="save-room-allotment-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-green-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-green-700">
+                        Save Room Allotment
+                    </button>
+                    <div id="room-allotment-status" class="text-sm text-green-600 font-medium text-center h-5 mt-2"></div>
+                </div>
+            </div>
+            
+            <div id="room-allotment-loader" class="text-center text-gray-600">
+                <p>Please run a data extraction or load a corrected CSV to enable this feature.</p>
+            </div>
 
-    // Parse button
-    el('parseBtn').addEventListener('click', ()=>{
-      const text = el('rawData').value.trim();
-      if(!text){ alert('Paste or upload CSV/TSV data first'); return; }
-      students = parseCSVText(text);
-      renderStudents();
-      log('Parsed '+students.length+' students');
-    });
+        </div>
+    </div>
 
-    el('pasteBtn').addEventListener('click', ()=>{ el('rawData').focus(); alert('Paste your CSV/TSV content into the text area and click Parse Students'); });
-    el('clearStudents').addEventListener('click', ()=>{ if(confirm('Clear parsed students?')){ students=[]; renderStudents(); localStorage.removeItem(studentsKey); log('Cleared students'); }});
 
-    function renderStudents(){
-      el('studentCount').textContent = students.length;
-      const pv = el('studentsPreview');
-      if(students.length===0){ pv.textContent='No students parsed yet.'; return; }
-      const rows = students.slice(0,300).map(s=>s.reg+ ' — ' + s.name + (s.course? (' ('+s.course+')') : '')); // limit preview
-      pv.textContent = rows.join('\n');
-    }
+    <div id="report-controls" class="container max-w-2xl mx-auto p-4 bg-gray-100 rounded-lg hidden">
+        <span id="report-status" class="text-sm font-medium text-gray-700"></span>
+        <div class="flex flex-wrap gap-2 mt-2">
+            <button id="final-print-button" class="flex-1 inline-flex justify-center items-center rounded-md border border-transparent bg-green-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-green-700">
+                Print Report (Browser)
+            </button>
+            <button id="clear-report-button" class="flex-1 inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+                Clear Report
+            </button>
+            <div id="room-csv-download-container" class="w-full mt-2"></div>
+        </div>
+    </div>
 
-    el('saveStudents').addEventListener('click', ()=>{ localStorage.setItem(studentsKey, JSON.stringify(students)); log('Saved '+students.length+' students to localStorage'); alert('Saved'); });
-    el('downloadStudents').addEventListener('click', ()=>{ if(students.length===0){alert('No students');return;} downloadCSV(studentsToCsv(), 'students_export.csv'); });
 
-    function studentsToCsv(){
-      const lines = ['RegNo,Name,DOB,Course'];
-      students.forEach(s=> lines.push([escapeCsv(s.reg),escapeCsv(s.name),escapeCsv(s.dob),escapeCsv(s.course)].join(',')));
-      return lines.join('\n');
-    }
-    function escapeCsv(v){ if(v==null) return ''; return '"'+String(v).replace(/"/g,'""')+'"'; }
+    <div id="report-output-area" class- ="mt-6 w-full" style="display: none;">
+        </div>
+    
+    <div id="json-data-store" class="hidden"></div>
+    <div id="q-paper-data-store" class="hidden"></div>
 
-    function downloadCSV(text, filename){
-      const blob = new Blob([text], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-      log('Downloaded '+filename);
-    }
 
-    // Rooms
-    el('addRoomBtn').addEventListener('click', ()=>{ addRoom(); renderRooms(); });
-    el('clearRooms').addEventListener('click', ()=>{ if(confirm('Clear rooms?')){ rooms=[]; saveRooms(); renderRooms(); log('Cleared rooms'); }});
-    el('applyDefault').addEventListener('click', ()=>{ const v = parseInt(el('defaultCapacity').value); if(!v||v<1){alert('Enter positive capacity');return;} rooms.forEach(r=>{ if(!r.capacity) r.capacity=v }); saveRooms(); renderRooms(); log('Applied default capacity'); });
+    <py-config>
+        packages = ["pandas", "pdfplumber==0.9.0"]
+    </py-config>
+    
+    <py-script src="main.py"></py-script>
 
-    function addRoom(name='Room '+(rooms.length+1), cap=30){ rooms.push({id:Date.now()+''+Math.random().toString(36).slice(2,6), name:name, capacity:cap}); saveRooms(); }
-    function saveRooms(){ localStorage.setItem(roomsKey, JSON.stringify(rooms)); }
+    <script src="app.js" defer></script>
 
-    function renderRooms(){ const root = el('roomsList'); if(rooms.length===0){ root.innerHTML = '<div class="muted">No rooms yet — click Add Room</div>'; return; }
-      let html = '<table><thead><tr><th>Name</th><th>Capacity</th><th>Actions</th></tr></thead><tbody>';
-      rooms.forEach((r,idx)=>{
-        html += `<tr data-idx="${idx}"><td><input data-idx="${idx}" data-field="name" value="${escapeHtml(r.name)}" /></td><td><input data-idx="${idx}" data-field="capacity" type="number" min="1" value="${r.capacity||''}" style="width:110px" /></td><td><button data-action="remove" data-idx="${idx}" class="ghost small">Remove</button></td></tr>`;
-      });
-      html += '</tbody></table>';
-      root.innerHTML = html;
-      // hook inputs and buttons
-      root.querySelectorAll('input[data-field]').forEach(inp=>{
-        inp.addEventListener('change', (e)=>{
-          const i = parseInt(e.target.dataset.idx); const f = e.target.dataset.field; const v = e.target.value;
-          if(f==='capacity') rooms[i].capacity = parseInt(v)||0; else rooms[i].name = v; saveRooms(); renderRooms();
-        });
-      });
-      root.querySelectorAll('button[data-action=remove]').forEach(b=>{
-        b.addEventListener('click', (ev)=>{ const i = parseInt(ev.target.dataset.idx); if(confirm('Remove room '+rooms[i].name+' ?')){ rooms.splice(i,1); saveRooms(); renderRooms(); log('Removed room'); }});
-      });
-    }
-
-    function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-    // Load previously saved
-    function loadFromStorage(){
-      try{
-        const sd = localStorage.getItem(studentsKey); if(sd) students = JSON.parse(sd);
-        const rd = localStorage.getItem(roomsKey); if(rd) rooms = JSON.parse(rd);
-        const ad = localStorage.getItem(assignmentsKey); if(ad) assignments = JSON.parse(ad);
-      }catch(e){ console.warn('load err',e); }
-      renderStudents(); renderRooms(); renderAssignments();
-    }
-    loadFromStorage();
-
-    // Assignment algorithm: sequential fill by rooms order
-    el('autoAssignBtn').addEventListener('click', ()=>{
-      if(students.length===0){alert('No students');return;} if(rooms.length===0){alert('No rooms');return;}
-      // build list of seats [roomId repeated capacity]
-      let seats=[];
-      rooms.forEach(r=>{
-        const cap = parseInt(r.capacity) || 0;
-        for(let i=0;i<cap;i++) seats.push(r.id);
-      });
-      if(seats.length < students.length){ if(!confirm('Total seats ('+seats.length+') < students ('+students.length+'). Continue (excess students will be unassigned)?')){return;} }
-      assignments = {};
-      // simple fill: students in order -> seats order
-      for(let i=0;i<students.length;i++){
-        const seatRoom = seats[i];
-        if(!seatRoom) break;
-        if(!assignments[seatRoom]) assignments[seatRoom]=[];
-        assignments[seatRoom].push(i);
-      }
-      localStorage.setItem(assignmentsKey, JSON.stringify(assignments));
-      renderAssignments(); log('Auto-assigned '+Object.values(assignments).reduce((a,b)=>a+b.length,0)+' students');
-    });
-
-    el('clearAssign').addEventListener('click', ()=>{ if(confirm('Clear assignments?')){ assignments={}; localStorage.removeItem(assignmentsKey); renderAssignments(); log('Cleared assignments'); }});
-
-    function renderAssignments(){ const at = el('assignTable'); if(Object.keys(assignments).length===0){ at.textContent='No assignments yet.'; return; }
-      let html = '<table><thead><tr><th>Room</th><th>Capacity</th><th>Assigned</th></tr></thead><tbody>';
-      rooms.forEach(r=>{
-        const arr = assignments[r.id] || [];
-        html += `<tr><td>${escapeHtml(r.name)}</td><td>${r.capacity||0}</td><td>${arr.length}</td></tr>`;
-      });
-      html += '</tbody></table><hr />';
-      // detailed list
-      for(const r of rooms){ const arr = assignments[r.id] || []; if(arr.length===0) continue;
-        html += `<div style="margin-bottom:12px"><strong>${escapeHtml(r.name)} — ${arr.length} students</strong><div style="font-size:13px;margin-top:6px">`;
-        html += '<table><thead><tr><th>RegNo</th><th>Name</th><th>Course</th></tr></thead><tbody>';
-        arr.forEach(idx=>{ const s = students[idx]; html += `<tr><td>${escapeHtml(s.reg)}</td><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.course||'')}</td></tr>`; });
-        html += '</tbody></table></div></div>';
-      }
-      at.innerHTML = html;
-    }
-
-    // Export assignments
-    el('exportAssignments').addEventListener('click', ()=>{
-      if(Object.keys(assignments).length===0){alert('No assignments');return;}
-      // build rows with room,reg,name,dob,course
-      const lines=['Room,RegNo,Name,DOB,Course'];
-      rooms.forEach(r=>{
-        const arr = assignments[r.id] || [];
-        arr.forEach(idx=>{ const s = students[idx]; lines.push([escapeCsv(r.name),escapeCsv(s.reg),escapeCsv(s.name),escapeCsv(s.dob),escapeCsv(s.course)].join(',')); });
-      });
-      downloadCSV(lines.join('\n'), 'assignments.csv');
-    });
-
-    // Print report
-    el('printReport').addEventListener('click', ()=>{
-      if(Object.keys(assignments).length===0){alert('No assignments');return;}
-      const w = window.open('','_blank');
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Room Report</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}th,td{padding:6px;border:1px solid #ddd;text-align:left}</style></head><body><h2>Room Assignments</h2>${el('assignTable').innerHTML}</body></html>`;
-      w.document.write(html); w.document.close(); w.focus();
-    });
-
-    // Utility: convert students into CSV and download helper used earlier
-
-    // Load saved on start
-
-    // small helper to generate sample data
-    function generateSample(){
-      students = [];
-      for(let i=1;i<=120;i++){ students.push({reg:'REG'+String(1000+i), name:'Student '+i, dob:'01-01-2002', course: (i%2==0? 'BSc' : 'BA')}); }
-      rooms = [];
-      for(let r=1;r<=6;r++) rooms.push({id:'R'+r, name:'Room '+r, capacity:20});
-      renderStudents(); renderRooms(); log('Generated sample data (120 students, 6 rooms)');
-    }
-
-    // small helpers for CSV
-    function escapeCsv(v){ if(v==null) return ''; return '"'+String(v).replace(/"/g,'""')+'"'; }
-
-    // detect drag-and-drop paste of CSV content into textarea (support file paste)
-    document.addEventListener('paste', (e)=>{
-      const items = e.clipboardData && e.clipboardData.items;
-      if(!items) return;
-      for(const it of items){ if(it.kind==='file'){
-        const f = it.getAsFile(); const reader = new FileReader(); reader.onload = ev=>{ el('rawData').value = ev.target.result; log('Pasted file content'); } ; reader.readAsText(f);
-      }}
-    });
-
-    // handle sample generation (double-click title for power-user)
-    document.querySelector('h1').addEventListener('dblclick', ()=>{ if(confirm('Generate sample data?')){ generateSample(); }});
-
-  </script>
 </body>
 </html>
