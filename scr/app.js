@@ -573,7 +573,7 @@ generateReportButton.addEventListener('click', async () => {
                 <table class="print-table">
                     <thead>
                         <tr>
-                            <th class="sl-col">Sl No</th>
+                            <th class="sl-col">Seat No</th>
                             <th class="course-col">Course (QP Code)</th>
                             <th class="reg-col">Register Number</th>
                             <th class="name-col">Name</th>
@@ -609,7 +609,8 @@ generateReportButton.addEventListener('click', async () => {
                 let rowsHtml = '';
                 studentList.forEach((student) => { 
                     // *** FIX: Add asterisk to Sl. No. ***
-                    const studentNumber = student.isPlaceholder ? `${student.originalIndex + 1}*` : student.originalIndex + 1;
+                    const seatNumber = student.originalIndex + 1;
+                    const asterisk = student.isPlaceholder ? '*' : '';
                     
                     // *** NEW: Get QP Code ***
                     const sessionKey = `${student.Date} | ${student.Time}`;
@@ -634,7 +635,7 @@ generateReportButton.addEventListener('click', async () => {
                     const remarkText = student.remark || ''; // Get remark or empty string
                     rowsHtml += `
                         <tr ${rowClass}>
-                            <td class="sl-col">${studentNumber}</td>
+                            <td class="sl-col">${seatNumber}${asterisk}</td>
                             <td class="course-col">${displayCourseName}</td>
                             <td class="reg-col">${student['Register Number']}</td>
                             <td class="name-col">${student.Name}</td>
@@ -651,8 +652,8 @@ generateReportButton.addEventListener('click', async () => {
                 originalIndex: index 
             }));
             
-            const studentsPage1 = studentsWithIndex.slice(0, studentsPerPage);
-            const studentsPage2 = studentsWithIndex.slice(studentsPerPage);
+            const studentsPage1 = studentsWithIndex.slice(0, 20); // Keep 20 per page for A4 portrait
+            const studentsPage2 = studentsWithIndex.slice(20);
 
             previousCourseName = ""; 
             const tableRowsPage1 = generateTableRows(studentsPage1);
@@ -783,8 +784,8 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         // 7. Build the HTML
         let allPagesHtml = '';
         let totalPagesGenerated = 0;
-        // V77: Updated for better fit (35 per column)
-        const STUDENTS_PER_COLUMN = 35; 
+        // *** FIX: Changed to 50 rows per column ***
+        const STUDENTS_PER_COLUMN = 50; 
         const COLUMNS_PER_PAGE = 2; 
         const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
 
@@ -820,19 +821,23 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 
                 // *** NEW: Style for scribe ***
                 const rowStyle = student.isScribe ? 'font-weight: bold; color: #c2410c;' : '';
+                
+                // *** FIX: Change Sl to Seat No ***
+                const seatNo = student.slNoInRoom; 
 
                 rowsHtml += `
                     <tr style="${rowStyle}">
                         <td>${student['Register Number']}</td>
                         <td>${student.Name}</td>
                         <td>${displayRoom}</td>
-                        <td style="text-align: center;">${student.slNoInRoom}</td>
+                        <td style="text-align: center;">${seatNo}</td>
                     </tr>
                 `;
             });
 
             // (V30) Updated table header to remove Course
             // (V32) Updated widths
+            // *** FIX: Changed Sl to Seat No ***
             return `
                 <table class="daywise-report-table">
                     <thead>
