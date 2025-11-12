@@ -95,24 +95,6 @@
     color: #0e7490; /* cyan-700 */
 }
 
-/* *** NEW SCRIBE BUTTON COLORS *** */
-#nav-scribe-settings {
-    background-color: #f97316; /* orange-600 */
-}
-#nav-scribe-settings.nav-button-active {
-    background-color: #ffedd5; /* orange-100 */
-    color: #c2410c; /* orange-700 */
-}
-
-#nav-scribe-allotment {
-    background-color: #0d9488; /* teal-600 */
-}
-#nav-scribe-allotment.nav-button-active {
-    background-color: #ccfbf1; /* teal-100 */
-    color: #115e59; /* teal-700 */
-}
-/* ****************************** */
-
 
 /* --- PRINT STYLES --- */
 @media print {
@@ -129,12 +111,7 @@
     }
 
     /* Hide the main app container and all other non-report elements */
-    #main-nav, #view-extractor, #view-settings, #view-reports, #view-absentees, #view-qpcodes, 
-    #view-room-settings, #view-room-allotment, 
-    /* *** NEW: Hide scribe views *** */
-    #view-scribe-settings, #view-scribe-allotment, #scribe-room-modal,
-    /* *************************** */
-    body > py-config, body > py-script, #report-controls {
+    #main-nav, #view-extractor, #view-settings, #view-reports, #view-absentees, #view-qpcodes, #view-room-settings, #view-room-allotment, body > py-config, body > py-script, #report-controls {
         display: none !important; /* Be forceful */
     }
     
@@ -254,15 +231,11 @@
         break-before: avoid;
     }
 
-    /* --- Room-wise Seating Report Columns (w/ Remarks) --- */
-    /* *** UPDATED WIDTHS *** */
     .sl-col { width: 5%; }
-    .course-col { width: 30%; } /* Increased */
-    .reg-col { width: 15%; } /* Reduced */
-    .name-col { width: 25%; } /* Reduced */
+    .course-col { width: 30%; } 
+    .reg-col { width: 20%; }
+    .name-col { width: 35%; }
     .signature-col { width: 10%; } 
-    .remarks-col { width: 15%; } /* Increased */
-    /* --- --- */
 
     /* --- Question Paper Report Table Styles --- */
     .q-paper-table .sl-col { width: 10%; }
@@ -351,27 +324,6 @@
         border-top: 1px solid black;
         padding-top: 4px;
     }
-    
-    /* *** NEW: Scribe Report Styles (Print) *** */
-    .scribe-report-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 9pt;
-        margin-top: 1rem;
-        break-before: avoid;
-    }
-    .scribe-report-table th,
-    .scribe-report-table td {
-        border: 1px solid #000;
-        padding: 5px;
-        text-align: left;
-        vertical-align: top;
-    }
-    .scribe-report-table th {
-        background-color: #eee;
-        font-weight: bold;
-    }
-    /* ************************************** */
 }
 /* --- END PRINT STYLES --- */
 
@@ -431,7 +383,7 @@
     border: 1px solid #ccc;
     text-align: left;
 }
-        
+
 /* (V28) Style for new location header */
 .report-location-header {
     font-size: 12pt;
@@ -442,7 +394,7 @@
     border-bottom: 1px solid #ccc;
     padding-bottom: 0.5rem;
 }
-        
+
 .print-page table {
     width: 100%;
     border-collapse: collapse;
@@ -458,29 +410,25 @@
     padding: 8px 3px;
     background-color: #eee;
 }
-        
-/* --- Room-wise Seating Report Columns (w/ Remarks) --- */
-/* *** UPDATED WIDTHS *** */
+
 .print-page .sl-col { width: 5%; }
-.print-page .course-col { width: 30%; } /* Increased */
-.print-page .reg-col { width: 15%; } /* Reduced */
-.print-page .name-col { width: 25%; } /* Reduced */
+.print-page .course-col { width: 30%; } 
+.print-page .reg-col { width: 20%; }
+.print-page .name-col { width: 35%; }
 .print-page .signature-col { width: 10%; } 
-.print-page .remarks-col { width: 15%; } /* Increased */
-/* --- --- */
 
 /* --- Question Paper Report Table Styles --- */
 .print-page .q-paper-table .sl-col { width: 10%; }
 .print-page .q-paper-table .course-col { width: 70%; }
 .print-page .q-paper-table .count-col { width: 20%; }
 .print-page .q-paper-table tfoot td { font-weight: bold; }
-        
+
 /* --- (V29) Day-wise Report Styles --- */
 /* V89: This applies on-screen too, which is fine */
 .print-header-group {
     break-inside: avoid;
 }
-        
+
 .print-page-daywise h1 { font-size: 14pt; }
 .print-page-daywise h2 { font-size: 12pt; margin-bottom: 0.5rem; }
 .print-page-daywise .column-container {
@@ -508,7 +456,7 @@
 .daywise-report-table th {
     background: #f0f0f0;
 }
-        
+
 /* --- (V56) Absentee Report Styles --- */
 .absentee-report-table {
     width: 100%;
@@ -550,26 +498,6 @@
     border-top: 1px solid black;
     padding-top: 4px;
 }
-
-/* *** NEW: Scribe Report Styles (On-screen) *** */
-.scribe-report-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 9pt;
-    margin-top: 1rem;
-}
-.scribe-report-table th,
-.scribe-report-table td {
-    border: 1px solid #000;
-    padding: 5px;
-    text-align: left;
-    vertical-align: top;
-}
-.scribe-report-table th {
-    background-color: #eee;
-    font-weight: bold;
-}
-/* ***************************************** */
 
 /* --- (V56) Autocomplete Styles --- */
 .autocomplete-container {
