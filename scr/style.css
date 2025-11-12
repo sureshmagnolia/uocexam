@@ -255,12 +255,13 @@
     }
 
     /* --- Room-wise Seating Report Columns (w/ Remarks) --- */
+    /* *** UPDATED WIDTHS *** */
     .sl-col { width: 5%; }
-    .course-col { width: 25%; } /* Adjusted */
-    .reg-col { width: 20%; }
-    .name-col { width: 30%; } /* Adjusted */
+    .course-col { width: 30%; } /* Increased */
+    .reg-col { width: 15%; } /* Reduced */
+    .name-col { width: 25%; } /* Reduced */
     .signature-col { width: 10%; } 
-    .remarks-col { width: 10%; } /* New */
+    .remarks-col { width: 15%; } /* Increased */
     /* --- --- */
 
     /* --- Question Paper Report Table Styles --- */
@@ -459,12 +460,13 @@
 }
         
 /* --- Room-wise Seating Report Columns (w/ Remarks) --- */
+/* *** UPDATED WIDTHS *** */
 .print-page .sl-col { width: 5%; }
-.print-page .course-col { width: 25%; } /* Adjusted */
-.print-page .reg-col { width: 20%; }
-.print-page .name-col { width: 30%; } /* Adjusted */
+.print-page .course-col { width: 30%; } /* Increased */
+.print-page .reg-col { width: 15%; } /* Reduced */
+.print-page .name-col { width: 25%; } /* Reduced */
 .print-page .signature-col { width: 10%; } 
-.print-page .remarks-col { width: 10%; } /* New */
+.print-page .remarks-col { width: 15%; } /* Increased */
 /* --- --- */
 
 /* --- Question Paper Report Table Styles --- */
