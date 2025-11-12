@@ -254,11 +254,14 @@
         break-before: avoid;
     }
 
+    /* --- Room-wise Seating Report Columns (w/ Remarks) --- */
     .sl-col { width: 5%; }
-    .course-col { width: 30%; } 
+    .course-col { width: 25%; } /* Adjusted */
     .reg-col { width: 20%; }
-    .name-col { width: 35%; }
+    .name-col { width: 30%; } /* Adjusted */
     .signature-col { width: 10%; } 
+    .remarks-col { width: 10%; } /* New */
+    /* --- --- */
 
     /* --- Question Paper Report Table Styles --- */
     .q-paper-table .sl-col { width: 10%; }
@@ -455,12 +458,15 @@
     background-color: #eee;
 }
         
+/* --- Room-wise Seating Report Columns (w/ Remarks) --- */
 .print-page .sl-col { width: 5%; }
-.print-page .course-col { width: 30%; } 
+.print-page .course-col { width: 25%; } /* Adjusted */
 .print-page .reg-col { width: 20%; }
-.print-page .name-col { width: 35%; }
+.print-page .name-col { width: 30%; } /* Adjusted */
 .print-page .signature-col { width: 10%; } 
-        
+.print-page .remarks-col { width: 10%; } /* New */
+/* --- --- */
+
 /* --- Question Paper Report Table Styles --- */
 .print-page .q-paper-table .sl-col { width: 10%; }
 .print-page .q-paper-table .course-col { width: 70%; }
