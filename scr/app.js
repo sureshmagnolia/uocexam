@@ -284,44 +284,39 @@ function getRoomCapacitiesFromStorage() {
     return { roomNames, roomCapacities };
 }
 
-// --- (V29) Central Allocation Function (to be used by multiple reports) ---
-function performRoomAllocation(data) {
+// --- *** NEW CENTRAL ALLOCATION FUNCTION *** ---
+// This function performs the *original* (non-scribe) allotment and assigns
+// a definitive seat number to every student.
+function performOriginalAllocation(data) {
     // 1. Get CURRENT room capacities
     const { roomNames: masterRoomNames, roomCapacities: masterRoomCaps } = getRoomCapacitiesFromStorage();
     
     // 2. Check for manual room allotments
     const allAllotments = JSON.parse(localStorage.getItem(ROOM_ALLOTMENT_KEY) || '{}');
 
-    // *** NEW: Load Scribe Allotments ***
-    const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+    // 3. Get Scribe List (to exclude them from auto-allotment)
+    loadGlobalScribeList(); // Populates globalScribeList
+    const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
     
-    // 3. Perform Room Allocation
+    // 4. Perform Room Allocation
     const processed_rows_with_rooms = [];
-    const sessionRoomFills = {};
+    const sessionRoomFills = {}; // Tracks { "Room 1": 0, "Room 2": 0 }
+    const sessionRoomStudentCount = {}; // Tracks { "Room 1": 0, "Room 2": 0 } for seat number
     const DEFAULT_OVERFLOW_CAPACITY = 30;
     
     for (const row of data) {
         const sessionKey = `${row.Date}_${row.Time}`;
-        const sessionKeyPipe = `${row.Date} | ${row.Time}`; // Format used in allotment storage
+        const sessionKeyPipe = `${row.Date} | ${row.Time}`;
         
         let assignedRoomName = "";
-        let isScribe = false; // <-- NEW
-
-        // *** NEW: 3a. Check for Scribe Allotment FIRST ***
-        const sessionScribeAllotment = allScribeAllotments[sessionKeyPipe] || {};
-        const scribeRoom = sessionScribeAllotment[row['Register Number']];
-        if (scribeRoom) {
-            assignedRoomName = scribeRoom;
-            isScribe = true;
-            processed_rows_with_rooms.push({ ...row, 'Room No': assignedRoomName, 'isScribe': isScribe });
-            continue; // This student is done, skip other allotment logic
-        }
-        // ***********************************************
         
-        // 3b. Check if manual allotment exists for this session
+        // 4a. Check if student is a scribe. They get allotted, but NOT counted
+        // in the main room fills for *this* step.
+        const isScribe = scribeRegNos.has(row['Register Number']);
+        
+        // 4b. Check if manual allotment exists for this session
         const manualAllotment = allAllotments[sessionKeyPipe];
         if (manualAllotment && manualAllotment.length > 0) {
-            // Use manual allotment
             for (const room of manualAllotment) {
                 if (room.students.includes(row['Register Number'])) {
                     assignedRoomName = room.roomName;
@@ -330,7 +325,7 @@ function performRoomAllocation(data) {
             }
         }
         
-        // 3c. If no manual allotment, use automatic allocation
+        // 4c. If no manual allotment, use automatic allocation
         if (assignedRoomName === "") {
             if (!sessionRoomFills[sessionKey]) {
                 sessionRoomFills[sessionKey] = new Array(masterRoomCaps.length).fill(0);
@@ -341,8 +336,11 @@ function performRoomAllocation(data) {
             // Try to fill configured rooms
             for (let i = 0; i < masterRoomCaps.length; i++) {
                 if (currentFills[i] < masterRoomCaps[i]) {
-                    currentFills[i]++;
                     assignedRoomName = masterRoomNames[i];
+                    // *** ONLY increment fill count if NOT a scribe ***
+                    if (!isScribe) {
+                        currentFills[i]++;
+                    }
                     break;
                 }
             }
@@ -352,8 +350,10 @@ function performRoomAllocation(data) {
                 let foundOverflowSpot = false;
                 for (let i = masterRoomCaps.length; i < currentFills.length; i++) {
                     if (currentFills[i] < DEFAULT_OVERFLOW_CAPACITY) {
-                        currentFills[i]++;
                         assignedRoomName = `Room ${i + 1}`;
+                        if (!isScribe) {
+                            currentFills[i]++;
+                        }
                         foundOverflowSpot = true;
                         break;
                     }
@@ -361,16 +361,38 @@ function performRoomAllocation(data) {
                 
                 // If no existing overflow has space, create a *new* overflow
                 if (!foundOverflowSpot) {
-                    currentFills.push(1); 
                     assignedRoomName = `Room ${currentFills.length}`;
+                    if (!isScribe) {
+                        currentFills.push(1); 
+                    } else {
+                         currentFills.push(0); // Add the room, but don't fill it
+                    }
                 }
             }
         }
         
-        processed_rows_with_rooms.push({ ...row, 'Room No': assignedRoomName, 'isScribe': isScribe });
+        // 4d. Assign the *original* seat number
+        const roomSessionKey = `${sessionKey}_${assignedRoomName}`;
+        if (!sessionRoomStudentCount[roomSessionKey]) {
+            sessionRoomStudentCount[roomSessionKey] = 0;
+        }
+        sessionRoomStudentCount[roomSessionKey]++;
+        const seatNumber = sessionRoomStudentCount[roomSessionKey];
+
+        processed_rows_with_rooms.push({ 
+            ...row, 
+            'Room No': assignedRoomName,
+            'seatNumber': seatNumber, // This is the key: e.g., 1, 2, 3...
+            'isScribe': isScribe 
+        });
     }
     return processed_rows_with_rooms;
 }
+
+// *** THIS IS THE OLD performRoomAllocation. IT'S NO LONGER NEEDED ***
+// We now use performOriginalAllocation and modify its output.
+// function performRoomAllocation(data) { ... }
+
 
 // V68: Helper function to filter data based on selected report filter
 function getFilteredReportData(reportType) {
@@ -419,84 +441,22 @@ generateReportButton.addEventListener('click', async () => {
             return;
         }
         
-        // 2. Perform "Original" Room Allocation (This function now IGNORES scribes)
-        // *** We need a version of allocation that does NOT know about scribes ***
-        // Let's create a temporary copy for this report
-        const performOriginalAllocation = (data) => {
-            const { roomNames: masterRoomNames, roomCapacities: masterRoomCaps } = getRoomCapacitiesFromStorage();
-            const allAllotments = JSON.parse(localStorage.getItem(ROOM_ALLOTMENT_KEY) || '{}');
-            const processed_rows_with_rooms = [];
-            const sessionRoomFills = {};
-            const DEFAULT_OVERFLOW_CAPACITY = 30;
-            
-            for (const row of data) {
-                const sessionKey = `${row.Date}_${row.Time}`;
-                const sessionKeyPipe = `${row.Date} | ${row.Time}`;
-                let assignedRoomName = "";
-                
-                // Check manual allotment
-                const manualAllotment = allAllotments[sessionKeyPipe];
-                if (manualAllotment && manualAllotment.length > 0) {
-                    for (const room of manualAllotment) {
-                        if (room.students.includes(row['Register Number'])) {
-                            assignedRoomName = room.roomName;
-                            break;
-                        }
-                    }
-                }
-                
-                // Automatic allocation
-                if (assignedRoomName === "") {
-                    if (!sessionRoomFills[sessionKey]) {
-                        sessionRoomFills[sessionKey] = new Array(masterRoomCaps.length).fill(0);
-                    }
-                    const currentFills = sessionRoomFills[sessionKey];
-                    for (let i = 0; i < masterRoomCaps.length; i++) {
-                        if (currentFills[i] < masterRoomCaps[i]) {
-                            currentFills[i]++;
-                            assignedRoomName = masterRoomNames[i];
-                            break;
-                        }
-                    }
-                    if (assignedRoomName === "") {
-                        let foundOverflowSpot = false;
-                        for (let i = masterRoomCaps.length; i < currentFills.length; i++) {
-                            if (currentFills[i] < DEFAULT_OVERFLOW_CAPACITY) {
-                                currentFills[i]++;
-                                assignedRoomName = `Room ${i + 1}`;
-                                foundOverflowSpot = true;
-                                break;
-                            }
-                        }
-                        if (!foundOverflowSpot) {
-                            currentFills.push(1); 
-                            assignedRoomName = `Room ${currentFills.length}`;
-                        }
-                    }
-                }
-                processed_rows_with_rooms.push({ ...row, 'Room No': assignedRoomName });
-            }
-            return processed_rows_with_rooms;
-        };
-        
+        // 2. Get the ORIGINAL allocation with seat numbers
         const processed_rows_with_rooms = performOriginalAllocation(data);
 
         // *** NEW: Load scribe data and create final list ***
         const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
-        loadGlobalScribeList(); // Ensure globalScribeList is populated
-        const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
         
         const final_student_list_for_report = [];
         
         for (const student of processed_rows_with_rooms) {
-            const regNo = student['Register Number'];
-            if (scribeRegNos.has(regNo)) {
+            if (student.isScribe) {
                 // This is a scribe student. Find their allotted scribe room.
                 const sessionKeyPipe = `${student.Date} | ${student.Time}`;
                 const sessionScribeAllotment = allScribeAllotments[sessionKeyPipe] || {};
-                const scribeRoom = sessionScribeAllotment[regNo] || 'N/A';
+                const scribeRoom = sessionScribeAllotment[student['Register Number']] || 'N/A';
                 
-                // *** FIX: Add a 'remark' property instead of changing the name ***
+                // *** FIX: Add a 'remark' property ***
                 final_student_list_for_report.push({ 
                     ...student, 
                     Name: student.Name, // Keep original name
@@ -568,7 +528,7 @@ generateReportButton.addEventListener('click', async () => {
                     ${locationHtml} </div>
             `;
             
-            // *** FIX: Added Remarks Column Header, Swapped Remarks/Signature ***
+            // *** FIX: Changed "Sl No" to "Seat No" and swapped Remarks/Signature ***
             const tableHeaderHtml = `
                 <table class="print-table">
                     <thead>
@@ -608,8 +568,8 @@ generateReportButton.addEventListener('click', async () => {
             function generateTableRows(studentList) {
                 let rowsHtml = '';
                 studentList.forEach((student) => { 
-                    // *** FIX: Add asterisk to Sl. No. ***
-                    const seatNumber = student.originalIndex + 1;
+                    // *** FIX: Use student.seatNumber and add asterisk ***
+                    const seatNumber = student.seatNumber;
                     const asterisk = student.isPlaceholder ? '*' : '';
                     
                     // *** NEW: Get QP Code ***
@@ -651,10 +611,8 @@ generateReportButton.addEventListener('click', async () => {
                 return rowsHtml;
             }
             
-            const studentsWithIndex = session.students.map((student, index) => ({
-                ...student,
-                originalIndex: index 
-            }));
+            // *** FIX: Use student.seatNumber for sorting ***
+            const studentsWithIndex = session.students.sort((a, b) => a.seatNumber - b.seatNumber);
             
             const studentsPage1 = studentsWithIndex.slice(0, 20); // Keep 20 per page for A4 portrait
             const studentsPage2 = studentsWithIndex.slice(20);
@@ -697,339 +655,6 @@ generateReportButton.addEventListener('click', async () => {
     } finally {
         generateReportButton.disabled = false;
         generateReportButton.textContent = "Generate Room-wise Seating Report";
-    }
-});
-
-// --- (V29) Event listener for the "Day-wise Student List" button ---
-generateDaywiseReportButton.addEventListener('click', async () => {
-    generateDaywiseReportButton.disabled = true;
-    // V49: Button text updated
-    generateDaywiseReportButton.textContent = "Generating...";
-    reportOutputArea.innerHTML = "";
-    reportControls.classList.add('hidden');
-    roomCsvDownloadContainer.innerHTML = "";
-    lastGeneratedRoomData = []; // This report doesn't use the room CSV
-    lastGeneratedReportType = ""; // V91: Reset report type
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    try {
-        // *** V95 FIX: Refresh college name from local storage BEFORE generation ***
-        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
-        
-        // 1. Get FILTERED RAW student data
-        const data = getFilteredReportData('day-wise');
-
-        if (data.length === 0) {
-            alert("No data found for the selected filter/session.");
-            return;
-        }
-        
-        // 2. Perform Room Allocation (V29 - uses central function)
-        // *** THIS NOW CORRECTLY HANDLES SCRIBES AND SHOWS THEIR NEW ROOM ***
-        const processed_rows_with_rooms = performRoomAllocation(data);
-
-        // 3. Group by Room to get SL No.
-        const roomSessions = {};
-        processed_rows_with_rooms.forEach(student => {
-            const key = `${student.Date}_${student.Time}_${student['Room No']}`;
-            if (!roomSessions[key]) {
-                roomSessions[key] = {
-                    Date: student.Date,
-                    Time: student.Time,
-                    Room: student['Room No'],
-                    students: []
-                };
-            }
-            roomSessions[key].students.push(student);
-        });
-        
-        const daySessions = {}; // V72 FIX: Added definition here
-
-        // 4. Create new flat list with SlNoInRoom
-        let flatStudentList = [];
-        Object.values(roomSessions).forEach(roomSession => {
-            // *** NEW: Sort scribe students to the end of the room list ***
-            roomSession.students.sort((a, b) => {
-                if (a.isScribe && !b.isScribe) return 1;
-                if (!a.isScribe && b.isScribe) return -1;
-                return 0; // Keep original order otherwise
-            });
-            
-            roomSession.students.forEach((student, index) => {
-                flatStudentList.push({ 
-                    ...student, 
-                    slNoInRoom: student.isScribe ? 'Scribe' : index + 1, // <-- NEW
-                    roomName: roomSession.Room 
-                });
-            });
-        });
-        
-        // 5. Sort this new list by Date, Time, Course, then Register Number
-        flatStudentList.sort((a, b) => {
-            if (a.Date !== b.Date) return a.Date.localeCompare(b.Date);
-            if (a.Time !== b.Time) return a.Time.localeCompare(b.Time, 'en', { numeric: true }); // Handle 10:00 AM vs 2:00 PM
-            if (a.Course !== b.Course) return a.Course.localeCompare(b.Course);
-            return a['Register Number'].localeCompare(b['Register Number']);
-        });
-
-        // 6. Group this sorted list by Day/Session
-        flatStudentList.forEach(student => {
-            const key = `${student.Date}_${student.Time}`;
-            if (!daySessions[key]) {
-                daySessions[key] = {
-                    Date: student.Date,
-                    Time: student.Time,
-                    students: []
-                };
-            }
-            daySessions[key].students.push(student);
-        });
-        
-        // 7. Build the HTML
-        let allPagesHtml = '';
-        let totalPagesGenerated = 0;
-        // *** FIX: Changed to 50 rows per column ***
-        const STUDENTS_PER_COLUMN = 50; 
-        const COLUMNS_PER_PAGE = 2; 
-        const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
-
-        // (V30) Helper to build a table for a column, NOW WITH COURSE GROUPING
-        function buildColumnTable(studentChunk) {
-            let rowsHtml = '';
-            let currentCourse = ""; // Track the current course
-            let previousRoomDisplay = ""; // V48: Track previous room
-
-            studentChunk.forEach(student => {
-                // Check if the course has changed
-                if (student.Course !== currentCourse) {
-                    currentCourse = student.Course;
-                    previousRoomDisplay = ""; // V48: Reset for new course
-                    // Add a course heading row
-                    rowsHtml += `
-                        <tr>
-                            <td colspan="4" style="background-color: #ddd; font-weight: bold; padding: 4px 2px; border: 1px solid #999;">
-                                ${student.Course}
-                            </td>
-                        </tr>
-                    `;
-                }
-
-                // Add the student row
-                const roomInfo = currentRoomConfig[student.roomName];
-                const location = (roomInfo && roomInfo.location) ? roomInfo.location : "";
-                const roomDisplay = location ? `${student.roomName} (${location})` : student.roomName;
-
-                // V48: Check if same as above
-                const displayRoom = (roomDisplay === previousRoomDisplay) ? '"' : roomDisplay;
-                previousRoomDisplay = roomDisplay; // Update for next iteration
-                
-                // *** NEW: Style for scribe ***
-                const rowStyle = student.isScribe ? 'font-weight: bold; color: #c2410c;' : '';
-                
-                // *** FIX: Change Sl to Seat No ***
-                const seatNo = student.slNoInRoom; 
-
-                rowsHtml += `
-                    <tr style="${rowStyle}">
-                        <td>${student['Register Number']}</td>
-                        <td>${student.Name}</td>
-                        <td>${displayRoom}</td>
-                        <td style="text-align: center;">${seatNo}</td>
-                    </tr>
-                `;
-            });
-
-            // (V30) Updated table header to remove Course
-            // (V32) Updated widths
-            // *** FIX: Changed Sl to Seat No ***
-            return `
-                <table class="daywise-report-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 25%;">Register No</th>
-                            <th style="width: 35%;">Name</th>
-                            <th style="width: 30%;">Room (Location)</th>
-                            <th style="width: 10%;">Seat No</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rowsHtml}</tbody>
-                </table>
-            `;
-        }
-
-        const sortedSessionKeys = Object.keys(daySessions).sort();
-
-        sortedSessionKeys.forEach(key => {
-            const session = daySessions[key];
-            
-            for (let i = 0; i < session.students.length; i += STUDENTS_PER_PAGE) {
-                const pageStudents = session.students.slice(i, i + STUDENTS_PER_PAGE);
-                totalPagesGenerated++;
-                
-                // V92 FIX: For compact report, render as a single column for PDF export if many pages are needed.
-                const col1Students = pageStudents.slice(0, STUDENTS_PER_COLUMN);
-                const col2Students = pageStudents.slice(STUDENTS_PER_COLUMN); 
-                
-                // To ensure PDF doesn't break tables, we will manually merge the two columns if they exist.
-                // This allows the table to flow naturally and use the existing page break CSS rules.
-                // However, on-screen display still uses flex/columns via CSS.
-                
-                let columnHtml = '';
-                if (col1Students.length > 0 && col2Students.length === 0) {
-                    // Only column 1 needed
-                    columnHtml = `<div class="column">${buildColumnTable(col1Students)}</div>`;
-                } else if (col1Students.length > 0 && col2Students.length > 0) {
-                    // Two columns needed (default screen view). We use the container for display on screen,
-                    // but CSS print media handles how they break/flow for print.
-                    columnHtml = `
-                        <div class="column-container">
-                            <div class="column">
-                                ${buildColumnTable(col1Students)}
-                            </div>
-                            <div class="column">
-                                ${buildColumnTable(col2Students)}
-                            </div>
-                        </div>
-                    `;
-                }
-
-
-                allPagesHtml += `
-                    <div class="print-page print-page-daywise">
-                        <div class="print-header-group">
-                            <h1>Seating Details for Candidates</h1>
-                            <h2>${currentCollegeName} &nbsp;|&nbsp; ${session.Date} &nbsp;|&nbsp; ${session.Time}</h2>
-                        </div>
-                        ${columnHtml}
-                    </div>
-                `;
-            }
-        });
-
-        // 8. Show report and controls
-        reportOutputArea.innerHTML = allPagesHtml;
-        reportOutputArea.style.display = 'block'; 
-        reportStatus.textContent = `Generated ${totalPagesGenerated} compact pages for ${sortedSessionKeys.length} sessions.`;
-        reportControls.classList.remove('hidden');
-        roomCsvDownloadContainer.innerHTML = ""; // This report has no CSV
-        lastGeneratedReportType = "Daywise_Seating_Details"; // V91: Set report type
-
-    } catch (e) {
-        console.error("Error generating day-wise report:", e);
-        reportStatus.textContent = "An error occurred while generating the report.";
-        reportControls.classList.remove('hidden');
-    } finally {
-        generateDaywiseReportButton.disabled = false;
-        // V49: Button text updated
-        generateDaywiseReportButton.textContent = "Generate Seating Details for Candidates (Compact)";
-    }
-});
-        
-// --- V91: Event listener for "Generate Question Paper Report" (Added report type set) ---
-generateQPaperReportButton.addEventListener('click', async () => {
-    generateQPaperReportButton.disabled = true;
-    generateQPaperReportButton.textContent = "Generating...";
-    reportOutputArea.innerHTML = "";
-    reportControls.classList.add('hidden');
-    roomCsvDownloadContainer.innerHTML = "";
-    lastGeneratedReportType = ""; // V91: Reset report type
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    try {
-        // *** V95 FIX: Refresh college name from local storage BEFORE generation ***
-        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
-        
-        // V68: Get Filtered data
-        const filteredData = getFilteredReportData('q-paper');
-        
-        // Group the filtered data to generate the Q-Paper summary dynamically
-        const qPaperSummary = {};
-        filteredData.forEach(item => {
-            const key = `${item.Date}_${item.Time}`;
-            if (!qPaperSummary[key]) {
-                qPaperSummary[key] = { Date: item.Date, Time: item.Time, courses: {} };
-            }
-            const courseKey = item.Course;
-            if (!qPaperSummary[key].courses[courseKey]) {
-                qPaperSummary[key].courses[courseKey] = 0;
-            }
-            qPaperSummary[key].courses[courseKey]++;
-        });
-
-        const sessions = qPaperSummary;
-        
-        if (Object.keys(sessions).length === 0) {
-            alert("No question paper data found for the selected filter/session.");
-            return;
-        }
-        
-        let allPagesHtml = '';
-        let totalPages = 0;
-        const sortedSessionKeys = Object.keys(sessions).sort((a, b) => a.localeCompare(b));
-        
-        sortedSessionKeys.forEach(key => {
-            const session = sessions[key];
-            totalPages++;
-            let totalStudentsInSession = 0;
-            
-            let tableRowsHtml = '';
-            const sortedCourses = Object.keys(session.courses).sort();
-
-            sortedCourses.forEach((courseName, index) => {
-                const count = session.courses[courseName];
-                totalStudentsInSession += count;
-                tableRowsHtml += `
-                    <tr>
-                        <td class="sl-col">${index + 1}</td>
-                        <td class="course-col">${courseName}</td>
-                        <td class="count-col">${count}</td>
-                    </tr>
-                `;
-            });
-            
-            const pageHtml = `
-                <div class="print-page">
-                    <div class="print-header-group">
-                        <h1>${currentCollegeName}</h1> <h2>Question Paper Summary</h2>
-                        <h3>${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
-                    </div>
-                    
-                    <table class="q-paper-table print-table">
-                        <thead>
-                            <tr>
-                                <th class="sl-col">Sl No</th>
-                                <th class="course-col">Course Name</th>
-                                <th class="count-col">Student Count</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tableRowsHtml}
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="2" style="text-align: right;"><strong>Total Students</strong></td>
-                                <td class="count-col"><strong>${totalStudentsInSession}</strong></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            `;
-            allPagesHtml += pageHtml;
-        });
-        
-        reportOutputArea.innerHTML = allPagesHtml;
-        reportOutputArea.style.display = 'block'; 
-        reportStatus.textContent = `Generated ${totalPages} summary pages for ${sortedSessionKeys.length} sessions.`;
-        reportControls.classList.remove('hidden');
-        lastGeneratedReportType = "Question_Paper_Summary"; // V91: Set report type
-
-    } catch(e) {
-        console.error("Error generating Q-Paper report:", e);
-        reportStatus.textContent = "An error occurred generating the report.";
-        reportControls.classList.remove('hidden');
-    } finally {
-        generateQPaperReportButton.disabled = false;
-        generateQPaperReportButton.textContent = "Generate Question Paper Report";
     }
 });
 // *** NEW: Helper for Absentee Report ***
@@ -1233,56 +858,7 @@ generateScribeReportButton.addEventListener('click', async () => {
         const allScribeStudents = allData.filter(s => scribeRegNos.has(s['Register Number']));
         
         // 4. Get Original Room Allotments (by running the "original" allocation logic)
-        const performOriginalAllocation = (data) => {
-            const { roomNames: masterRoomNames, roomCapacities: masterRoomCaps } = getRoomCapacitiesFromStorage();
-            const allAllotments = JSON.parse(localStorage.getItem(ROOM_ALLOTMENT_KEY) || '{}');
-            const processed_rows = [];
-            const sessionRoomFills = {};
-            const DEFAULT_OVERFLOW_CAPACITY = 30;
-            for (const row of data) {
-                const sessionKey = `${row.Date}_${row.Time}`;
-                const sessionKeyPipe = `${row.Date} | ${row.Time}`;
-                let assignedRoomName = "";
-                const manualAllotment = allAllotments[sessionKeyPipe];
-                if (manualAllotment && manualAllotment.length > 0) {
-                    for (const room of manualAllotment) {
-                        if (room.students.includes(row['Register Number'])) {
-                            assignedRoomName = room.roomName;
-                            break;
-                        }
-                    }
-                }
-                if (assignedRoomName === "") {
-                    if (!sessionRoomFills[sessionKey]) sessionRoomFills[sessionKey] = new Array(masterRoomCaps.length).fill(0);
-                    const currentFills = sessionRoomFills[sessionKey];
-                    for (let i = 0; i < masterRoomCaps.length; i++) {
-                        if (currentFills[i] < masterRoomCaps[i]) {
-                            currentFills[i]++;
-                            assignedRoomName = masterRoomNames[i];
-                            break;
-                        }
-                    }
-                    if (assignedRoomName === "") {
-                        let foundOverflowSpot = false;
-                        for (let i = masterRoomCaps.length; i < currentFills.length; i++) {
-                            if (currentFills[i] < DEFAULT_OVERFLOW_CAPACITY) {
-                                currentFills[i]++;
-                                assignedRoomName = `Room ${i + 1}`;
-                                foundOverflowSpot = true;
-                                break;
-                            }
-                        }
-                        if (!foundOverflowSpot) {
-                            currentFills.push(1); 
-                            assignedRoomName = `Room ${currentFills.length}`;
-                        }
-                    }
-                }
-                processed_rows.push({ ...row, 'Room No': assignedRoomName });
-            }
-            return processed_rows;
-        };
-        const originalAllotments = performOriginalAllocation(allData);
+        const originalAllotments = performOriginalAllocation(allData); // Use the central function
         const originalRoomMap = originalAllotments.reduce((map, s) => {
             map[s['Register Number']] = s['Room No'];
             return map;
@@ -1542,6 +1118,59 @@ saveRoomConfigButton.addEventListener('click', () => {
         console.error("Error saving room config:", e);
     }
 });
+
+// --- (V79) Load data into dynamic form (in Settings) ---
+function loadRoomConfig() {
+    // V48: Load College Name
+    currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+    // *** V91 FIX: Populate the input field with the saved value ***
+    if (collegeNameInput) collegeNameInput.value = currentCollegeName; 
+    
+    // Load Room Config
+    let savedConfigJson = localStorage.getItem(ROOM_CONFIG_KEY);
+    let config;
+    
+    if (savedConfigJson) {
+        try {
+            config = JSON.parse(savedConfigJson);
+        } catch (e) {
+            console.error("Error parsing saved config, resetting.", e);
+            config = {};
+        }
+    } else {
+        config = {};
+    }
+    
+    // (V28) Store in global var for other functions to use
+    currentRoomConfig = config;
+    
+    if (Object.keys(config).length === 0) {
+        // *** (V27): Default to 30 rooms ***
+        console.log("Using default room config (30 rooms of 30)");
+        config = {};
+        for (let i = 1; i <= 30; i++) {
+            config[`Room ${i}`] = { capacity: 30, location: "" };
+        }
+        localStorage.setItem(ROOM_CONFIG_KEY, JSON.stringify(config));
+        currentRoomConfig = config; // Update global var
+    }
+    
+    // Populate the dynamic form
+    roomConfigContainer.innerHTML = ''; // Clear existing rows
+    const sortedKeys = Object.keys(config).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
+        return numA - numB;
+    });
+    
+    // V79: Add rows, determining if 'isLast' is true
+    sortedKeys.forEach((roomName, index) => {
+        const roomData = config[roomName];
+        const isLast = (index === sortedKeys.length - 1);
+        const rowHtml = createRoomRowHtml(roomName, roomData.capacity, roomData.location, isLast);
+        roomConfigContainer.insertAdjacentHTML('beforeend', rowHtml);
+    });
+}
 // --- (V79) Load data into dynamic form (in Settings) ---
 function loadRoomConfig() {
     // V48: Load College Name
@@ -1909,7 +1538,7 @@ function selectStudent(student) {
     
     // Perform allocation on the *entire* session
     // *** THIS NOW USES THE MAIN ALLOCATION, WHICH IS SCRIBE-AWARE ***
-    const allocatedSessionData = performRoomAllocation(sessionStudents);
+    const allocatedSessionData = performOriginalAllocation(sessionStudents);
     
     // Find our selected student in the allocated list
     const allocatedStudent = allocatedSessionData.find(s => s['Register Number'] === student['Register Number']);
@@ -1977,7 +1606,7 @@ function renderAbsenteeList() {
     // V81 FIX: Allocate rooms for the entire session first to get correct room numbers
     const [date, time] = sessionKey.split(' | ');
     const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
-    const allocatedSessionData = performRoomAllocation(sessionStudents);
+    const allocatedSessionData = performOriginalAllocation(sessionStudents);
     const allocatedMap = allocatedSessionData.reduce((map, s) => {
         map[s['Register Number']] = { room: s['Room No'], isScribe: s.isScribe }; // <-- NEW
         return map;
