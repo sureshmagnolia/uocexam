@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UOC Exam Management V10.0</title> <script src="https://cdn-tailwindcss.vercel.app/"></script>
+    <title>UOC Exam Management V10.1</title> <script src="https://cdn-tailwindcss.vercel.app/"></script>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -15,37 +15,38 @@
     
     <nav id="main-nav" class="bg-indigo-600 text-white sticky top-0 z-50 shadow-lg">
         <div id="top-banner" class="w-full bg-indigo-700 text-center py-2">
-            <h1 class="text-xl font-extrabold tracking-wider text-white">UOC Exam Management (V10.0)</h1>
+            <h1 class="text-xl font-extrabold tracking-wider text-white">UOC Exam Management (V10.1)</h1>
         </div>
         
         <div id="main-nav-tabs" class="container max-w-2xl mx-auto flex justify-center gap-2">
-            <button id="nav-extractor" class="nav-button nav-button-active">Main Extractor</button>
-            <button id="nav-settings" class="nav-button nav-button-inactive">Settings</button>
-            <button id="nav-room-settings" class="nav-button nav-button-inactive">Room Settings</button> 
-            <button id="nav-qpcodes" class="nav-button nav-button-inactive">QP Codes</button>
-            
-            <button id="nav-scribe-settings" class="nav-button nav-button-inactive">Scribe Settings</button>
-            <button id="nav-scribe-allotment" class="nav-button nav-button-inactive">Scribe Allotment</button>
+            <button id="nav-extractor" class="nav-button nav-button-active">Data</button>
+            <button id="nav-scribe-settings" class="nav-button nav-button-inactive">Scribe Assistance</button>
             <button id="nav-room-allotment" class="nav-button nav-button-inactive">Room Allotment</button>
+            <button id="nav-scribe-allotment" class="nav-button nav-button-inactive">Scribe Allotment</button>
+            <button id="nav-qpcodes" class="nav-button nav-button-inactive">QP Codes</button>
             <button id="nav-reports" class="nav-button nav-button-inactive">Reports</button>
             <button id="nav-absentees" class="nav-button nav-button-inactive">Absentees</button>
+            <button id="nav-settings" class="nav-button nav-button-inactive">Settings</button>
         </div>
     </nav>
 
     <div id="view-extractor" class="container max-w-2xl mx-auto p-4 min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full">
             
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">Data Extractor</h1>
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Data</h1>
 
             <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-md mb-6">
                 <h4 class="font-semibold text-gray-800">How to Use:</h4>
                 <ol class="list-decimal list-inside text-sm text-gray-700 mt-2 space-y-1">
-                    <li>Go to **Room Settings** and define capacities and locations. Save changes.</li>
+                    <li>Go to **Settings** and define Room Capacities and College Name. Save changes.</li>
                     <li>Click 'Select PDF Files' and choose 1 or 100+ PDF files.</li>
                     <li>Click 'Run Batch Extraction'. Check the **Status Log** for errors.</li>
-                    <li>Click 'Download Combined_Nominal_Roll.csv' for raw data.</li>
-                    <li>(Optional) Go to **QP Codes** to assign codes to each course.</li>
-                    <li>Go to **Reports** to generate seating lists, day-wise lists, and question paper counts.</li>
+                    <li>(Optional) Download the CSV, correct any mistakes, and re-upload it using the "Load Corrected Data" option. This will be your new base data.</li>
+                    <li>Go to **Scribe Assistance** to mark any students who need it.</li>
+                    <li>Go to **Room Allotment** for manual allotment (if needed).</li>
+                    <li>Go to **Scribe Allotment** to assign special rooms.</li>
+                    <li>Go to **QP Codes** to assign codes to each course.</li>
+                    <li>Go to **Reports** to generate seating lists, scribe lists, and QP counts.</li>
                     <li>Go to **Absentees** to mark absentees and generate the final statement.</li>
                 </ol>
             </div>
@@ -106,10 +107,41 @@
     
     <div id="view-settings" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full">
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">General Settings</h1>
-            
-            <div class="bg-red-50 border border-red-200 p-4 rounded-lg mb-6">
-                 <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Application Settings</h1>
+
+            <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
+                    Room Capacity & Location
+                </h2>
+                <p class="text-gray-600 mb-4">
+                    Define the number of students per room. This list is automatically saved to your browser.
+                    If a capacity is left blank, it will default to 30 when saved.
+                </p>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3 px-2">
+                        <label class="font-semibold text-gray-700 w-24 shrink-0">Room Name</label>
+                        <label class="font-semibold text-gray-700 w-20">Capacity</label>
+                        <label class="font-semibold text-gray-700 flex-grow">Location (e.g., Commerce Block)</label>
+                    </div>
+                    
+                    <div id="room-config-container" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                        </div>
+                    
+                    <button id="add-room-button" class="w-full inline-flex justify-center items-center rounded-md border border-dashed border-gray-400 bg-gray-50 py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100">
+                        + Add New Room
+                    </button>
+                    
+                    <hr class="my-4">
+                    
+                    <button id="save-room-config-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+                        Save Room Settings
+                    </button>
+                    <div id="room-config-status" class="text-sm text-green-600 font-medium text-center h-5"></div>
+                </div>
+            </div>
+            <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-lg mb-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
                     College Name
                 </h2>
                 <div class="mb-6 flex gap-2 items-end">
@@ -122,49 +154,36 @@
                     </button>
                 </div>
                 <div id="college-name-status" class="text-sm font-medium text-green-600 mt-2 block h-5"></div>
-                 
-                 <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
+            </div>
+            <div class="bg-red-50 border border-red-200 p-4 rounded-lg mb-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
+                    Data Reset
+                </h2>
+                <p class="text-sm text-gray-600 mb-3">
+                    This will clear only the loaded student data (from PDF or CSV) and all allotments (manual, scribe, absentees, QP codes). 
+                    Your Room Settings and College Name will **not** be affected.
+                </p>
+                <button id="reset-student-data-button" class="w-full inline-flex justify-center items-center rounded-md border border-orange-700 bg-orange-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-orange-700 mt-2">
+                    Reset Student Data Only
+                </button>
+                
+                <hr class="my-6 border-gray-300">
+
+                <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">
                     Master Reset
                 </h2>
-                 <button id="master-reset-button" class="w-full inline-flex justify-center items-center rounded-md border border-red-700 bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 mt-2">
+                <p class="text-sm text-gray-600 mb-3">
+                    This will clear **ALL** saved data, including Student Data, Room Settings, College Name, and all allotments.
+                </p>
+                <button id="master-reset-button" class="w-full inline-flex justify-center items-center rounded-md border border-red-700 bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 mt-2">
                     Master Reset: Clear ALL Local Data
                 </button>
             </div>
-        </div>
+            </div>
     </div>
 
     <div id="view-room-settings" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full">
-             <h1 class="text-3xl font-bold text-gray-800 mb-6">Room Capacity & Location</h1>
-
-            <p class="text-gray-600 mb-4">
-                Define the number of students per room. This list is automatically saved to your browser.
-                If a capacity is left blank, it will default to 30 when saved.
-            </p>
-            
-            <div class="space-y-4">
-                <div class="flex items-center gap-3 px-2">
-                    <label class="font-semibold text-gray-700 w-24 shrink-0">Room Name</label>
-                    <label class="font-semibold text-gray-700 w-20">Capacity</label>
-                    <label class="font-semibold text-gray-700 flex-grow">Location (e.g., Commerce Block)</label>
-                </div>
-                
-                <div id="room-config-container" class="space-y-2 max-h-96 overflow-y-auto pr-2">
-                    </div>
-                
-                <button id="add-room-button" class="w-full inline-flex justify-center items-center rounded-md border border-dashed border-gray-400 bg-gray-50 py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100">
-                    + Add New Room
-                </button>
-                
-                <hr class="my-4">
-                
-                <button id="save-room-config-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
-                    Save Room Settings
-                </button>
-                <div id="room-config-status" class="text-sm text-green-600 font-medium text-center h-5"></div>
-            </div>
         </div>
-    </div>
     
     <div id="view-qpcodes" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full">
@@ -305,7 +324,7 @@
 
     <div id="view-scribe-settings" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full">
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">Scribe Assistance Settings</h1>
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Scribe Assistance</h1>
             
             <div id="scribe-content-wrapper" class="hidden">
                 <p class="text-gray-600 mb-4">
@@ -341,7 +360,7 @@
     </div>
     <div id="view-scribe-allotment" class="container max-w-2xl mx-auto p-4 min-h-screen hidden">
         <div class="bg-white p-8 rounded-lg shadow-xl w-full">
-            <h1 class="text-3xl font-bold text-gray-800 mb-6">Scribe Room Allotment</h1>
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Scribe Allotment</h1>
             
             <div id="scribe-allotment-content-wrapper" class="hidden">
                 <div class="mb-4">
