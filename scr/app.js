@@ -1215,7 +1215,7 @@ generateScribeReportButton.addEventListener('click', async () => {
         // 2. Get global scribe list
         loadGlobalScribeList();
         if (globalScribeList.length === 0) {
-            alert("No students have been added to the Scribe List in Scribe Settings.");
+            alert("No students have been added to the Scribe List in Scribe Assistance.");
             return;
         }
         const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
@@ -1533,6 +1533,58 @@ saveRoomConfigButton.addEventListener('click', () => {
         console.error("Error saving room config:", e);
     }
 });
+// --- (V79) Load data into dynamic form (in Settings) ---
+function loadRoomConfig() {
+    // V48: Load College Name
+    currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+    // *** V91 FIX: Populate the input field with the saved value ***
+    if (collegeNameInput) collegeNameInput.value = currentCollegeName; 
+    
+    // Load Room Config
+    let savedConfigJson = localStorage.getItem(ROOM_CONFIG_KEY);
+    let config;
+    
+    if (savedConfigJson) {
+        try {
+            config = JSON.parse(savedConfigJson);
+        } catch (e) {
+            console.error("Error parsing saved config, resetting.", e);
+            config = {};
+        }
+    } else {
+        config = {};
+    }
+    
+    // (V28) Store in global var for other functions to use
+    currentRoomConfig = config;
+    
+    if (Object.keys(config).length === 0) {
+        // *** (V27): Default to 30 rooms ***
+        console.log("Using default room config (30 rooms of 30)");
+        config = {};
+        for (let i = 1; i <= 30; i++) {
+            config[`Room ${i}`] = { capacity: 30, location: "" };
+        }
+        localStorage.setItem(ROOM_CONFIG_KEY, JSON.stringify(config));
+        currentRoomConfig = config; // Update global var
+    }
+    
+    // Populate the dynamic form
+    roomConfigContainer.innerHTML = ''; // Clear existing rows
+    const sortedKeys = Object.keys(config).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
+        return numA - numB;
+    });
+    
+    // V79: Add rows, determining if 'isLast' is true
+    sortedKeys.forEach((roomName, index) => {
+        const roomData = config[roomName];
+        const isLast = (index === sortedKeys.length - 1);
+        const rowHtml = createRoomRowHtml(roomName, roomData.capacity, roomData.location, isLast);
+        roomConfigContainer.insertAdjacentHTML('beforeend', rowHtml);
+    });
+}
 
 // --- (V28) Add New Room Button (in Settings) ---
 addRoomButton.addEventListener('click', () => {
