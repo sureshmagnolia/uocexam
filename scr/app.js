@@ -1,3 +1,4 @@
+
 // --- Global localStorage Key ---
 const ROOM_CONFIG_KEY = 'examRoomConfig';
 const COLLEGE_NAME_KEY = 'examCollegeName';
@@ -653,6 +654,196 @@ generateReportButton.addEventListener('click', async () => {
         generateReportButton.textContent = "Generate Room-wise Seating Report";
     }
 });
+
+// --- (V29) Event listener for the "Day-wise Student List" button ---
+generateDaywiseReportButton.addEventListener('click', async () => {
+    generateDaywiseReportButton.disabled = true;
+    // V49: Button text updated
+    generateDaywiseReportButton.textContent = "Generating...";
+    reportOutputArea.innerHTML = "";
+    reportControls.classList.add('hidden');
+    roomCsvDownloadContainer.innerHTML = "";
+    lastGeneratedRoomData = []; // This report doesn't use the room CSV
+    lastGeneratedReportType = ""; // V91: Reset report type
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+        // *** V95 FIX: Refresh college name from local storage BEFORE generation ***
+        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+        
+        // 1. Get FILTERED RAW student data
+        const data = getFilteredReportData('day-wise');
+
+        if (data.length === 0) {
+            alert("No data found for the selected filter/session.");
+            return;
+        }
+        
+        // 2. Perform Room Allocation (V29 - uses central function)
+        // *** THIS NOW CORRECTLY HANDLES SCRIBES AND SHOWS THEIR NEW ROOM ***
+        const processed_rows_with_rooms = performOriginalAllocation(data); // <-- FIX: Use original allocation
+
+        // 3. Group by Day/Session
+        const daySessions = {};
+        processed_rows_with_rooms.forEach(student => {
+            const key = `${student.Date}_${student.Time}`;
+            if (!daySessions[key]) {
+                daySessions[key] = {
+                    Date: student.Date,
+                    Time: student.Time,
+                    students: []
+                };
+            }
+            daySessions[key].students.push(student);
+        });
+
+        // *** NEW: Get scribe allotments ***
+        const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+        
+        // 7. Build the HTML
+        let allPagesHtml = '';
+        let totalPagesGenerated = 0;
+        // *** FIX: Changed to 50 rows per column ***
+        const STUDENTS_PER_COLUMN = 50; 
+        const COLUMNS_PER_PAGE = 2; 
+        const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
+
+        // (V30) Helper to build a table for a column, NOW WITH COURSE GROUPING
+        function buildColumnTable(studentChunk) {
+            let rowsHtml = '';
+            let currentCourse = ""; // Track the current course
+            let previousRoomDisplay = ""; // V48: Track previous room
+
+            studentChunk.forEach(student => {
+                // Check if the course has changed
+                if (student.Course !== currentCourse) {
+                    currentCourse = student.Course;
+                    previousRoomDisplay = ""; // V48: Reset for new course
+                    // Add a course heading row
+                    rowsHtml += `
+                        <tr>
+                            <td colspan="4" style="background-color: #ddd; font-weight: bold; padding: 4px 2px; border: 1px solid #999;">
+                                ${student.Course}
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // *** FIX: Get correct room and seat no for scribes ***
+                let roomName = student['Room No'];
+                let seatNo = student.seatNumber; // Use the original seat number
+                let rowStyle = '';
+
+                if (student.isScribe) {
+                    const sessionKeyPipe = `${student.Date} | ${student.Time}`;
+                    const sessionScribeAllotment = allScribeAllotments[sessionKeyPipe] || {};
+                    roomName = sessionScribeAllotment[student['Register Number']] || 'N/A'; // Get new scribe room
+                    seatNo = 'Scribe'; // Scribes don't have a seat number in the new room
+                    rowStyle = 'font-weight: bold; color: #c2410c;'; // Style for scribe
+                }
+                // *****************************************************
+
+                // Add the student row
+                const roomInfo = currentRoomConfig[roomName];
+                const location = (roomInfo && roomInfo.location) ? roomInfo.location : "";
+                const roomDisplay = location ? `${roomName} (${location})` : roomName;
+
+                // V48: Check if same as above
+                const displayRoom = (roomDisplay === previousRoomDisplay) ? '"' : roomDisplay;
+                previousRoomDisplay = roomDisplay; // Update for next iteration
+                
+                rowsHtml += `
+                    <tr style="${rowStyle}">
+                        <td>${student['Register Number']}</td>
+                        <td>${student.Name}</td>
+                        <td>${displayRoom}</td>
+                        <td style="text-align: center;">${seatNo}</td>
+                    </tr>
+                `;
+            });
+
+            // (V30) Updated table header to remove Course
+            // (V32) Updated widths
+            // *** FIX: Changed Sl to Seat No ***
+            return `
+                <table class="daywise-report-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">Register No</th>
+                            <th style="width: 35%;">Name</th>
+                            <th style="width: 30%;">Room (Location)</th>
+                            <th style="width: 10%;">Seat No</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            `;
+        }
+
+        const sortedSessionKeys = Object.keys(daySessions).sort();
+
+        sortedSessionKeys.forEach(key => {
+            const session = daySessions[key];
+            
+            // *** FIX: Sort students by Reg No for this report ***
+            session.students.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
+            
+            for (let i = 0; i < session.students.length; i += STUDENTS_PER_PAGE) {
+                const pageStudents = session.students.slice(i, i + STUDENTS_PER_PAGE);
+                totalPagesGenerated++;
+                
+                const col1Students = pageStudents.slice(0, STUDENTS_PER_COLUMN);
+                const col2Students = pageStudents.slice(STUDENTS_PER_COLUMN); 
+                
+                let columnHtml = '';
+                if (col1Students.length > 0 && col2Students.length === 0) {
+                    // Only column 1 needed
+                    columnHtml = `<div class="column">${buildColumnTable(col1Students)}</div>`;
+                } else if (col1Students.length > 0 && col2Students.length > 0) {
+                    // Two columns needed
+                    columnHtml = `
+                        <div class="column-container">
+                            <div class="column">
+                                ${buildColumnTable(col1Students)}
+                            </div>
+                            <div class="column">
+                                ${buildColumnTable(col2Students)}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                allPagesHtml += `
+                    <div class="print-page print-page-daywise">
+                        <div class="print-header-group">
+                            <h1>Seating Details for Candidates</h1>
+                            <h2>${currentCollegeName} &nbsp;|&nbsp; ${session.Date} &nbsp;|&nbsp; ${session.Time}</h2>
+                        </div>
+                        ${columnHtml}
+                    </div>
+                `;
+            }
+        });
+
+        // 8. Show report and controls
+        reportOutputArea.innerHTML = allPagesHtml;
+        reportOutputArea.style.display = 'block'; 
+        reportStatus.textContent = `Generated ${totalPagesGenerated} compact pages for ${sortedSessionKeys.length} sessions.`;
+        reportControls.classList.remove('hidden');
+        roomCsvDownloadContainer.innerHTML = ""; // This report has no CSV
+        lastGeneratedReportType = "Daywise_Seating_Details"; // V91: Set report type
+
+    } catch (e) {
+        console.error("Error generating day-wise report:", e);
+        reportStatus.textContent = "An error occurred while generating the report.";
+        reportControls.classList.remove('hidden');
+    } finally {
+        generateDaywiseReportButton.disabled = false;
+        // V49: Button text updated
+        generateDaywiseReportButton.textContent = "Generate Seating Details for Candidates (Compact)";
+    }
+});
+
 // *** NEW: Helper for Absentee Report ***
 function formatRegNoList(regNos) {
     if (!regNos || regNos.length === 0) return '<em>None</em>';
