@@ -217,6 +217,10 @@ function cleanCourseKey(courseName) {
 function getNumericSortKey(key) {
     const parts = key.split('_'); // Date_Time_Room 1
     const roomPart = parts[2] || "Room 0";
+    // V100 FIX: Handle "SCRIBE_ROOM_N/A"
+    if (roomPart.startsWith('SCRIBE')) {
+        return `${parts[0]}_${parts[1]}_Room_9999_SCRIBE`; // Ensure scribes sort last
+    }
     const roomNumber = parseInt(roomPart.replace('Room ', ''), 10);
     return `${parts[0]}_${parts[1]}_${String(roomNumber).padStart(4, '0')}`;
 }
@@ -261,26 +265,29 @@ function getRoomCapacitiesFromStorage() {
     let roomNames = [];
     let roomCapacities = [];
     
-    if (Object.keys(roomConfig).length === 0) {
+    if (!roomConfig || Object.keys(roomConfig).length === 0) {
         // *** (V27): Default to 30 rooms ***
         console.log("Using default room config (30 rooms of 30)");
-        let config = {}; // <-- Fix: was missing 'let'
+        let config = {};
         for (let i = 1; i <= 30; i++) {
             config[`Room ${i}`] = { capacity: 30, location: "" };
         }
         localStorage.setItem(ROOM_CONFIG_KEY, JSON.stringify(config));
         currentRoomConfig = config; // Update global var
-    } else {
-        console.log("Using saved room config:", roomConfig);
-        const sortedRoomKeys = Object.keys(roomConfig).sort((a, b) => {
-            const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
-            const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
-            return numA - numB;
-        });
-        roomNames = sortedRoomKeys;
-        // (V28) Get capacity from the new object structure
-        roomCapacities = sortedRoomKeys.map(key => roomConfig[key].capacity);
-    }
+        roomConfig = config; // V100 FIX: ensure roomConfig is set
+    } 
+    
+    // (V100) This logic should now always run
+    console.log("Using saved room config:", roomConfig);
+    const sortedRoomKeys = Object.keys(roomConfig).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
+        return numA - numB;
+    });
+    roomNames = sortedRoomKeys;
+    // (V28) Get capacity from the new object structure
+    roomCapacities = sortedRoomKeys.map(key => roomConfig[key].capacity);
+
     return { roomNames, roomCapacities };
 }
 
@@ -861,6 +868,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                             const sessionScribeAllotment = allScribeAllotments[sessionKeyPipe] || {};
                             const newRoom = sessionScribeAllotment[scribe['Register Number']] || 'N/A';
                             
+                            // *** FIX: Updated text to reflect "Virtual Slot" ***
                             scribeListHtml += `<p style="font-size: 9pt; margin-bottom: 4px;"><strong>${scribe.Name}</strong> (${scribe['Register Number']})<br>Original: ${scribe['Room No']} (Virtual Slot) &rarr; <strong>New Room: ${newRoom}</strong></p>`;
                         });
                         scribeListHtml += '</div>';
