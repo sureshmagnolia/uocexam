@@ -387,7 +387,10 @@ async def run_extraction_py(event=None):
                             page_students = extract_old_format_students(page, file_name, page_num)
                         
                         if page_students:
+                            # --- THIS IS THE FIX ---
                             total_students_in_file += len(page_students)
+                            # --- END FIX ---
+                            
                             # 3. Apply the STORED header info to all students found
                             for student in page_students:
                                 all_exam_rows.append({
