@@ -110,10 +110,11 @@
     color: #c2410c; /* orange-700 */
 }
 
-#nav-scribe-allotment {
+/* *** NEW SEARCH TAB COLOR (using old teal) *** */
+#nav-search {
     background-color: #0d9488; /* teal-600 */
 }
-#nav-scribe-allotment.nav-button-active {
+#nav-search.nav-button-active {
     background-color: #ccfbf1; /* teal-100 */
     color: #115e59; /* teal-700 */
 }
@@ -137,8 +138,8 @@
     /* Hide the main app container and all other non-report elements */
     #main-nav, #view-extractor, #view-settings, #view-reports, #view-absentees, #view-qpcodes, 
     #view-room-settings, #view-room-allotment, 
-    /* *** NEW: Hide scribe views *** */
-    #view-scribe-settings, #view-scribe-allotment, #scribe-room-modal,
+    /* *** NEW: Hide scribe/search views *** */
+    #view-scribe-settings, #scribe-room-modal, #view-search,
     /* *************************** */
     body > py-config, body > py-script, #report-controls {
         display: none !important; /* Be forceful */
