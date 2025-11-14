@@ -37,11 +37,9 @@ let currentSessionKey = '';
 let globalScribeList = []; // Array of { regNo: "...", name: "..." }
 let currentScribeAllotment = {}; // For the selected session, { regNo: "RoomName" }
 let studentToAllotScribeRoom = null; // Holds regNo of student being allotted
+let allUniqueStudentsForScribeSearch = []; // <-- ADDED: For fast scribe search
 // **************************
-// ... (other global variables)
-let studentToAllotScribeRoom = null; // Holds regNo of student being allotted
-let allUniqueStudentsForScribeSearch = []; // <-- ADD THIS LINE
-// **************************
+
 
 // --- Get references to all Report elements ---
 const generateReportButton = document.getElementById('generate-report-button');
@@ -971,40 +969,7 @@ generateQPaperReportButton.addEventListener('click', async () => {
         generateQPaperReportButton.textContent = "Generate Question Paper Report";
     }
 });
-
-function clearSearch() {
-    selectedStudent = null;
-    absenteeSearchInput.value = "";
-    autocompleteResults.classList.add('hidden');
-    selectedStudentDetails.classList.add('hidden');
-}
-
-// --- ADD THIS NEW FUNCTION ---
-function updateUniqueStudentList() {
-    console.log("Updating unique student list for search...");
-    const seenRegNos = new Set();
-    allUniqueStudentsForScribeSearch = []; // Clear it
-    if (!allStudentData || allStudentData.length === 0) {
-        console.log("No student data to build unique list from.");
-        return;
-    }
-    for (const student of allStudentData) {
-        if (!seenRegNos.has(student['Register Number'])) {
-            seenRegNos.add(student['Register Number']);
-            // Store just what's needed
-            allUniqueStudentsForScribeSearch.push({ 
-                regNo: student['Register Number'], 
-                name: student.Name 
-            });
-        }
-    }
-    console.log(`Updated unique student list: ${allUniqueStudentsForScribeSearch.length} students found.`);
-}
-// --- END OF NEW FUNCTION ---
-
-addAbsenteeButton.addEventListener('click', () => {
-
-
+        
 // *** NEW: Helper for Absentee Report ***
 function formatRegNoList(regNos) {
     if (!regNos || regNos.length === 0) return '<em>None</em>';
@@ -1734,7 +1699,9 @@ window.populate_session_dropdown = function() {
             disable_absentee_tab(true);
             return;
         }
-        updateUniqueStudentList();
+        
+        updateUniqueStudentList(); // <-- ADDED: Build unique student list
+        
         // Get unique sessions
         const sessions = new Set(allStudentData.map(s => `${s.Date} | ${s.Time}`));
         allStudentSessions = Array.from(sessions).sort();
@@ -1858,6 +1825,30 @@ function clearSearch() {
     autocompleteResults.classList.add('hidden');
     selectedStudentDetails.classList.add('hidden');
 }
+
+// --- ADDED: New helper function for Scribe Search ---
+function updateUniqueStudentList() {
+    console.log("Updating unique student list for search...");
+    const seenRegNos = new Set();
+    allUniqueStudentsForScribeSearch = []; // Clear it
+    if (!allStudentData || allStudentData.length === 0) {
+        console.log("No student data to build unique list from.");
+        return;
+    }
+    for (const student of allStudentData) {
+        if (!seenRegNos.has(student['Register Number'])) {
+            seenRegNos.add(student['Register Number']);
+            // Store just what's needed
+            allUniqueStudentsForScribeSearch.push({ 
+                regNo: student['Register Number'], 
+                name: student.Name 
+            });
+        }
+    }
+    console.log(`Updated unique student list: ${allUniqueStudentsForScribeSearch.length} students found.`);
+}
+// --- END: New helper function ---
+
 
 addAbsenteeButton.addEventListener('click', () => {
     if (!selectedStudent) return;
@@ -2585,7 +2576,7 @@ function removeScribeStudent(regNo) {
 }
 
 // Scribe Search Autocomplete
-// Scribe Search Autocomplete
+// --- THIS IS THE REPLACED, CORRECTED FUNCTION ---
 scribeSearchInput.addEventListener('input', () => {
     const query = scribeSearchInput.value.trim().toUpperCase();
     scribeAutocompleteResults.innerHTML = ''; // Clear previous results
@@ -2627,6 +2618,8 @@ scribeSearchInput.addEventListener('input', () => {
         scribeAutocompleteResults.classList.add('hidden');
     }
 });
+// --- END OF REPLACED FUNCTION ---
+
 
 // Select a student from autocomplete
 let selectedScribeStudent = null;
