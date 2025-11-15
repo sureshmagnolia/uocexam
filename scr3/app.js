@@ -1464,6 +1464,10 @@ generateScribeProformaButton.addEventListener('click', async () => {
                                 <td class="data">${student.ScribeRoom}</td>
                             </tr>
                             <tr>
+                                <td class="label">Sign or Thumb Impression of Candidate:</td>
+                                <td class="data fillable"></td>
+                            </tr>
+                            <tr>
                                 <td class="label">Name of Scribe Assistant:</td>
                                 <td class="data fillable"></td>
                             </tr>
