@@ -971,46 +971,79 @@ generateQPaperReportButton.addEventListener('click', async () => {
     }
 });
         
-// *** NEW: Helper for Absentee Report ***
+// *** NEW: Helper for Absentee Report (V10.1 FIX) ***
 function formatRegNoList(regNos) {
     if (!regNos || regNos.length === 0) return '<em>None</em>';
     
-    let lastPrefix = "";
     const outputHtml = [];
-    // Regex to split letters from numbers (e.g., "VPAYSBO" and "007")
+    // Regex to split letters from numbers (e.g., "VPAYSZO" and "007")
     const regEx = /^([A-Z]+)(\d+)$/; 
 
     regNos.sort(); 
     
-    regNos.forEach((regNo, index) => {
+    let currentPrefix = "";
+    let numberGroup = []; // To hold numbers for the current prefix
+
+    // Helper function to commit a completed group of numbers
+    function commitGroup() {
+        if (numberGroup.length > 0) {
+            let groupString = "";
+            if (currentPrefix) {
+                // This is a standard prefix group (e.g., VPAYSZO)
+                // The first item in numberGroup is the full regNo, the rest are just numbers
+                const firstNum = numberGroup.shift(); // e.g., "VPAYSZO006"
+                groupString = firstNum; // "VPAYSZO006"
+                if (numberGroup.length > 0) {
+                     // Add the rest, e.g., "011", "025"
+                    groupString += ", " + numberGroup.join(", ");
+                }
+            } else {
+                // This is a group of non-matching (fallback) numbers
+                groupString = numberGroup.join(", ");
+            }
+            
+            // Push this whole string as one single span
+            outputHtml.push(`<span>${groupString}</span>`);
+        }
+        numberGroup = []; // Reset the group
+    }
+
+    regNos.forEach((regNo) => {
         const match = regNo.match(regEx);
+        
         if (match) {
             const prefix = match[1];
             const number = match[2];
             
-            if (prefix === lastPrefix) {
-                // Same prefix, only show number with a comma
-                outputHtml.push(`<span>, ${number}</span>`);
+            if (prefix === currentPrefix) {
+                // Same prefix, just add the number
+                numberGroup.push(number);
             } else {
-                // New prefix, show full register number
-                lastPrefix = prefix;
-                // Add a line break if this isn't the very first item
-                if(outputHtml.length > 0) {
-                     outputHtml.push('<br>');
-                }
-                outputHtml.push(`<span>${regNo}</span>`);
+                // New prefix!
+                // 1. Commit the previous group
+                commitGroup();
+                // 2. Start a new group
+                currentPrefix = prefix;
+                numberGroup.push(regNo); // Push the full regNo as the first item
             }
         } else {
-            // Fallback for non-matching register numbers (e.g., old numbers)
-            if(outputHtml.length > 0) {
-                 outputHtml.push('<br>');
-            }
-            outputHtml.push(`<span>${regNo}</span>`);
-            lastPrefix = ""; // Reset prefix
+            // Fallback for non-matching regNo
+            // 1. Commit any existing prefix group
+            commitGroup();
+            // 2. Reset prefix and start a "non-match" group
+            currentPrefix = ""; 
+            numberGroup.push(regNo);
+            // 3. Commit this non-match group immediately
+            commitGroup(); 
         }
     });
     
-    return outputHtml.join('');
+    // Commit any remaining group after the loop
+    commitGroup();
+    
+    // Join the spans with a line break. The CSS flex-gap will now be
+    // between the entire groups, not the individual numbers.
+    return outputHtml.join('<br>');
 }
         
 // --- (V56) Event listener for "Generate Absentee Statement" ---
