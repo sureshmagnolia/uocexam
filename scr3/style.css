@@ -279,7 +279,7 @@
     /* *** UPDATED WIDTHS *** */
     .sl-col { width: 5%; }
     .course-col { width: 30%; } /* Increased */
-    .reg-col { width: 15%; text-align: right; } /* Reduced */
+    .reg-col { width: 15%; } /* Reduced */
     .name-col { width: 25%; } /* Reduced */
     .signature-col { width: 10%; } 
     .remarks-col { width: 15%; } /* Increased */
@@ -396,76 +396,6 @@
     }
     /* ************************************** */
 }
-/* *** NEW: QP Distribution Report (Print) *** */
-    .print-page h4.room-header {
-        font-size: 12pt;
-        font-weight: bold;
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-        padding-bottom: 4px;
-        border-bottom: 2px solid #666;
-        break-after: avoid;
-    }
-.print-page h4.qp-header {
-        font-size: 12pt;
-        font-weight: bold;
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-        padding-bottom: 4px;
-        border-bottom: 2px solid #666;
-        break-after: avoid;
-    }
-    .qp-distribution-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 10pt;
-        margin-top: 0.5rem;
-        margin-bottom: 1.5rem; /* Space between rooms */
-        break-inside: avoid; /* Keep table from breaking */
-    }
-    .qp-distribution-table th,
-    .qp-distribution-table td {
-        border: 1px solid #000;
-        padding: 6px;
-        text-align: left;
-    }
-    .qp-distribution-table th {
-        background-color: #eee !important;
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact;
-        font-weight: bold;
-    }
-/* ****************************************** */
-
-/* *** NEW: Scribe Proforma Styles (Print) *** */
-    .proforma-table { 
-        width: 100%; 
-        border-collapse: collapse; 
-        margin-top: 1.5rem; 
-        font-size: 11pt; 
-        break-before: avoid;
-    }
-    .proforma-table td { 
-        border: 1px solid #000; 
-        padding: 12px; 
-        vertical-align: top;
-    }
-    .proforma-table td.label { 
-        width: 35%; 
-        font-weight: bold; 
-        background-color: #eee !important;
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact;
-    }
-    .proforma-table td.data { 
-        width: 65%; 
-        font-weight: bold; 
-    }
-    .proforma-table td.fillable { 
-        height: 60px; /* Give space to write */
-        font-weight: normal; 
-    }
-    /* ****************************************** */
 /* --- END PRINT STYLES --- */
 
 /* --- Report styles for the *viewer* (on-screen) --- */
@@ -568,7 +498,7 @@ tr.scribe-row-highlight {
 /* *** UPDATED WIDTHS *** */
 .print-page .sl-col { width: 5%; }
 .print-page .course-col { width: 30%; } /* Increased */
-.print-page .reg-col { width: 15%; text-align: right; } /* Reduced */
+.print-page .reg-col { width: 15%; } /* Reduced */
 .print-page .name-col { width: 25%; } /* Reduced */
 .print-page .signature-col { width: 10%; } 
 .print-page .remarks-col { width: 15%; } /* Increased */
@@ -676,69 +606,7 @@ tr.scribe-row-highlight {
     background-color: #eee;
     font-weight: bold;
 }
-
-/* *** NEW: Scribe Proforma Styles (On-screen) *** */
-.proforma-table { 
-    width: 100%; 
-    border-collapse: collapse; 
-    margin-top: 1.5rem; 
-    font-size: 11pt; 
-}
-.proforma-table td { 
-    border: 1px solid #000; 
-    padding: 12px; 
-    vertical-align: top;
-}
-.proforma-table td.label { 
-    width: 35%; 
-    font-weight: bold; 
-    background-color: #eee;
-}
-.proforma-table td.data { 
-    width: 65%; 
-    font-weight: bold; 
-}
-.proforma-table td.fillable { 
-    height: 60px; /* Give space to write */
-    font-weight: normal; 
-}
-/* ********************************************* */
-
-/* *** NEW: QP Distribution Report (On-screen) *** */
-.print-page h4.room-header {
-    font-size: 12pt;
-    font-weight: bold;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-    padding-bottom: 4px;
-    border-bottom: 2px solid #666;
-}
-.print-page h4.qp-header {
-    font-size: 12pt;
-    font-weight: bold;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-    padding-bottom: 4px;
-    border-bottom: 2px solid #666;
-}
-.qp-distribution-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 10pt;
-    margin-top: 0.5rem;
-    margin-bottom: 1.5rem; /* Space between rooms */
-}
-.qp-distribution-table th,
-.qp-distribution-table td {
-    border: 1px solid #000;
-    padding: 6px;
-    text-align: left;
-}
-.qp-distribution-table th {
-    background-color: #eee;
-    font-weight: bold;
-}
-/* ********************************************* */
+/* ***************************************** */
 
 /* --- (V56) Autocomplete Styles --- */
 .autocomplete-container {
