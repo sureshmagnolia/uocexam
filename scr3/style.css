@@ -312,7 +312,7 @@
         width: 100%;
         border-collapse: collapse;
         /* V100 FIX: Increased font size for better readability/fit */
-        font-size: 8pt; 
+        font-size: 9pt; 
         /* V100 FIX: Removed fixed layout in print media to allow natural column width adjustment */
         table-layout: auto; 
         /* V90 FIX: Add break-before: avoid to tables to keep with headers */
