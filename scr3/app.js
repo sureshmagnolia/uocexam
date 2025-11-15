@@ -70,6 +70,7 @@ const viewReports = document.getElementById('view-reports');
 const viewAbsentees = document.getElementById('view-absentees');
 // const viewRoomSettings = document.getElementById('view-room-settings'); // <-- No longer a main view
 const navExtractor = document.getElementById('nav-extractor');
+const navEditData = document.getElementById('nav-edit-data'); // <-- ADD THIS
 const navSettings = document.getElementById('nav-settings');
 const navQPCodes = document.getElementById('nav-qpcodes');
 const navReports = document.getElementById('nav-reports');
@@ -87,8 +88,8 @@ const viewScribeSettings = document.getElementById('view-scribe-settings');
 // **********************
 
 // *** MODIFIED allNavButtons and allViews TO MATCH NEW UI ***
-const allNavButtons = [navExtractor, navScribeSettings, navRoomAllotment, navQPCodes, navReports, navAbsentees, navSettings];
-const allViews = [viewExtractor, viewScribeSettings, viewRoomAllotment, viewQPCodes, viewReports, viewAbsentees, viewSettings];
+const allNavButtons = [navExtractor, navEditData, navScribeSettings, navRoomAllotment, navQPCodes, navReports, navAbsentees, navSettings]; // <-- ADD navEditData
+const allViews = [viewExtractor, viewEditData, viewScribeSettings, viewRoomAllotment, viewQPCodes, viewReports, viewAbsentees, viewSettings]; // <-- ADD viewEditData
 
 // --- (V26) Get references to NEW Room Settings elements (Now in Settings Tab) ---
 const collegeNameInput = document.getElementById('college-name-input');
@@ -194,6 +195,23 @@ const scribeCloseRoomModal = document.getElementById('scribe-close-room-modal');
 const resetStudentDataButton = document.getElementById('reset-student-data-button');
 const masterResetButton = document.getElementById('master-reset-button');
 // *************************
+// *** NEW EDIT DATA ELEMENTS ***
+const viewEditData = document.getElementById('view-edit-data');
+const editDataContentWrapper = document.getElementById('edit-data-content-wrapper');
+const editDataLoader = document.getElementById('edit-data-loader');
+const editSessionSelect = document.getElementById('edit-session-select');
+const editCourseSelectContainer = document.getElementById('edit-course-select-container');
+const editCourseSelect = document.getElementById('edit-course-select');
+const editDataContainer = document.getElementById('edit-data-container');
+const editPaginationControls = document.getElementById('edit-pagination-controls');
+const editPrevPage = document.getElementById('edit-prev-page');
+const editNextPage = document.getElementById('edit-next-page');
+const editPageInfo = document.getElementById('edit-page-info');
+const editSaveSection = document.getElementById('edit-save-section');
+const saveEditDataButton = document.getElementById('save-edit-data-button');
+const editDataStatus = document.getElementById('edit-data-status');
+// ****************************
+
 // *** NEW BACKUP/RESTORE BUTTONS ***
 const backupDataButton = document.getElementById('backup-data-button');
 const restoreFileInput = document.getElementById('restore-file-input');
@@ -1746,7 +1764,9 @@ function downloadRoomCsv() {
 
 
 // --- NAVIGATION VIEW-SWITCHING LOGIC (REORDERED) ---
+// --- NAVIGATION VIEW-SWITCHING LOGIC (REORDERED) ---
 navExtractor.addEventListener('click', () => showView(viewExtractor, navExtractor));
+navEditData.addEventListener('click', () => showView(viewEditData, navEditData)); // <-- ADD THIS
 navScribeSettings.addEventListener('click', () => showView(viewScribeSettings, navScribeSettings));
 navRoomAllotment.addEventListener('click', () => showView(viewRoomAllotment, navRoomAllotment));
 // navScribeAllotment.addEventListener('click', () => showView(viewScribeAllotment, navScribeAllotment)); // REMOVED
@@ -2116,7 +2136,9 @@ function parseCsvAndLoadData(csvText) {
         // populate_scribe_session_dropdown(); // REMOVED
         loadGlobalScribeList();
         // *****************************
-        
+        // *** NEW: Enable Edit Data Tab ***
+        disable_edit_data_tab(false);
+        // *********************************
         // *** WORKFLOW FIX: Removed logic that re-enables PDF buttons ***
 
 
@@ -2163,15 +2185,17 @@ window.populate_session_dropdown = function() {
         
         sessionSelect.innerHTML = '<option value="">-- Select a Session --</option>'; // Clear
         reportsSessionSelect.innerHTML = '<option value="all">All Sessions</option>'; // V68: Clear and set default for reports
+        editSessionSelect.innerHTML = '<option value="">-- Select a Session --</option>'; // <-- ADD THIS
         
         // Find today's session
         const today = new Date();
         const todayStr = today.toLocaleDateString('en-GB').replace(/\//g, '.'); // DD.MM.YYYY
         let defaultSession = "";
         
-        allStudentSessions.forEach(session => {
+            allStudentSessions.forEach(session => {
             sessionSelect.innerHTML += `<option value="${session}">${session}</option>`;
             reportsSessionSelect.innerHTML += `<option value="${session}">${session}</option>`; // V68
+            editSessionSelect.innerHTML += `<option value="${session}">${session}</option>`; // <-- ADD THIS
             if (session.startsWith(todayStr)) {
                 defaultSession = session;
             }
@@ -2746,7 +2770,9 @@ function loadInitialData() {
                 populate_room_allotment_session_dropdown();
                 // populate_scribe_session_dropdown(); // <-- REMOVED
                 loadGlobalScribeList(); // <-- NEW
-                
+                // *** NEW: Enable Edit Data Tab ***
+                disable_edit_data_tab(false);
+                // *********************************
                 console.log(`Successfully loaded ${savedData.length} records from local storage.`);
                 
                 // Update log status (Optional, good for user feedback)
@@ -3409,5 +3435,241 @@ window.disable_all_report_buttons = function(disabled) {
     generateScribeProformaButton.disabled = disabled;
     generateQpDistributionReportButton.disabled = disabled; // <-- ADD THIS
 }
+// --- NEW: STUDENT DATA EDIT FUNCTIONALITY ---
+
+let editCurrentPage = 1;
+const STUDENTS_PER_EDIT_PAGE = 10;
+let currentEditSession = '';
+let currentEditCourse = '';
+let currentCourseStudents = [];
+
+// Disable/Enable Edit Data Tab
+window.disable_edit_data_tab = function(disabled) {
+    navEditData.disabled = disabled;
+    if (disabled) {
+        editDataLoader.classList.remove('hidden');
+        editDataContentWrapper.classList.add('hidden');
+        navEditData.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+        editDataLoader.classList.add('hidden');
+        editDataContentWrapper.classList.remove('hidden');
+        navEditData.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+// 1. Session selection
+editSessionSelect.addEventListener('change', () => {
+    currentEditSession = editSessionSelect.value;
+    editDataContainer.innerHTML = '';
+    editPaginationControls.classList.add('hidden');
+    editSaveSection.classList.add('hidden');
+    
+    if (currentEditSession) {
+        // Populate course dropdown
+        const [date, time] = currentEditSession.split(' | ');
+        const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
+        const courses = [...new Set(sessionStudents.map(s => s.Course))].sort();
+        
+        editCourseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
+        courses.forEach(course => {
+            editCourseSelect.innerHTML += `<option value="${course}">${course}</option>`;
+        });
+        editCourseSelectContainer.classList.remove('hidden');
+    } else {
+        editCourseSelectContainer.classList.add('hidden');
+    }
+});
+
+// 2. Course selection
+editCourseSelect.addEventListener('change', () => {
+    currentEditCourse = editCourseSelect.value;
+    editCurrentPage = 1;
+    if (currentEditCourse) {
+        // Filter students for this course
+        const [date, time] = currentEditSession.split(' | ');
+        currentCourseStudents = allStudentData.filter(s => s.Date === date && s.Time === time && s.Course === currentEditCourse);
+        renderStudentEditTable();
+        editSaveSection.classList.remove('hidden');
+    } else {
+        editDataContainer.innerHTML = '';
+        editPaginationControls.classList.add('hidden');
+        editSaveSection.classList.add('hidden');
+    }
+});
+
+// 3. Render Table
+function renderStudentEditTable() {
+    editDataContainer.innerHTML = '';
+    if (currentCourseStudents.length === 0) {
+        editDataContainer.innerHTML = '<p class="text-gray-500">No students found for this course.</p>';
+        editPaginationControls.classList.add('hidden');
+        return;
+    }
+
+    const start = (editCurrentPage - 1) * STUDENTS_PER_EDIT_PAGE;
+    const end = start + STUDENTS_PER_EDIT_PAGE;
+    const pageStudents = currentCourseStudents.slice(start, end);
+
+    let tableHtml = `
+        <table class="edit-data-table">
+            <thead>
+                <tr>
+                    <th>Register Number</th>
+                    <th>Name</th>
+                    <th class="actions-cell">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    pageStudents.forEach(student => {
+        const regNo = student['Register Number'];
+        tableHtml += `
+            <tr data-regno="${regNo}">
+                <td>
+                    <span id="view-regno-${regNo}" class="view-field edit-field">${regNo}</span>
+                    <input type="text" id="edit-regno-${regNo}" class="edit-field hidden" value="${regNo}">
+                </td>
+                <td>
+                    <span id="view-name-${regNo}" class="view-field edit-field">${student.Name}</span>
+                    <input type="text" id="edit-name-${regNo}" class="edit-field hidden" value="${student.Name}">
+                </td>
+                <td class="actions-cell">
+                    <button id="edit-btn-${regNo}" class="edit-row-btn text-sm text-blue-600 hover:text-blue-800">Edit</button>
+                    <button id="save-btn-${regNo}" class="save-row-btn text-sm text-green-600 hover:text-green-800 hidden">Save</button>
+                </td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `</tbody></table>`;
+    editDataContainer.innerHTML = tableHtml;
+    renderEditPagination(currentCourseStudents.length);
+}
+
+// 4. Render Pagination
+function renderEditPagination(totalStudents) {
+    if (totalStudents <= STUDENTS_PER_EDIT_PAGE) {
+        editPaginationControls.classList.add('hidden');
+        return;
+    }
+    
+    editPaginationControls.classList.remove('hidden');
+    const totalPages = Math.ceil(totalStudents / STUDENTS_PER_EDIT_PAGE);
+    
+    editPageInfo.textContent = `Page ${editCurrentPage} of ${totalPages}`;
+    
+    editPrevPage.disabled = (editCurrentPage === 1);
+    editNextPage.disabled = (editCurrentPage === totalPages);
+}
+
+editPrevPage.addEventListener('click', () => {
+    if (editCurrentPage > 1) {
+        editCurrentPage--;
+        renderStudentEditTable();
+    }
+});
+
+editNextPage.addEventListener('click', () => {
+    const totalPages = Math.ceil(currentCourseStudents.length / STUDENTS_PER_EDIT_PAGE);
+    if (editCurrentPage < totalPages) {
+        editCurrentPage++;
+        renderStudentEditTable();
+    }
+});
+
+// 5. Handle Edit/Save Row Clicks (Event Delegation)
+editDataContainer.addEventListener('click', (e) => {
+    const target = e.target;
+    const regNo = target.closest('tr').dataset.regno;
+
+    if (target.classList.contains('edit-row-btn')) {
+        // --- Enter Edit Mode ---
+        document.getElementById(`view-regno-${regNo}`).classList.add('hidden');
+        document.getElementById(`view-name-${regNo}`).classList.add('hidden');
+        document.getElementById(`edit-regno-${regNo}`).classList.remove('hidden');
+        document.getElementById(`edit-name-${regNo}`).classList.remove('hidden');
+        
+        document.getElementById(`edit-btn-${regNo}`).classList.add('hidden');
+        document.getElementById(`save-btn-${regNo}`).classList.remove('hidden');
+
+    } else if (target.classList.contains('save-row-btn')) {
+        // --- Save Data (to allStudentData array) ---
+        const newRegNo = document.getElementById(`edit-regno-${regNo}`).value.trim();
+        const newName = document.getElementById(`edit-name-${regNo}`).value.trim();
+        const oldRegNo = regNo;
+        
+        if (!newRegNo || !newName) {
+            alert('Register Number and Name cannot be empty.');
+            return;
+        }
+
+        // Find the student in the *main* allStudentData array and update them
+        // This is complex because we must update *all* instances of this student
+        let updated = false;
+        allStudentData.forEach((student, index) => {
+            if (student['Register Number'] === oldRegNo && student.Course === currentEditCourse && student.Date === currentEditSession.split(' | ')[0]) {
+                allStudentData[index]['Register Number'] = newRegNo;
+                allStudentData[index]['Name'] = newName;
+                updated = true;
+            }
+        });
+
+        // Also update the local array
+        currentCourseStudents.forEach((student, index) => {
+            if (student['Register Number'] === oldRegNo) {
+                currentCourseStudents[index]['Register Number'] = newRegNo;
+                currentCourseStudents[index]['Name'] = newName;
+            }
+        });
+
+        // --- Exit Edit Mode ---
+        const viewRegNo = document.getElementById(`view-regno-${regNo}`);
+        const viewName = document.getElementById(`view-name-${regNo}`);
+        viewRegNo.textContent = newRegNo;
+        viewName.textContent = newName;
+
+        viewRegNo.classList.remove('hidden');
+        viewName.classList.remove('hidden');
+        document.getElementById(`edit-regno-${regNo}`).classList.add('hidden');
+        document.getElementById(`edit-name-${regNo}`).classList.add('hidden');
+        
+        document.getElementById(`edit-btn-${regNo}`).classList.remove('hidden');
+        document.getElementById(`save-btn-${regNo}`).classList.add('hidden');
+        
+        // Update the row's dataset for future edits
+        target.closest('tr').dataset.regno = newRegNo;
+    }
+});
+
+// 6. Save All Changes to LocalStorage
+saveEditDataButton.addEventListener('click', () => {
+    if (confirm('This will save all edits to the main data source. This cannot be undone. Continue?')) {
+        localStorage.setItem(BASE_DATA_KEY, JSON.stringify(allStudentData));
+        
+        editDataStatus.textContent = 'All changes saved successfully!';
+        setTimeout(() => { editDataStatus.textContent = ''; }, 3000);
+        
+        // --- CRUCIAL: Reload other parts of the app ---
+        // Easiest way is to re-run the parts of loadInitialData that populate other tabs
+        jsonDataStore.innerHTML = JSON.stringify(allStudentData); // Update the store
+        updateUniqueStudentList(); // Update the list for absentee/scribe search
+        
+        // Re-populate all session dropdowns (this will also reload the edit tab)
+        populate_session_dropdown();
+        populate_qp_code_session_dropdown();
+        populate_room_allotment_session_dropdown();
+
+        // Reload the current course to reflect the new state
+        if (currentEditCourse) {
+            const [date, time] = currentEditSession.split(' | ');
+            currentCourseStudents = allStudentData.filter(s => s.Date === date && s.Time === time && s.Course === currentEditCourse);
+            renderStudentEditTable();
+        }
+    }
+});
+
+// --- END: STUDENT DATA EDIT FUNCTIONALITY ---
+
 // --- Run on initial page load ---
 loadInitialData();
