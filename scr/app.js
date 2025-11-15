@@ -699,7 +699,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         let allPagesHtml = '';
         let totalPagesGenerated = 0;
         // *** FIX: Changed to 35 rows per column for A4 fit ***
-        const STUDENTS_PER_COLUMN = 35; 
+        const STUDENTS_PER_COLUMN = 45; 
         const COLUMNS_PER_PAGE = 2; 
         const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
 
