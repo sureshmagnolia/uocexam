@@ -3458,7 +3458,7 @@ window.disable_edit_data_tab = function(disabled) {
 }
 
 // 1. Session selection
-editSessionSelect.addEventListener('change', () => {
+editSessionSelect.addEventListener('change', () => { // <--- This is the fix
     currentEditSession = editSessionSelect.value;
     editDataContainer.innerHTML = '';
     editPaginationControls.classList.add('hidden');
