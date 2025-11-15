@@ -93,6 +93,7 @@ const qPaperDataStore = document.getElementById('q-paper-data-store');
 const generateQPaperReportButton = document.getElementById('generate-qpaper-report-button');
 // *** NEW SCRIBE REPORT BUTTON ***
 const generateScribeReportButton = document.getElementById('generate-scribe-report-button');
+const generateScribeProformaButton = document.getElementById('generate-scribe-proforma-button'); // <-- ADD THIS
 // ****************************
 
 // --- Get references to Day-wise Report elements ---
@@ -1324,6 +1325,157 @@ generateScribeReportButton.addEventListener('click', async () => {
 });
 // *******************************************************
 
+// *** NEW: Event listener for Scribe Proforma Report ***
+generateScribeProformaButton.addEventListener('click', async () => {
+    generateScribeProformaButton.disabled = true;
+    generateScribeProformaButton.textContent = "Generating...";
+    reportOutputArea.innerHTML = "";
+    reportControls.classList.add('hidden');
+    roomCsvDownloadContainer.innerHTML = "";
+    lastGeneratedReportType = "";
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    try {
+        // 1. Get College Name
+        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+        
+        // 2. Get FILTERED RAW student data
+        const data = getFilteredReportData('scribe-proforma');
+        if (data.length === 0) {
+            alert("No data found for the selected filter/session.");
+            return;
+        }
+        
+        // 3. Get global scribe list
+        const globalScribeList = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
+        if (globalScribeList.length === 0) {
+            alert("No students have been added to the Scribe List in Scribe Assistance.");
+            generateScribeProformaButton.disabled = false;
+            generateScribeProformaButton.textContent = "Generate Scribe Proforma (One Page Per Scribe)";
+            return;
+        }
+        const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
+        
+        // 4. Filter data to only include scribe students *in the filtered sessions*
+        const allScribeStudents = data.filter(s => scribeRegNos.has(s['Register Number']));
+        
+        // 5. Get Original Room Allotments (by running the "original" allocation logic)
+        const originalAllotments = performOriginalAllocation(data); // Use the central function
+        const originalRoomMap = originalAllotments.reduce((map, s) => {
+            // Store room and seat number
+            map[s['Register Number']] = { room: s['Room No'], seat: s.seatNumber };
+            return map;
+        }, {});
+
+        // 6. Load Scribe Allotments and QP Codes
+        const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+        loadQPCodes(); // populates qpCodeMap
+
+        // 7. Collate all data for the report (similar to the summary report)
+        const reportRows = [];
+        for (const s of allScribeStudents) {
+            const sessionKey = `${s.Date} | ${s.Time}`;
+            const sessionScribeRooms = allScribeAllotments[sessionKey] || {};
+            const sessionQPCodes = qpCodeMap[sessionKey] || {};
+            const courseKey = cleanCourseKey(s.Course);
+            
+            const originalRoomData = originalRoomMap[s['Register Number']] || { room: 'N/A', seat: 'N/A' };
+            
+            reportRows.push({
+                Date: s.Date,
+                Time: s.Time,
+                RegisterNumber: s['Register Number'],
+                Name: s.Name,
+                Course: s.Course,
+                OriginalRoom: `${originalRoomData.room} (Seat: ${originalRoomData.seat})`,
+                ScribeRoom: sessionScribeRooms[s['Register Number']] || 'Not Allotted',
+                QPCode: sessionQPCodes[courseKey] || 'N/A'
+            });
+        }
+        
+        if (reportRows.length === 0) {
+            alert("No scribe students found for the selected filter/session.");
+            generateScribeProformaButton.disabled = false;
+            generateScribeProformaButton.textContent = "Generate Scribe Proforma (One Page Per Scribe)";
+            return;
+        }
+        
+        // 8. Build HTML - ONE PAGE PER STUDENT
+        let allPagesHtml = '';
+
+        reportRows.forEach(student => {
+            allPagesHtml += `
+                <div class="print-page">
+                    <div class="print-header-group">
+                        <h1>${currentCollegeName}</h1>
+                        <h2>Scribe Assistance Proforma</h2>
+                        <h3>${student.Date} &nbsp;|&nbsp; ${student.Time}</h3>
+                    </div>
+                    
+                    <table class="proforma-table">
+                        <tbody>
+                            <tr>
+                                <td class="label">Name of Candidate:</td>
+                                <td class="data">${student.Name}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Register Number:</td>
+                                <td class="data">${student.RegisterNumber}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Course / Paper:</td>
+                                <td class="data">${student.Course}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">QP Code:</td>
+                                <td class="data">${student.QPCode}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Original Allotted Room:</td>
+                                <td class="data">${student.OriginalRoom}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Scribe Allotted Room:</td>
+                                <td class="data">${student.ScribeRoom}</td>
+                            </tr>
+                            <tr>
+                                <td class="label">Name of Scribe Assistant:</td>
+                                <td class="data fillable"></td>
+                            </tr>
+                            <tr>
+                                <td class="label">Scribe Assistant ID Card & No:</td>
+                                <td class="data fillable"></td>
+                            </tr>
+                            <tr>
+                                <td class="label">Signature of Scribe Assistant:</td>
+                                <td class="data fillable"></td>
+                            </tr>
+                            <tr>
+                                <td class="label">Name & Signature of Invigilator:</td>
+                                <td class="data fillable"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        });
+        
+        // 9. Show report
+        reportOutputArea.innerHTML = allPagesHtml;
+        reportOutputArea.style.display = 'block'; 
+        reportStatus.textContent = `Generated ${reportRows.length} Scribe Proforma pages.`;
+        reportControls.classList.remove('hidden');
+        lastGeneratedReportType = "Scribe_Proforma";
+
+    } catch (e) {
+        console.error("Error generating scribe proforma report:", e);
+        reportStatus.textContent = "An error occurred generating the report.";
+        reportControls.classList.remove('hidden');
+    } finally {
+        generateScribeProformaButton.disabled = false;
+        generateScribeProformaButton.textContent = "Generate Scribe Proforma (One Page Per Scribe)";
+    }
+});
 
 // --- V96: Removed PDF Download Functionality (Replaced with native Print) ---
 // downloadPdfButton.addEventListener('click', ... removed ...)
@@ -1677,6 +1829,7 @@ function parseCsvAndLoadData(csvText) {
         generateQPaperReportButton.disabled = false;
         generateDaywiseReportButton.disabled = false;
         generateScribeReportButton.disabled = false; // <-- NEW
+        generateScribeProformaButton.disabled = false; // <-- ADD THIS
         
         // V56: Enable and populate absentee tab
         disable_absentee_tab(false);
@@ -2239,6 +2392,7 @@ function loadInitialData() {
                 generateQPaperReportButton.disabled = false;
                 generateDaywiseReportButton.disabled = false;
                 generateScribeReportButton.disabled = false; // <-- NEW
+                generateScribeProformaButton.disabled = false; // <-- ADD THIS
                 disable_absentee_tab(false);
                 disable_qpcode_tab(false);
                 disable_room_allotment_tab(false);
@@ -2872,7 +3026,13 @@ window.disable_all_report_buttons = function(disabled) {
     generateDaywiseReportButton.disabled = disabled;
     generateScribeReportButton.disabled = disabled;
 }
-
+window.disable_all_report_buttons = function(disabled) {
+    generateReportButton.disabled = disabled;
+    generateQPaperReportButton.disabled = disabled;
+    generateDaywiseReportButton.disabled = disabled;
+    generateScribeReportButton.disabled = disabled;
+    generateScribeProformaButton.disabled = disabled; // <-- ADD THIS
+}
 
 // --- Run on initial page load ---
 loadInitialData();
