@@ -21,10 +21,11 @@
         display: block !important;
     }
     
-    main {
-        overflow-y: visible !important;
-        height: auto !important;
-    }
+main {
+    display: block !important; /* <-- ADD THIS LINE */
+    overflow-y: visible !important;
+    height: auto !important;
+}
 
     @page {
         margin: 0.5cm; /* Minimal margin */
