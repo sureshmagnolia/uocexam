@@ -4120,41 +4120,39 @@ function loadPyScript() {
         try {
             status_div.innerHTML = "<p>&gt; Loading Python Environment... (this may take a moment on first run)</p>";
             showLoader(true, "Loading Python Env...");
-
-            // 1. Add PyScript CSS
+            
+            // --- 1. Add PyScript CSS ---
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'https://pyscript.net/releases/2023.11.1/core.css';
-            // ...
-            script.src = 'https://pyscript.net/releases/2023.11.1/core.js';
-            document.head.appendChild(link);
+            link.href = 'https://pyscript.net/releases/2023.11.1/core.css'; // <-- FIX: Use correct version
+            document.head.appendChild(link); // <-- Correctly append the link immediately
 
-            // 2. Add py-config (must be in body)
+            // --- 2. Add py-config (must be in body) ---
             const config = document.createElement('py-config');
-            config.innerHTML = 'packages = ["pandas", "pdfplumber==0.9.0"]';
-            console.log("CACHE BUST SUCCESS: Loading pdfplumber 0.10.4");
+            // We'll stick with 0.9.0 as you confirmed it fixed the pypdfium2 error
+            config.innerHTML = 'packages = ["pandas", "pdfplumber==0.9.0"]'; 
+            console.log("CACHE BUST SUCCESS: Loading pdfplumber 0.9.0"); // <-- FIX: Changed log version
             document.body.appendChild(config);
 
-            // 3. Add py-script (must be in body)
+            // --- 3. Add py-script (must be in body) ---
             const pyScriptTag = document.createElement('py-script');
             pyScriptTag.src = 'main.py';
-            pyScriptTag.id = 'main_py_script'; // <-- ADD THIS ID
+            pyScriptTag.id = 'main_py_script'; 
             document.body.appendChild(pyScriptTag);
 
-            // 4. Listen for the 'py:ready' event
-            // This event fires when PyScript is fully initialized and main.py is loaded
+            // --- 4. Listen for the 'py:ready' event ---
             document.addEventListener('py:ready', () => {
                 console.log("PyScript is fully ready.");
                 isPyScriptReady = true;
-                // Resolve the promise WITH the script tag itself
                 resolve(pyScriptTag);
             }, { once: true });
 
-            // 5. Add the main PyScript loader script
-            // This MUST be last, as it triggers the loading process
+            // --- 5. Add the main PyScript loader script (MUST be last) ---
             const script = document.createElement('script');
             script.type = 'module';
-            script.src = 'https://pyscript.net/releases/2024.1.1/core.js';
+            // <-- FIX: Use correct URL and version to avoid the ReferenceError
+            script.src = 'https://pyscript.net/releases/2023.11.1/core.js'; 
+            
             script.onerror = () => {
                 reject(new Error("Failed to load PyScript core."));
                 showLoader(false);
