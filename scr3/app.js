@@ -368,29 +368,23 @@ function performOriginalAllocation(data) {
     // 1. Get CURRENT room capacities
     const { roomNames: masterRoomNames, roomCapacities: masterRoomCaps } = getRoomCapacitiesFromStorage();
     
-    // 2. Check for manual room allotments
+    // 2. Get manual room allotments
     const allAllotments = JSON.parse(localStorage.getItem(ROOM_ALLOTMENT_KEY) || '{}');
 
-    // 3. Get Scribe List (to mark them)
-    // *** FIX: We can't call loadGlobalScribeList() here as it updates the UI. Read from storage directly. ***
+    // 3. Get Scribe List
     const scribeRegNos = new Set( (JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]')).map(s => s.regNo) );
     
-    // 4. Perform Room Allocation
-    const processed_rows_with_rooms = [];
+    // 4. Pre-process data to populate sessionRoomFills with MANUAL allotments
+    //    This is the FIX for the 50-in-30 bug.
     const sessionRoomFills = {}; // Tracks { "Room 1": 0, "Room 2": 0 }
-    const sessionRoomStudentCount = {}; // Tracks { "Room 1": 0, "Room 2": 0 } for seat number
-    const DEFAULT_OVERFLOW_CAPACITY = 30;
-    
+    const processed_data_with_manual = []; // Will hold data with manual rooms pre-assigned
+
     for (const row of data) {
         const sessionKey = `${row.Date}_${row.Time}`;
         const sessionKeyPipe = `${row.Date} | ${row.Time}`;
-        
-        let assignedRoomName = "";
-        
-        // 4a. Check if student is a scribe.
-        const isScribe = scribeRegNos.has(row['Register Number']);
-        
-        // 4b. Check if manual allotment exists for this session
+        let assignedRoomName = ""; // Start blank
+
+        // Find manual allotment
         const manualAllotment = allAllotments[sessionKeyPipe];
         if (manualAllotment && manualAllotment.length > 0) {
             for (const room of manualAllotment) {
@@ -400,8 +394,36 @@ function performOriginalAllocation(data) {
                 }
             }
         }
+
+        // If manually assigned, increment the fill count for that room
+        if (assignedRoomName !== "") {
+            if (!sessionRoomFills[sessionKey]) {
+                sessionRoomFills[sessionKey] = new Array(masterRoomCaps.length).fill(0);
+            }
+            
+            const roomIndex = masterRoomNames.indexOf(assignedRoomName);
+            if (roomIndex !== -1) {
+                // Increment the count. This respects manual allotment.
+                sessionRoomFills[sessionKey][roomIndex]++; 
+            }
+            // Note: If manually allotted to an "overflow" room not in settings,
+            // it won't be in masterRoomNames and won't be in currentFills, which is fine.
+        }
         
-        // 4c. If no manual allotment, use automatic allocation
+        processed_data_with_manual.push({ ...row, assignedRoomName }); // Store intermediate result
+    }
+
+    // 5. Perform FINAL allocation (automatic for remaining)
+    const processed_rows_with_rooms = [];
+    const sessionRoomStudentCount = {}; // Tracks seat numbers
+    const DEFAULT_OVERFLOW_CAPACITY = 30;
+
+    for (const row_data of processed_data_with_manual) {
+        const sessionKey = `${row_data.Date}_${row_data.Time}`;
+        let assignedRoomName = row_data.assignedRoomName; // Get pre-assigned room
+        const isScribe = scribeRegNos.has(row_data['Register Number']);
+
+        // If no manual room, run automatic allocation
         if (assignedRoomName === "") {
             if (!sessionRoomFills[sessionKey]) {
                 sessionRoomFills[sessionKey] = new Array(masterRoomCaps.length).fill(0);
@@ -411,10 +433,8 @@ function performOriginalAllocation(data) {
             
             // Try to fill configured rooms
             for (let i = 0; i < masterRoomCaps.length; i++) {
-                // *** FIX: Use capacity from masterRoomCaps[i] ***
                 if (currentFills[i] < masterRoomCaps[i]) {
                     assignedRoomName = masterRoomNames[i];
-                    // *** FIX: Increment fill count for ALL students (including scribes) ***
                     currentFills[i]++;
                     break;
                 }
@@ -426,7 +446,6 @@ function performOriginalAllocation(data) {
                 for (let i = masterRoomCaps.length; i < currentFills.length; i++) {
                     if (currentFills[i] < DEFAULT_OVERFLOW_CAPACITY) {
                         assignedRoomName = `Room ${i + 1}`;
-                        // *** FIX: Increment fill count for ALL students (including scribes) ***
                         currentFills[i]++;
                         foundOverflowSpot = true;
                         break;
@@ -435,14 +454,13 @@ function performOriginalAllocation(data) {
                 
                 // If no existing overflow has space, create a *new* overflow
                 if (!foundOverflowSpot) {
-                    assignedRoomName = `Room ${currentFills.length + 1}`; // FIX: Use .length + 1 for new room
-                    // *** FIX: Increment fill count for ALL students (including scribes) ***
+                    assignedRoomName = `Room ${currentFills.length + 1}`;
                     currentFills.push(1); 
                 }
             }
         }
         
-        // 4d. Assign the *original* seat number
+        // 5d. Assign the *original* seat number
         const roomSessionKey = `${sessionKey}_${assignedRoomName}`;
         if (!sessionRoomStudentCount[roomSessionKey]) {
             sessionRoomStudentCount[roomSessionKey] = 0;
@@ -451,9 +469,9 @@ function performOriginalAllocation(data) {
         const seatNumber = sessionRoomStudentCount[roomSessionKey];
 
         processed_rows_with_rooms.push({ 
-            ...row, 
+            ...row_data, 
             'Room No': assignedRoomName,
-            'seatNumber': seatNumber, // This is the key: e.g., 1, 2, 3...
+            'seatNumber': seatNumber, 
             'isScribe': isScribe 
         });
     }
