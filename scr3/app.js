@@ -3536,11 +3536,16 @@ editSessionSelect.addEventListener('change', () => {
         const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
         const courses = [...new Set(sessionStudents.map(s => s.Course))].sort();
         
-        editCourseSelect.innerHTML = '<option value="">-- Select a Course --</option>';
-        courses.forEach(course => {
-            editCourseSelect.innerHTML += `<option value="${course}">${course}</option>`;
-        });
-        editCourseSelectContainer.classList.remove('hidden');
+    editCourseSelect.innerHTML = ''; // Clear it completely
+    // Add the default "Select" option
+    editCourseSelect.appendChild(new Option('-- Select a Course --', ''));
+    // Add each course option safely
+    courses.forEach(course => {
+        // new Option(text, value)
+        editCourseSelect.appendChild(new Option(course, course));
+    });
+
+    editCourseSelectContainer.classList.remove('hidden');
     } else {
         editCourseSelectContainer.classList.add('hidden');
     }
