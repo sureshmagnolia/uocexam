@@ -352,14 +352,14 @@ async def run_extraction_py(event=None):
                     # First, try to extract using the "New" format rules (looking for "Exam Date:", "Paper Details:")
                     file_date, file_time, file_course = extract_new_format_header(page1_text)
 
-                        if file_date == "Unknown" and file_course == "Unknown":
+                    if file_date == "Unknown" and file_course == "Unknown":
                             # If "New" format fails, fall back to "Old" format rules
-                            log_message("Trying 'Old' PDF format...")
+                        log_message("Trying 'Old' PDF format...")
                             file_date, file_time, file_course = extract_old_format_header(page1_text)
-                            log_message("Detected 'Old' PDF format.")
-                        else:
+                        log_message("Detected 'Old' PDF format.")
+                    else:
                             # If "New" format succeeds, we are done
-                            log_message("Detected 'New' PDF format.")
+                        log_message("Detected 'New' PDF format.")
 
 # --- END NEW DETECTION LOGIC ---
 
