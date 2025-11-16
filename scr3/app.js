@@ -406,8 +406,6 @@ function performOriginalAllocation(data) {
                 // Increment the count. This respects manual allotment.
                 sessionRoomFills[sessionKey][roomIndex]++; 
             }
-            // Note: If manually allotted to an "overflow" room not in settings,
-            // it won't be in masterRoomNames and won't be in currentFills, which is fine.
         }
         
         processed_data_with_manual.push({ ...row, assignedRoomName }); // Store intermediate result
@@ -2963,11 +2961,10 @@ function saveRoomAllotment() {
 // Update the display with current allotment status
 function updateAllotmentDisplay() {
     const [date, time] = currentSessionKey.split(' | ');
-    const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
-    
+    const sessionStudentRecords = allStudentData.filter(s => s.Date === date && s.Time === time);    
     // *** FIX: Include scribe students in count - they occupy space in original room ***
-    const totalStudents = sessionStudents.length;
-    // ***************************************************
+    const uniqueRegNos = new Set(sessionStudentRecords.map(s => s['Register Number']));
+    const totalStudents = uniqueRegNos.size;    // ***************************************************
     
     // Calculate allotted students
     let allottedCount = 0;
@@ -3089,7 +3086,8 @@ function showRoomSelectionModal() {
 // Select a room and allot students
 function selectRoomForAllotment(roomName, capacity) {
     const [date, time] = currentSessionKey.split(' | ');
-    const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
+    const sessionStudentRecords = allStudentData.filter(s => s.Date === date && s.Time === time);
+    const uniqueSessionRegNos = new Set(sessionStudentRecords.map(s => s['Register Number']));
     
     // *** FIX: Check if this room already has students allocated ***
     const existingRoom = currentSessionAllotment.find(r => r.roomName === roomName);
@@ -3107,15 +3105,18 @@ function selectRoomForAllotment(roomName, capacity) {
     });
 
     // Get unallotted students (including scribes)
-    const unallottedStudents = sessionStudents.filter(s => 
-        !allottedRegNos.has(s['Register Number'])
-    );
+    const unallottedRegNos = [];
+for (const regNo of uniqueSessionRegNos) {
+    if (!allottedRegNos.has(regNo)) {
+        unallottedRegNos.push(regNo);
+    }
+}
     
     // Allot up to capacity
-    const studentsToAllot = unallottedStudents.slice(0, capacity);
+    const regNosToAllot = unallottedRegNos.slice(0, capacity);
     
     // *** FIX: Renamed this variable from 'allottedRegNos' to 'newStudentRegNos' ***
-    const newStudentRegNos = studentsToAllot.map(s => s['Register Number']);
+    const newStudentRegNos = regNosToAllot;
     
     // Add to current session allotment
     currentSessionAllotment.push({
@@ -3424,8 +3425,7 @@ async function findAvailableRooms(sessionKey) {
 
 
 // Open the Scribe Room Modal
-// Open the Scribe Room Modal
-async function openScribeRoomModal(regNo, studentName) {
+window.openScribeRoomModal = async function(regNo, studentName) {
     studentToAllotScribeRoom = regNo;
     scribeRoomModalTitle.textContent = `Select Room for ${studentName} (${regNo})`;
     
