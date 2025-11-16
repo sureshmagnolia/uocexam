@@ -139,6 +139,31 @@
         display: block !important;
     }
     /* END OF NEW BLOCK */
+/* ... inside style.css ... */
+
+@media print {
+
+      /* ADD THIS NEW BLOCK */
+    html, body {
+        height: auto !important;
+        overflow-y: visible !important;
+        display: block !important;
+    }
+    
+    /* --- ADD THIS NEW RULE --- */
+    main {
+        overflow-y: visible !important;
+        height: auto !important;
+    }
+    /* --- END OF NEW RULE --- */
+
+    /* V98 FIX: Adjust page padding to maximize content area and minimize blank margins */
+    @page {
+        margin: 0.5cm; /* Minimal margin */
+    }
+
+/* ... rest of print styles ... */
+    
     /* V98 FIX: Adjust page padding to maximize content area and minimize blank margins */
     @page {
         margin: 0.5cm; /* Minimal margin */
