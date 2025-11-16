@@ -4175,6 +4175,15 @@ async function onRunExtractionClick() {
             // loadPyScript will show the "Loading Env..." message
         }
         
+        // --- START FIX ---
+        // Wait until the pyscript object is *actually* available on the window
+        // This fixes the race condition where py:ready fires before window.pyscript exists.
+        while (typeof window.pyscript === 'undefined' || typeof window.pyscript.interpreter === 'undefined') {
+            console.log("Waiting for window.pyscript to be defined...");
+            await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+        }
+        // --- END FIX ---
+        
         // Step 2: PyScript is now guaranteed to be ready.
         // We MUST access the `pyscript` object (on the `window`)
         // *after* the await has completed.
