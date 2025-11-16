@@ -39,9 +39,8 @@
     /* Hide the main app container and all other non-report elements */
     #main-nav, #view-extractor, #view-settings, #view-reports, #view-absentees, #view-qpcodes, 
     #view-room-settings, #view-room-allotment, 
-    /* *** NEW: Hide scribe views *** */
     #view-scribe-settings, #view-scribe-allotment, #scribe-room-modal,
-    /* *************************** */
+    #student-edit-modal, #room-selection-modal, #student-search-result-modal,
     body > py-config, body > py-script, #report-controls {
         display: none !important; /* Be forceful */
     }
@@ -731,36 +730,6 @@ tr.scribe-row-highlight {
     text-align: center;
 }
 /* --- End of Edit Data Table Styles --- */
-/* --- NEW: Invigilator Report Styles (Print) --- */
-@media print {
-    .invigilator-report-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 10pt;
-        margin-top: 1.5rem;
-        break-before: avoid;
-    }
-    .invigilator-report-table th,
-    .invigilator-report-table td {
-        border: 1px solid #000;
-        padding: 8px;
-        text-align: left;
-        vertical-align: top;
-    }
-    .invigilator-report-table th {
-        background-color: #eee !important;
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact;
-        font-weight: bold;
-    }
-    .invigilator-report-table tfoot td {
-        font-weight: bold;
-        background-color: #f0f0f0 !important;
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact;
-    }
-}
-
 /* --- NEW: Invigilator Report Styles (On-screen) --- */
 .invigilator-report-table {
     width: 100%;
@@ -784,6 +753,7 @@ tr.scribe-row-highlight {
     background-color: #f0f0f0;
 }
 /* --- END OF  Invigilator Report Styles (Print) --- */
+
 /* --- NEW Sidebar Navigation Styles (ExamFlow) --- */
 .nav-button {
     width: 100%;
