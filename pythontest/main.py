@@ -166,7 +166,7 @@ def extract_old_format_header(page_text):
     try:
         # --- Course Regex ---
         # 1. Try (CORE) or [syllabus]
-        course_match = re.search(r'([A-Z0-9]{3,}\d{3,}.*?(\[.*?syllabus\]|\(CORE\)))', page_text, re.DOTALL | re.IGNORECASE)
+        course_match = re.search(r'(.*?(\[.*?syllabus\]|\(CORE\)))', page_text, re.DOTALL | re.IGNORECASE)
         if not course_match:
             # 2. Try B.A. ... (CORE)
             course_match = re.search(r'^(B\.?[A-Z]{1,3}\.?\s*.*?\(CORE\))', page_text, re.MULTILINE | re.IGNORECASE)
