@@ -34,11 +34,12 @@
 /* In style.css, inside @media print { ... } */
 
 /* Hide EVERYTHING by default */
-#main-nav, main, #report-controls,
+/* *** FIX: Removed 'main' from this list. *** */
+#main-nav, #report-controls,
 #student-edit-modal, #room-selection-modal, #student-search-result-modal,
 body > py-config, body > py-script {
     display: none !important;
-    visibility: hidden !important; /* <--- ADDED VISIBILITY OVERRIDE */
+    visibility: hidden !important;
 }
 
 /* Force Show ONLY the report output area */
