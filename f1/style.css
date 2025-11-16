@@ -12,196 +12,140 @@
     100% { transform: rotate(360deg); }
 }
 
-/* --- Navigation Styles (V87: Rounder, Bigger) --- */
-.nav-button {
-    /* Base styles for all nav buttons */
-    /* V87: More rounded, more padding, bolder font */
-    @apply py-2.5 px-3 rounded-t-xl text-sm font-semibold transition-all duration-200 text-white shadow; 
-    
-    /* *** NEW: Make tabs equal width and centered *** */
-    flex: 1;
-    text-align: center;
-}
-.nav-button-active {
-    /* Active state: Taller, lighter bg, dark text */
-    /* *** NEW: Stronger shadow for "Material" lift *** */
-    @apply shadow-lg scale-105 transform -translate-y-1 shadow-indigo-400; 
-}
-.nav-button-inactive {
-    /* Inactive state: Darker bg, white text, slight fade */
-    @apply opacity-90 hover:opacity-100 transform;
-}
-
-/* V83: Main Nav Bar Adjustment */
-#top-banner {
-    background-color: #4f46e5; /* Indigo-600 */
-}
-#main-nav-tabs {
-    /* V86: New background and padding for spacing */
-    background-color: #1f2937; /* gray-800 */
-    width: 100%;
-    padding-top: 4px; /* Space for rounded tabs to lift */
-}
-
-/* V86: Unique Button Colors */
-#nav-extractor {
-    background-color: #2563eb; /* blue-600 */
-}
-#nav-extractor.nav-button-active {
-    background-color: #dbeafe; /* blue-100 */
-    color: #1d4ed8; /* blue-700 */
-}
-
-/* *** NEW: Edit Data Button Colors *** */
-#nav-edit-data {
-    background-color: #6b7280; /* gray-500 */
-}
-#nav-edit-data.nav-button-active {
-    background-color: #f3f4f6; /* gray-100 */
-    color: #1f2937; /* gray-800 */
-}
-
-#nav-settings {
-    background-color: #16a34a; /* green-600 */
-}
-#nav-settings.nav-button-active {
-    background-color: #dcfce7; /* green-100 */
-    color: #15803d; /* green-700 */
-}
-
-/* This is the OLD room-settings style, now used by Settings */
-#nav-room-settings {
-    background-color: #9333ea; /* purple-600 */
-}
-#nav-room-settings.nav-button-active {
-    background-color: #f3e8ff; /* purple-100 */
-    color: #7e22ce; /* purple-700 */
-}
-
-#nav-qpcodes {
-    background-color: #ca8a04; /* yellow-600 */
-}
-#nav-qpcodes.nav-button-active {
-    background-color: #fef9c3; /* yellow-100 */
-    color: #a16207; /* yellow-700 */
-}
-
-#nav-reports {
-    background-color: #dc2626; /* red-600 */
-}
-#nav-reports.nav-button-active {
-    background-color: #fee2e2; /* red-100 */
-    color: #b91c1c; /* red-700 */
-}
-
-#nav-absentees {
-    background-color: #db2777; /* pink-600 */
-}
-#nav-absentees.nav-button-active {
-    background-color: #fce7f3; /* pink-100 */
-    color: #be185d; /* pink-700 */
-}
-
-#nav-room-allotment {
-    background-color: #0891b2; /* cyan-600 */
-}
-#nav-room-allotment.nav-button-active {
-    background-color: #cffafe; /* cyan-100 */
-    color: #0e7490; /* cyan-700 */
-}
-
-/* *** NEW SCRIBE BUTTON COLORS *** */
-#nav-scribe-settings {
-    background-color: #f97316; /* orange-600 */
-}
-#nav-scribe-settings.nav-button-active {
-    background-color: #ffedd5; /* orange-100 */
-    color: #c2410c; /* orange-700 */
-}
-
-#nav-scribe-allotment {
-    background-color: #0d9488; /* teal-600 */
-}
-#nav-scribe-allotment.nav-button-active {
-    background-color: #ccfbf1; /* teal-100 */
-    color: #115e59; /* teal-700 */
-}
-/* ****************************** */
-
-
 /* --- PRINT STYLES --- */
 @media print {
 
-      /* ADD THIS NEW BLOCK */
     html, body {
         height: auto !important;
         overflow-y: visible !important;
         display: block !important;
     }
-    /* END OF NEW BLOCK */
-    /* V98 FIX: Adjust page padding to maximize content area and minimize blank margins */
+    
     @page {
         margin: 0.5cm; /* Minimal margin */
     }
     
-    /* V100 FIX: Ensure body and app background is white/transparent to remove shadows */
     body, #report-output-area {
         background-color: white !important;
         background: white !important;
         color: black !important;
     }
 
-    /* Hide the main app container and all other non-report elements */
-    #main-nav, #view-extractor, #view-settings, #view-reports, #view-absentees, #view-qpcodes, 
-    #view-room-settings, #view-room-allotment, 
-    /* *** NEW: Hide scribe views *** */
-    #view-scribe-settings, #view-scribe-allotment, #scribe-room-modal,
-    /* *************************** */
-    body > py-config, body > py-script, #report-controls {
-        display: none !important; /* Be forceful */
-    }
+/* In style.css, inside @media print { ... } */
+
+/* Hide EVERYTHING by default */
+/* --- REPLACEMENT CSS FOR PRINT SECTION --- */
+
+/* 1. Hide Navigation, Modals, PyScript, and Sibling Views */
+#main-nav,
+#student-edit-modal,
+#room-selection-modal,
+#student-search-result-modal,
+#scribe-room-modal,  /* Added missing modal */
+body > py-config,
+body > py-script,
+/* Hide all the main 'View' containers (siblings of report-controls) */
+#view-extractor,
+#view-edit-data,
+#view-scribe-settings,
+#view-room-allotment,
+#view-qpcodes,
+#view-search,
+#view-reports,
+#view-absentees,
+#view-settings,
+#view-room-settings {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* 2. Hide everything INSIDE '#report-controls' (buttons, status text)... */
+#report-controls > * {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* 3. ...EXCEPT the '#report-output-area', which must be explicitly visible */
+/* (Note: This rule likely already exists in your file, just ensure it looks like this) */
+#report-output-area {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: white !important;
+}
+
+/* 4. Reset the layout of Main and Report Controls so they don't restrict the page */
+main, #report-controls {
+    display: block !important;
+    visibility: visible !important; /* Ensure parents are visible */
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    max-width: none !important; /* Remove the 'max-w-2xl' restriction */
+    background: transparent !important; /* Remove gray background */
+    border: none !important;
+    box-shadow: none !important;
+}
+
+    /* NEW RULE TO ADD */
+
+/* Hide all direct children of report-controls... */
+#report-controls > * {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Force Show ONLY the report output area */
+#report-output-area {
+    display: block !important;
+    visibility: visible !important; /* <--- CRITICAL: Make sure content is visible */
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
     
     /* Show ONLY the report content area and ensure it's visible */
-    #report-output-area {
-        display: block !important;
-        visibility: visible !important;
-        position: static; /* Use static positioning for print flow */
-        width: 100%;
-        overflow-y: visible;
-        /* V101 FIX: Reset margin and padding to prevent interference with page breaks */
-        margin: 0 !important;
-        padding: 0 !important;
-    }
+   #report-output-area {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important; /* <--- ADDED !IMPORTANT */
+    width: 100% !important;
+    height: auto !important; /* <--- ADDED FOR SAFTEY */
+    margin: 0 !important;
+    padding: 0 !important;
+}
 
     /* Make sure each page is visible and breaks correctly */
     .print-page {
         display: block !important;
         visibility: visible !important;
-        /* V93 FIX: Enforce page break on all report pages */
         page-break-after: always;
         page-break-inside: avoid;
         width: 100%;
-        /* V98 FIX: Use padding=margin to match @page setting */
         padding: 0.5cm; 
         box-sizing: border-box;
         box-shadow: none;
         border: none;
-        /* V101 FIX: Add !important to guarantee margin reset */
         margin: 0 !important;
-        min-height: auto !important; /* <-- ADD THIS LINE */
+        min-height: auto !important;
     }
-    /* NEW RULE TO FIX DAY-WISE REPORT */
     .print-page-daywise {
-        width: 100% !important; /* Override the 297mm screen style */
-        min-height: auto !important; /* Override the 210mm screen style */
+        width: 100% !important;
+        min-height: auto !important;
     }
 
-    /* V93 FIX: Final page should not have a page break */
     .print-page:last-child {
         page-break-after: auto;
     }
     
-    /* The rest of the styles are for formatting the page */
     h1, h2 {
         text-align: center;
         color: black;
@@ -210,23 +154,19 @@
     h2 { font-size: 14pt; font-weight: bold; margin-bottom: 1rem; }
     h3 { font-size: 12pt; font-weight: bold; margin-bottom: 1rem; }
 
-    /* V98: Hide course summary from the body content as it is moved to footer */
     .course-summary {
         display: none;
     }
 
-    /* V98: New style for summary inside the footer */
     .invigilator-footer .course-summary-footer {
         display: block;
         font-size: 10pt;
         margin-bottom: 1rem;
         padding: 0.5rem;
-        /* V99 FIX: Add border for the box */
         border: 1px solid #ccc;
         text-align: left;
     }
 
-    /* *** NEW: Scribe footnote style *** */
     .invigilator-footer .scribe-footnote {
         display: block;
         font-size: 9pt;
@@ -234,7 +174,6 @@
         margin-top: 1rem;
     }
     
-    /* (V28) Style for new location header */
     .report-location-header {
         font-size: 12pt;
         font-weight: bold;
@@ -250,7 +189,7 @@
         padding-top: 1rem;
         border-top: 1px solid #ccc;
         font-size: 10pt;
-        page-break-before: avoid; /* Keep with content above */
+        page-break-before: avoid;
     }
     .invigilator-footer div {
         margin-bottom: 0.5rem;
@@ -272,7 +211,6 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        /* V71: Reduced font size */
         font-size: 8.5pt; 
     }
     th, td {
@@ -286,36 +224,31 @@
         background-color: #eee;
     }
 
-    /* *** NEW: Scribe row highlight for PRINT *** */
     tr.scribe-row-highlight {
-        background-color: #f0f0f0 !important; /* Light grey */
-        -webkit-print-color-adjust: exact; /* Ensures background prints */
+        background-color: #f0f0f0 !important;
+        -webkit-print-color-adjust: exact;
         color-adjust: exact;
     }
     
-    /* V90 FIX: Add break-before: avoid to tables to keep with headers */
     .print-table {
         break-before: avoid;
     }
 
-    /* --- Room-wise Seating Report Columns (w/ Remarks) --- */
-    /* *** UPDATED WIDTHS *** */
+    /* Room-wise Seating Report */
     .sl-col { width: 5%; }
-    .course-col { width: 30%; } /* Increased */
-    .reg-col { width: 15%; text-align: right; } /* Reduced */
-    .name-col { width: 25%; } /* Reduced */
+    .course-col { width: 30%; }
+    .reg-col { width: 15%; text-align: right; }
+    .name-col { width: 25%; }
     .signature-col { width: 10%; } 
-    .remarks-col { width: 15%; } /* Increased */
-    /* --- --- */
+    .remarks-col { width: 15%; }
 
-    /* --- Question Paper Report Table Styles --- */
+    /* Question Paper Report */
     .q-paper-table .sl-col { width: 10%; }
     .q-paper-table .course-col { width: 70%; }
     .q-paper-table .count-col { width: 20%; }
     .q-paper-table tfoot td { font-weight: bold; }
     
-    /* --- (V29) Day-wise Report Styles --- */
-    /* V89: Added rule to keep header with table */
+    /* Day-wise Report */
     .print-header-group {
         break-inside: avoid;
     }
@@ -323,27 +256,23 @@
     .print-page-daywise h1 { font-size: 14pt; }
     .print-page-daywise h2 { font-size: 12pt; margin-bottom: 0.5rem; }
     .print-page-daywise .column-container {
-        /* V92 FIX: Ensure print media treats this as a single column for PDF export if needed */
         display: block; 
         gap: 0;
     }
     .print-page-daywise .column {
         flex: none;
-        min-width: 100%; /* Prevents flex overflow */
+        min-width: 100%;
     }
     .daywise-report-table {
         width: 100%;
         border-collapse: collapse;
-        /* V100 FIX: Increased font size for better readability/fit */
         font-size: 9pt; 
-        /* V100 FIX: Removed fixed layout in print media to allow natural column width adjustment */
         table-layout: auto; 
-        /* V90 FIX: Add break-before: avoid to tables to keep with headers */
         break-before: avoid;
     }
     .daywise-report-table th,
     .daywise-report-table td {
-        border: 1px solid #999; /* Darker border for print */
+        border: 1px solid #999;
         padding: 3px;
         text-align: left;
         word-wrap: break-word;
@@ -352,13 +281,12 @@
         background: #eee;
     }
     
-    /* --- (V56) Absentee Report Styles --- */
+    /* Absentee Report */
     .absentee-report-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 10pt;
         margin-top: 1rem;
-        /* V90 FIX: Add break-before: avoid to tables to keep with headers */
         break-before: avoid;
     }
     .absentee-report-table th,
@@ -372,7 +300,6 @@
         font-weight: bold;
     }
     .absentee-report-table .regno-list {
-        /* V56: Use flex-wrap for register numbers */
         display: flex;
         flex-wrap: wrap;
         gap: 5px;
@@ -382,7 +309,6 @@
         border: 1px solid #ddd;
         border-radius: 4px;
         background-color: #f9f9f9;
-        /* *** NEW: Add margin for comma spacing *** */
         margin-right: 4px;
     }
     .absentee-footer {
@@ -398,7 +324,7 @@
         padding-top: 4px;
     }
     
-    /* *** NEW: Scribe Report Styles (Print) *** */
+    /* Scribe Report */
     .scribe-report-table {
         width: 100%;
         border-collapse: collapse;
@@ -417,10 +343,8 @@
         background-color: #eee;
         font-weight: bold;
     }
-    /* ************************************** */
-}
 
-/* *** NEW: QP Distribution Report (Print) *** */
+    /* QP Distribution Report */
     .print-page h4.qp-header {
         font-size: 12pt;
         font-weight: bold;
@@ -435,8 +359,8 @@
         border-collapse: collapse;
         font-size: 10pt;
         margin-top: 0.5rem;
-        margin-bottom: 1.5rem; /* Space between rooms */
-        break-inside: avoid; /* Keep table from breaking */
+        margin-bottom: 1.5rem;
+        break-inside: avoid;
     }
     .qp-distribution-table th,
     .qp-distribution-table td {
@@ -450,9 +374,8 @@
         color-adjust: exact;
         font-weight: bold;
     }
-    /* ****************************************** */
 
-/* *** NEW: Scribe Proforma Styles (Print) *** */
+    /* Scribe Proforma */
     .proforma-table { 
         width: 100%; 
         border-collapse: collapse; 
@@ -477,16 +400,43 @@
         font-weight: bold; 
     }
     .proforma-table td.fillable { 
-        height: 60px; /* Give space to write */
+        height: 60px;
         font-weight: normal; 
     }
-    /* ****************************************** */
+    
+    /* Invigilator Report */
+    .invigilator-report-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10pt;
+        margin-top: 1.5rem;
+        break-before: avoid;
+    }
+    .invigilator-report-table th,
+    .invigilator-report-table td {
+        border: 1px solid #000;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .invigilator-report-table th {
+        background-color: #eee !important;
+        -webkit-print-color-adjust: exact; 
+        color-adjust: exact;
+        font-weight: bold;
+    }
+    .invigilator-report-table tfoot td {
+        font-weight: bold;
+        background-color: #f0f0f0 !important;
+        -webkit-print-color-adjust: exact; 
+        color-adjust: exact;
+    }
+
+}
 /* --- END PRINT STYLES --- */
 
 /* --- Report styles for the *viewer* (on-screen) --- */
 .print-page {
-    /* V100 FIX: Removed background-color: white to ensure print media rules take over, */
-    /* but kept the shadow for the on-screen preview look. */
     background: #ffffff;
     width: 210mm; 
     min-height: 297mm; 
@@ -495,13 +445,11 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     color: black;
     box-sizing: border-box; 
-    /* V71: Reduce base font size for better fitting */
     font-size: 9pt; 
 }
 .print-page-daywise {
-    /* V93 FIX: Ensure Day-wise is visible in landscape on screen */
-    width: 297mm; /* A4 height */
-    min-height: 210mm; /* A4 width */
+    width: 297mm;
+    min-height: 210mm;
 }
 .print-page h1 {
     font-size: 16pt;
@@ -521,25 +469,20 @@
     text-align: center;
     margin-bottom: 1rem;
 }
-/* V98: On-screen view of summary box in the body */
 .print-page .course-summary {
     font-size: 11pt;
     margin-bottom: 1rem;
     padding: 0.5rem;
     border: 1px solid #ccc;
 }
-
-/* V98: On-screen view of summary box in the footer */
 .invigilator-footer .course-summary-footer {
     display: block;
     font-size: 10pt;
     margin-bottom: 1rem;
     padding: 0.5rem;
-    /* V99 FIX: Add border for the box */
     border: 1px solid #ccc;
     text-align: left;
 }
-/* *** NEW: Scribe footnote style *** */
 .invigilator-footer .scribe-footnote {
     display: block;
     font-size: 9pt;
@@ -547,7 +490,6 @@
     margin-top: 1rem;
 }
         
-/* (V28) Style for new location header */
 .report-location-header {
     font-size: 12pt;
     font-weight: bold;
@@ -561,7 +503,7 @@
 .print-page table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 8.5pt; /* V71: Reduced font size for better fit */
+    font-size: 8.5pt;
 }
 .print-page th, .print-page td {
     border: 1px solid black;
@@ -574,11 +516,10 @@
     background-color: #eee;
 }
 
-/* *** NEW: Scribe row highlight for SCREEN *** */
 tr.scribe-row-highlight {
-    background-color: #f0f0f0; /* Light grey */
+    background-color: #f0f0f0;
 }
-/* *** NEW: Edit Data Table Styles *** */
+
 .edit-data-table {
     width: 100%;
     border-collapse: collapse;
@@ -586,13 +527,13 @@ tr.scribe-row-highlight {
 }
 .edit-data-table th,
 .edit-data-table td {
-    border: 1px solid #e5e7eb; /* gray-200 */
+    border: 1px solid #e5e7eb;
     padding: 8px 10px;
     text-align: left;
     vertical-align: top;
 }
 .edit-data-table th {
-    background-color: #f9fafb; /* gray-50 */
+    background-color: #f9fafb;
     font-weight: 600;
 }
 .edit-data-table .edit-field {
@@ -600,7 +541,7 @@ tr.scribe-row-highlight {
     width: 100%;
 }
 .edit-data-table .view-field {
-    min-height: 2.25rem; /* Match input height */
+    min-height: 2.25rem;
     padding-top: 0.25rem;
 }
 .edit-data-table input[type="text"] {
@@ -613,25 +554,19 @@ tr.scribe-row-highlight {
     width: 100px;
     text-align: center;
 }
-/* ********************************************* */        
-/* --- Room-wise Seating Report Columns (w/ Remarks) --- */
-/* *** UPDATED WIDTHS *** */
+        
 .print-page .sl-col { width: 5%; }
-.print-page .course-col { width: 30%; } /* Increased */
-.print-page .reg-col { width: 15%; text-align: right; } /* Reduced */
-.print-page .name-col { width: 25%; } /* Reduced */
+.print-page .course-col { width: 30%; }
+.print-page .reg-col { width: 15%; text-align: right; }
+.print-page .name-col { width: 25%; }
 .print-page .signature-col { width: 10%; } 
-.print-page .remarks-col { width: 15%; } /* Increased */
-/* --- --- */
+.print-page .remarks-col { width: 15%; }
 
-/* --- Question Paper Report Table Styles --- */
 .print-page .q-paper-table .sl-col { width: 10%; }
 .print-page .q-paper-table .course-col { width: 70%; }
 .print-page .q-paper-table .count-col { width: 20%; }
 .print-page .q-paper-table tfoot td { font-weight: bold; }
         
-/* --- (V29) Day-wise Report Styles --- */
-/* V89: This applies on-screen too, which is fine */
 .print-header-group {
     break-inside: avoid;
 }
@@ -644,27 +579,25 @@ tr.scribe-row-highlight {
 }
 .print-page-daywise .column {
     flex: 1;
-    min-width: 0; /* Prevents flex overflow */
+    min-width: 0;
 }
 .daywise-report-table {
     width: 100%;
     border-collapse: collapse;
-    /* V32: Font size decreased */
     font-size: 6pt; 
-    table-layout: fixed; /* Helps with column widths */
+    table-layout: fixed;
 }
 .daywise-report-table th,
 .daywise-report-table td {
-    border: 1px solid #ccc; /* Lighter border for screen */
+    border: 1px solid #ccc;
     padding: 2px;
     text-align: left;
-    word-wrap: break-word; /* Ensure long text wraps */
+    word-wrap: break-word;
 }
 .daywise-report-table th {
     background: #f0f0f0;
 }
         
-/* --- (V56) Absentee Report Styles --- */
 .absentee-report-table {
     width: 100%;
     border-collapse: collapse;
@@ -692,7 +625,6 @@ tr.scribe-row-highlight {
     padding: 1px 4px;
     border-radius: 4px;
     background-color: #f4f4f4;
-    /* *** NEW: Add margin for comma spacing *** */
     margin-right: 4px;
 }
 .absentee-footer {
@@ -708,7 +640,6 @@ tr.scribe-row-highlight {
     padding-top: 4px;
 }
 
-/* *** NEW: Scribe Report Styles (On-screen) *** */
 .scribe-report-table {
     width: 100%;
     border-collapse: collapse;
@@ -726,8 +657,7 @@ tr.scribe-row-highlight {
     background-color: #eee;
     font-weight: bold;
 }
-/* ***************************************** */
-/* *** NEW: Scribe Proforma Styles (On-screen) *** */
+
 .proforma-table { 
     width: 100%; 
     border-collapse: collapse; 
@@ -749,11 +679,10 @@ tr.scribe-row-highlight {
     font-weight: bold; 
 }
 .proforma-table td.fillable { 
-    height: 60px; /* Give space to write */
+    height: 60px;
     font-weight: normal; 
 }
-/* ********************************************* */
-/* *** NEW: QP Distribution Report (On-screen) *** */
+
 .print-page h4.qp-header {
     font-size: 12pt;
     font-weight: bold;
@@ -767,7 +696,7 @@ tr.scribe-row-highlight {
     border-collapse: collapse;
     font-size: 10pt;
     margin-top: 0.5rem;
-    margin-bottom: 1.5rem; /* Space between rooms */
+    margin-bottom: 1.5rem;
 }
 .qp-distribution-table th,
 .qp-distribution-table td {
@@ -779,9 +708,7 @@ tr.scribe-row-highlight {
     background-color: #eee;
     font-weight: bold;
 }
-/* ********************************************* */
 
-/* --- (V56) Autocomplete Styles --- */
 .autocomplete-container {
     position: relative;
 }
@@ -832,19 +759,19 @@ tr.scribe-row-highlight {
 .edit-data-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem; /* Make font slightly smaller */
-    table-layout: fixed; /* Allow us to control column widths */
+    font-size: 0.85rem;
+    table-layout: fixed;
 }
 .edit-data-table th,
 .edit-data-table td {
-    border: 1px solid #e5e7eb; /* gray-200 */
-    padding: 6px 8px; /* Tighter padding */
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
     text-align: left;
     vertical-align: top;
-    word-wrap: break-word; /* Break long words */
+    word-wrap: break-word;
 }
 .edit-data-table th {
-    background-color: #f9fafb; /* gray-50 */
+    background-color: #f9fafb;
     font-weight: 600;
 }
 
@@ -866,40 +793,10 @@ tr.scribe-row-highlight {
 
 .edit-data-table th.actions-cell,
 .edit-data-table td.actions-cell {
-    width: 12%; /* Actions */
+    width: 12%;
     text-align: center;
 }
 /* --- End of Edit Data Table Styles --- */
-/* --- NEW: Invigilator Report Styles (Print) --- */
-@media print {
-    .invigilator-report-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 10pt;
-        margin-top: 1.5rem;
-        break-before: avoid;
-    }
-    .invigilator-report-table th,
-    .invigilator-report-table td {
-        border: 1px solid #000;
-        padding: 8px;
-        text-align: left;
-        vertical-align: top;
-    }
-    .invigilator-report-table th {
-        background-color: #eee !important;
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact;
-        font-weight: bold;
-    }
-    .invigilator-report-table tfoot td {
-        font-weight: bold;
-        background-color: #f0f0f0 !important;
-        -webkit-print-color-adjust: exact; 
-        color-adjust: exact;
-    }
-}
-
 /* --- NEW: Invigilator Report Styles (On-screen) --- */
 .invigilator-report-table {
     width: 100%;
@@ -923,9 +820,9 @@ tr.scribe-row-highlight {
     background-color: #f0f0f0;
 }
 /* --- END OF  Invigilator Report Styles (Print) --- */
+
 /* --- NEW Sidebar Navigation Styles (ExamFlow) --- */
 .nav-button {
-    /* Base styles: flex, alignment, padding, rounded */
     width: 100%;
     display: flex;
     align-items: center;
@@ -940,17 +837,15 @@ tr.scribe-row-highlight {
     transition-property: all;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
-    border: none; /* Ensure no default button border */
+    border: none;
     cursor: pointer;
 }
 .nav-button-active {
-    /* Active state: Solid background, bright text */
     background-color: #4338ca; /* bg-indigo-700 */
     color: #ffffff; /* text-white */
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 .nav-button-inactive {
-    /* Inactive state: Transparent, dimmer text, hover effect */
     background-color: transparent;
     color: #9ca3af; /* text-gray-400 */
 }
@@ -959,7 +854,6 @@ tr.scribe-row-highlight {
     color: #ffffff; /* hover:text-white */
 }
 
-/* Style for the SVG icons inside the buttons */
 .nav-button svg {
     width: 1.25rem; /* 20px */
     height: 1.25rem; /* 20px */
