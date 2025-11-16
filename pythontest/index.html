@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UOC Exam Management V10.1</title> <script src="https://cdn-tailwindcss.vercel.app/"></script>
-    
-    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
-    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
-    
+    <title>UOC Exam Management V10.1</title> 
+    <script src="https://cdn-tailwindcss.vercel.app/"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script> </head>
 
 </head>
 <body class="bg-gray-100 font-sans flex h-screen">
@@ -102,7 +101,6 @@
                 </div>
                 
                 <button id="run-button" 
-                        py-click="start_extraction" 
                         class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50">
                     <span id="spinner" class="loader-spin -ml-1 mr-3 h-5 w-5 text-white hidden"></span>
                     <span id="button-text">2. Run Batch Extraction</span>
@@ -727,14 +725,6 @@
     
     <div id="json-data-store" class="hidden"></div>
     <div id="q-paper-data-store" class="hidden"></div>
-
-<py-config>
-        packages = ["pandas", "pdfplumber==0.9.0"]
-    </py-config>
-    
-    <script src="app.js"></script> 
-    
-    <py-script src="main.py"></py-script> 
 
 </body>   
 </html>
