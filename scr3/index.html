@@ -693,16 +693,23 @@
                     <span class="detail-label">Room Location:</span>
                     <span class="detail-value" id="search-result-room-location"></span>
                 </div>
-                
                 <div class="detail-item">
                     <span class="detail-label">Seat Number:</span>
                     <span class="detail-value" id="search-result-seat"></span>
                 </div>
-                <div class="detail-item hidden" id="search-result-scribe-block">
-                    <span class="detail-label">Scribe Room:</span>
-                    <span class="detail-value" id="search-result-scribe-room"></span>
+
+                <div class="hidden" id="search-result-scribe-block">
+                    <hr>
+                    <div class="detail-item">
+                        <span class="detail-label">Scribe Room:</span>
+                        <span class="detail-value" id="search-result-scribe-room"></span>
+                    </div>
+                    <div class="detail-item" id="search-result-scribe-location-block">
+                        <span class="detail-label">Scribe Room Location:</span>
+                        <span class="detail-value" id="search-result-scribe-room-location"></span>
+                    </div>
                 </div>
-            </div>
+                </div>
 
             <div class="mt-6">
                 <button id="modal-close-search-result" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50">
@@ -711,7 +718,7 @@
             </div>
         </div>
     </div>
-</div> 
+</div>
 
     <div id="report-controls" class="container max-w-2xl mx-auto p-4 bg-gray-100 rounded-lg hidden">
         <span id="report-status" class="text-sm font-medium text-gray-700"></span>
