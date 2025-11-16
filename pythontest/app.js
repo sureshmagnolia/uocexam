@@ -4124,7 +4124,7 @@ function loadPyScript() {
             // --- 1. Add PyScript CSS ---
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = 'https://pyscript.net/releases/2023.11.1/core.css'; // <-- FIX: Use correct version
+            link.href = 'https://pyscript.net/releases/2024.1.1/core.css'; // <-- FIX: Use correct version
             document.head.appendChild(link); // <-- Correctly append the link immediately
 
             // --- 2. Add py-config (must be in body) ---
@@ -4151,7 +4151,7 @@ function loadPyScript() {
             const script = document.createElement('script');
             script.type = 'module';
             // <-- FIX: Use correct URL and version to avoid the ReferenceError
-            script.src = 'https://pyscript.net/releases/2023.11.1/core.js'; 
+           script.src = 'https://pyscript.net/releases/2024.1.1/core.js'; 
             
             script.onerror = () => {
                 reject(new Error("Failed to load PyScript core."));
