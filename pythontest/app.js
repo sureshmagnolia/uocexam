@@ -4169,20 +4169,16 @@ function loadPyScript() {
 // This function is the new click handler for the "Run" button
 async function onRunExtractionClick() {
     try {
-        let pyScriptTag; // Define tag variable
-        
         // Step 1: Check if PyScript is loaded. If not, load it and wait.
         if (!isPyScriptReady) {
-            // The promise now returns the tag element
-            pyScriptTag = await loadPyScript();
-        } else {
-            // If it's already ready, just find the tag
-            pyScriptTag = document.getElementById('main_py_script');
+            await loadPyScript();
+            // loadPyScript will show the "Loading Env..." message
         }
         
         // Step 2: PyScript is now guaranteed to be ready.
-        // Get the function from the tag's interpreter
-        const start_extraction = pyScriptTag.interpreter.globals.get('start_extraction');
+        // We MUST access the `pyscript` object (on the `window`)
+        // *after* the await has completed.
+        const start_extraction = window.pyscript.interpreter.globals.get('start_extraction');
         
         // Step 3: Run the Python function
         start_extraction();
