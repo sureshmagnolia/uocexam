@@ -4135,6 +4135,7 @@ function loadPyScript() {
             // 3. Add py-script (must be in body)
             const pyScriptTag = document.createElement('py-script');
             pyScriptTag.src = 'main.py';
+            pyScriptTag.id = 'main_py_script'; // <-- ADD THIS ID
             document.body.appendChild(pyScriptTag);
 
             // 4. Listen for the 'py:ready' event
@@ -4167,15 +4168,13 @@ function loadPyScript() {
 // This function is the new click handler for the "Run" button
 async function onRunExtractionClick() {
     try {
-        // Step 1: Check if PyScript is loaded. If not, load it and wait.
-        if (!isPyScriptReady) {
-            await loadPyScript();
-            // loadPyScript will show the "Loading Env..." message
-        }
+
+// Step 2: PyScript is now guaranteed to be ready.
+        // Get the <py-script> tag by its ID
+        const pyScriptTag = document.getElementById('main_py_script');
         
-        // Step 2: PyScript is now guaranteed to be ready.
-        // Get the 'start_extraction' function from Python's global scope
-        const start_extraction = pyscript.interpreter.globals.get('start_extraction');
+        // Get the function from the tag's interpreter
+        const start_extraction = pyScriptTag.interpreter.globals.get('start_extraction');
         
         // Step 3: Run the Python function
         start_extraction();
