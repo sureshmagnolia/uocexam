@@ -108,7 +108,8 @@ const generateQpDistributionReportButton = document.getElementById('generate-qp-
 const generateScribeReportButton = document.getElementById('generate-scribe-report-button');
 const generateScribeProformaButton = document.getElementById('generate-scribe-proforma-button'); // <-- ADD THIS
 // ****************************
-
+// *** NEW INVIGILATOR REPORT BUTTON ***
+const generateInvigilatorReportButton = document.getElementById('generate-invigilator-report-button'); // <-- ADD THIS
 // --- Get references to Day-wise Report elements ---
 const generateDaywiseReportButton = document.getElementById('generate-daywise-report-button');
 
@@ -2124,6 +2125,7 @@ function parseCsvAndLoadData(csvText) {
         generateDaywiseReportButton.disabled = false;
         generateScribeReportButton.disabled = false; // <-- NEW
         generateScribeProformaButton.disabled = false; // <-- ADD THIS
+        generateInvigilatorReportButton.disabled = false; // <-- ADD THIS
         
         // V56: Enable and populate absentee tab
         disable_absentee_tab(false);
@@ -2766,6 +2768,7 @@ function loadInitialData() {
                 generateDaywiseReportButton.disabled = false;
                 generateScribeReportButton.disabled = false; // <-- NEW
                 generateScribeProformaButton.disabled = false; // <-- ADD THIS
+                generateInvigilatorReportButton.disabled = false; // <-- ADD THIS
                 disable_absentee_tab(false);
                 disable_qpcode_tab(false);
                 disable_room_allotment_tab(false);
@@ -3424,22 +3427,9 @@ window.disable_all_report_buttons = function(disabled) {
     generateQPaperReportButton.disabled = disabled;
     generateDaywiseReportButton.disabled = disabled;
     generateScribeReportButton.disabled = disabled;
-}
-window.disable_all_report_buttons = function(disabled) {
-    generateReportButton.disabled = disabled;
-    generateQPaperReportButton.disabled = disabled;
-    generateDaywiseReportButton.disabled = disabled;
-    generateScribeReportButton.disabled = disabled;
-    generateScribeProformaButton.disabled = disabled; // <-- ADD THIS
-}
-
-window.disable_all_report_buttons = function(disabled) {
-    generateReportButton.disabled = disabled;
-    generateQPaperReportButton.disabled = disabled;
-    generateDaywiseReportButton.disabled = disabled;
-    generateScribeReportButton.disabled = disabled;
     generateScribeProformaButton.disabled = disabled;
     generateQpDistributionReportButton.disabled = disabled; // <-- ADD THIS
+    generateInvigilatorReportButton.disabled = disabled; // <-- ADD THIS
 }
 // --- NEW: STUDENT DATA EDIT FUNCTIONALITY ---
 
@@ -3759,6 +3749,162 @@ function setUnsavedChanges(status) {
 }
 
 // --- END: STUDENT DATA EDIT FUNCTIONALITY ---
+// *** NEW: Event listener for Invigilator Report ***
+generateInvigilatorReportButton.addEventListener('click', async () => {
+    generateInvigilatorReportButton.disabled = true;
+    generateInvigilatorReportButton.textContent = "Calculating...";
+    reportOutputArea.innerHTML = "";
+    reportControls.classList.add('hidden');
+    roomCsvDownloadContainer.innerHTML = "";
+    lastGeneratedReportType = "";
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    try {
+        // 1. Get College Name
+        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+        
+        // 2. Get FILTERED RAW student data
+        const data = getFilteredReportData('invigilator-summary');
+        if (data.length === 0) {
+            alert("No data found for the selected filter/session.");
+            return;
+        }
+        
+        // 3. Get global scribe list
+        const globalScribeList = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
+        const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
+        
+        // 4. Collate stats for each session
+        const sessionStats = {};
+        
+        for (const student of data) {
+            const sessionKey = `${student.Date} | ${student.Time}`;
+            
+            // Initialize session if it's new
+            if (!sessionStats[sessionKey]) {
+                sessionStats[sessionKey] = {
+                    date: student.Date,
+                    time: student.Time,
+                    regularStudents: 0,
+                    scribeStudents: 0
+                };
+            }
 
+            // 5. Check if student is a scribe
+            const isScribe = scribeRegNos.has(student['Register Number']);
+            
+            if (isScribe) {
+                sessionStats[sessionKey].scribeStudents++;
+            } else {
+                sessionStats[sessionKey].regularStudents++;
+            }
+        }
+        
+        // 6. Calculate invigilators for the report
+        const reportData = [];
+        for (const sessionKey in sessionStats) {
+            const stats = sessionStats[sessionKey];
+            
+            // Logic: 1 invigilator per 30 regular students
+            const regularInvigilators = Math.ceil(stats.regularStudents / 30);
+            
+            // Logic: 1 invigilator per 5 scribe students
+            const scribeInvigilators = Math.ceil(stats.scribeStudents / 5);
+            
+            const totalInvigilators = regularInvigilators + scribeInvigilators;
+            
+            reportData.push({
+                session: sessionKey,
+                regularStudents: stats.regularStudents,
+                regularInvigilators: regularInvigilators,
+                scribeStudents: stats.scribeStudents,
+                scribeInvigilators: scribeInvigilators,
+                totalInvigilators: totalInvigilators
+            });
+        }
+        
+        // Sort by session
+        reportData.sort((a, b) => a.session.localeCompare(b.session));
+        
+        // 7. Build HTML
+        let allPagesHtml = '';
+        
+        allPagesHtml += `
+            <div class="print-page">
+                <div class="print-header-group">
+                    <h1>${currentCollegeName}</h1>
+                    <h2>Invigilator Requirement Summary</h2>
+                    <h3 style="font-size: 11pt; font-style: italic;">
+                        Calculation: 1 per 30 Regular Students, 1 per 5 Scribe Students
+                    </h3>
+                </div>
+                
+                <table class="invigilator-report-table">
+                    <thead>
+                        <tr>
+                            <th>Session (Date | Time)</th>
+                            <th>Regular Students</th>
+                            <th>Regular Invigilators</th>
+                            <th>Scribe Students</th>
+                            <th>Scribe Invigilators</th>
+                            <th>Total Invigilators</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        let totalRegular = 0;
+        let totalScribe = 0;
+        let totalAll = 0;
+
+        reportData.forEach(row => {
+            allPagesHtml += `
+                <tr>
+                    <td>${row.session}</td>
+                    <td>${row.regularStudents}</td>
+                    <td>${row.regularInvigilators}</td>
+                    <td>${row.scribeStudents}</td>
+                    <td>${row.scribeInvigilators}</td>
+                    <td>${row.totalInvigilators}</td>
+                </tr>
+            `;
+            totalRegular += row.regularInvigilators;
+            totalScribe += row.scribeInvigilators;
+            totalAll += row.totalInvigilators;
+        });
+
+        // Add Total Row
+        allPagesHtml += `
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td><strong>Total</strong></td>
+                            <td colspan="1"></td>
+                            <td><strong>${totalRegular}</strong></td>
+                            <td colspan="1"></td>
+                            <td><strong>${totalScribe}</strong></td>
+                            <td><strong>${totalAll}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+        
+        // 8. Show report
+        reportOutputArea.innerHTML = allPagesHtml;
+        reportOutputArea.style.display = 'block'; 
+        reportStatus.textContent = `Generated Invigilator Requirement Summary.`;
+        reportControls.classList.remove('hidden');
+        lastGeneratedReportType = "Invigilator_Summary";
+
+    } catch (e) {
+        console.error("Error generating invigilator report:", e);
+        reportStatus.textContent = "An error occurred generating the report.";
+        reportControls.classList.remove('hidden');
+    } finally {
+        generateInvigilatorReportButton.disabled = false;
+        generateInvigilatorReportButton.textContent = "Generate Invigilator Requirement Summary";
+    }
+});
 // --- Run on initial page load ---
 loadInitialData();
