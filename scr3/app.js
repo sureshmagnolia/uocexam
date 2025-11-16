@@ -72,7 +72,7 @@ const reportStatus = document.getElementById('report-status');
 const finalPrintButton = document.getElementById('final-print-button');
 const clearReportButton = document.getElementById('clear-report-button');
 const roomCsvDownloadContainer = document.getElementById('room-csv-download-container');
-
+const statusLogDiv = document.getElementById('status-log');
 // --- Get references to all Navigation elements ---
 const viewExtractor = document.getElementById('view-extractor');
 const viewSettings = document.getElementById('view-settings');
@@ -2299,10 +2299,51 @@ window.populate_session_dropdown = function() {
             disable_absentee_tab(true);
             return;
         }
+
+        // ### NEW: Data Analysis and Reporting ###
+        const totalRows = allStudentData.length;
+        const seenKeys = new Set();
+        const uniqueStudentEntries = []; // We will store the clean data here
+        let duplicateCount = 0;
+
+        allStudentData.forEach(row => {
+            // This key checks for a unique student *per session*, just as you described
+            const key = `${row.Date}|${row.Time}|${row['Register Number']}`;
+            
+            if (seenKeys.has(key)) {
+                duplicateCount++;
+            } else {
+                seenKeys.add(key);
+                uniqueStudentEntries.push(row); // Store the first unique entry
+            }
+        });
+
+        // If duplicates were found, report it to the Status Log
+        if (duplicateCount > 0) {
+            const uniqueCount = seenKeys.size;
+            const warningMsg = `
+                <p class="mb-1 text-red-600">&gt; <strong>Data Validation Warning:</strong></p>
+                <p class="mb-1 text-red-600" style="padding-left: 1rem;">- Total rows extracted: <strong>${totalRows}</strong></p>
+                <p class="mb-1 text-red-600" style="padding-left: 1rem;">- Unique student entries: <strong>${uniqueCount}</strong></p>
+                <p class="mb-1 text-red-600" style="padding-left: 1rem;">- Found <strong>${duplicateCount} duplicate entries.</strong></p>
+                <p class="mb-1 text-yellow-600" style="padding-left: 1rem;">&gt; This may be due to uploading a duplicate PDF file. The app will proceed using only the <strong>${uniqueCount}</strong> unique entries. If this is unexpected, please re-extract your data.</p>
+            `;
+            
+            if (statusLogDiv) {
+                statusLogDiv.innerHTML += warningMsg;
+                statusLogDiv.scrollTop = statusLogDiv.scrollHeight;
+            }
+            
+            // IMPORTANT: Fix the data for the rest of the app
+            // This ensures the 692 (unique) count is used everywhere
+            allStudentData = uniqueStudentEntries;
+        }
+        // ### END: Data Analysis and Reporting ###
+
         
-        updateUniqueStudentList(); // <-- ADDED: Build unique student list
+        updateUniqueStudentList(); // This will now use the clean 'allStudentData'
         
-        // Get unique sessions
+        // Get unique sessions (from the clean data)
         const sessions = new Set(allStudentData.map(s => `${s.Date} | ${s.Time}`));
         allStudentSessions = Array.from(sessions).sort();
         
@@ -2310,6 +2351,7 @@ window.populate_session_dropdown = function() {
         reportsSessionSelect.innerHTML = '<option value="all">All Sessions</option>'; // V68: Clear and set default for reports
         editSessionSelect.innerHTML = '<option value="">-- Select a Session --</option>'; // <-- ADD THIS
         searchSessionSelect.innerHTML = '<option value="">-- Select a Session --</option>'; // <-- ADD THIS
+        
         // Find today's session
         const today = new Date();
         const todayStr = today.toLocaleDateString('en-GB').replace(/\//g, '.'); // DD.MM.YYYY
@@ -2343,7 +2385,6 @@ window.populate_session_dropdown = function() {
         disable_absentee_tab(true);
     }
 }
-
 sessionSelect.addEventListener('change', () => {
     const sessionKey = sessionSelect.value;
     if (sessionKey) {
