@@ -912,19 +912,43 @@ tr.scribe-row-highlight {
 /* --- NEW Sidebar Navigation Styles (ExamFlow) --- */
 .nav-button {
     /* Base styles: flex, alignment, padding, rounded */
-    @apply w-full flex items-center gap-3 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all duration-200;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem; /* 12px */
+    padding-top: 0.625rem; /* 10px */
+    padding-bottom: 0.625rem; /* 10px */
+    padding-left: 1rem; /* 16px */
+    padding-right: 1rem; /* 16px */
+    border-radius: 0.5rem; /* 8px */
+    font-size: 0.875rem; /* 14px */
+    font-weight: 600;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+    border: none; /* Ensure no default button border */
+    cursor: pointer;
 }
 .nav-button-active {
     /* Active state: Solid background, bright text */
-    @apply bg-indigo-700 text-white shadow-lg;
+    background-color: #4338ca; /* bg-indigo-700 */
+    color: #ffffff; /* text-white */
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 .nav-button-inactive {
     /* Inactive state: Transparent, dimmer text, hover effect */
-    @apply text-gray-400 hover:bg-gray-700 hover:text-white;
+    background-color: transparent;
+    color: #9ca3af; /* text-gray-400 */
+}
+.nav-button-inactive:hover {
+    background-color: #374151; /* hover:bg-gray-700 */
+    color: #ffffff; /* hover:text-white */
 }
 
 /* Style for the SVG icons inside the buttons */
 .nav-button svg {
-    @apply w-5 h-5 shrink-0;
+    width: 1.25rem; /* 20px */
+    height: 1.25rem; /* 20px */
+    flex-shrink: 0;
 }
 /* --- END NEW Sidebar Styles --- */
