@@ -31,14 +31,26 @@
         color: black !important;
     }
 
-    /* Hide the main app container and all other non-report elements */
-    #main-nav, #view-extractor, #view-settings, #view-reports, #view-absentees, #view-qpcodes, 
-    #view-room-settings, #view-room-allotment, 
-    #view-scribe-settings, #view-scribe-allotment, #scribe-room-modal,
-    #student-edit-modal, #room-selection-modal, #student-search-result-modal,
-    body > py-config, body > py-script, #report-controls {
-        display: none !important; /* Be forceful */
-    }
+/* In style.css, inside @media print { ... } */
+
+/* Hide EVERYTHING by default */
+#main-nav, main, #report-controls,
+#student-edit-modal, #room-selection-modal, #student-search-result-modal,
+body > py-config, body > py-script {
+    display: none !important;
+    visibility: hidden !important; /* <--- ADDED VISIBILITY OVERRIDE */
+}
+
+/* Force Show ONLY the report output area */
+#report-output-area {
+    display: block !important;
+    visibility: visible !important; /* <--- CRITICAL: Make sure content is visible */
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
     
     /* Show ONLY the report content area and ensure it's visible */
    #report-output-area {
