@@ -3218,7 +3218,7 @@ saveRoomAllotmentButton.addEventListener('click', () => {
 
 // Disable/Enable Scribe Settings Tab (MODIFIED)
 // *** FIX: Attach to window object ***
-window.disable_scribe_settings_tab = function(disabled) {
+function disable_scribe_settings_tab(disabled) {
     navScribeSettings.disabled = disabled;
     
     if (disabled) {
@@ -3231,14 +3231,14 @@ window.disable_scribe_settings_tab = function(disabled) {
         navScribeSettings.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
-
+window.disable_scribe_settings_tab = disable_scribe_settings_tab;
 // Load the global list from localStorage
 // *** FIX: Attach to window object ***
-window.loadGlobalScribeList = function() {
+function loadGlobalScribeList() {
     globalScribeList = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
     renderGlobalScribeList();
 }
-
+window.loadGlobalScribeList = loadGlobalScribeList;
 // Render the global list in "Scribe Settings"
 function renderGlobalScribeList() {
     currentScribeListDiv.innerHTML = "";
@@ -3557,7 +3557,8 @@ scribeCloseRoomModal.addEventListener('click', () => {
 
 // --- Helper function to disable all report buttons ---
 // *** FIX: Attach to window object ***
-window.disable_all_report_buttons = function(disabled) {
+function disable_all_report_buttons(disabled) {
+    generateReportButton.disabled = disabled;
     generateReportButton.disabled = disabled;
     generateQPaperReportButton.disabled = disabled;
     generateDaywiseReportButton.disabled = disabled;
@@ -3566,6 +3567,7 @@ window.disable_all_report_buttons = function(disabled) {
     generateQpDistributionReportButton.disabled = disabled; // <-- ADD THIS
     generateInvigilatorReportButton.disabled = disabled; // <-- ADD THIS
 }
+window.disable_all_report_buttons = disable_all_report_buttons;
 
 // --- NEW: STUDENT DATA EDIT FUNCTIONALITY (MODAL VERSION) ---
 
@@ -3593,7 +3595,7 @@ const modalCancelBtn = document.getElementById('modal-cancel-student');
 
 
 // Disable/Enable Edit Data Tab
-window.disable_edit_data_tab = function(disabled) {
+function disable_edit_data_tab(disabled) {
     navEditData.disabled = disabled;
     if (disabled) {
         editDataLoader.classList.remove('hidden');
@@ -3605,7 +3607,7 @@ window.disable_edit_data_tab = function(disabled) {
         navEditData.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
-
+window.disable_edit_data_tab = disable_edit_data_tab;
 // 1. Session selection (Same as before)
 editSessionSelect.addEventListener('change', () => {
     currentEditSession = editSessionSelect.value;
