@@ -679,7 +679,7 @@ generateReportButton.addEventListener('click', async () => {
                     const sessionKey = `${student.Date} | ${student.Time}`;
                     const sessionQPCodes = qpCodeMap[sessionKey] || {};
                     const qpCode = sessionQPCodes[student.Course] || ""; // Use the full course string
-                    const qpCode = sessionQPCodes[courseKey] || "";
+
                     
                     // *** FIX: QP Code first, then course name ***
                     const qpCodePrefix = qpCode ? `(${qpCode}) ` : ""; // e.g., "(QP123) "
@@ -2639,30 +2639,26 @@ function render_qp_code_list(sessionKey) {
         return;
     }
 
-    uniqueCoursesArray.forEach(courseName => {
-        const cleanKey = cleanCourseKey(courseName);
 
-// V90 FIX: If the course name cleans to an empty string,
-// don't render an input for it as it cannot be saved.
-if (!cleanKey) {
-    console.warn(`Skipping QP code input for un-keyable course: ${courseName}`);
-    return; // Skip this iteration
-}
+uniqueCoursesArray.forEach(courseName => {
+    // The full course name IS the unique key
+    const courseKey = courseName; 
 
-// V89: Look up the code in the session-specific map
-const savedCode = sessionCodes[cleanKey] || "";
+    // Look up the code using the full name
+    const savedCode = sessionCodes[courseKey] || "";
 
-htmlChunks.push(`
-    <div class="flex items-center gap-3 p-2 border-b border-gray-200">
-        <label class="font-medium text-gray-700 w-2/3 text-sm">${courseName}</label>
-        <input type="text" 
-               class="qp-code-input block w-1/3 p-2 border border-gray-300 rounded-md shadow-sm text-sm" 
-               value="${savedCode}" 
-               data-course="${cleanKey}" 
-               placeholder="Enter QP Code">
-    </div>
-`);
-    });
+    htmlChunks.push(`
+        <div class="flex items-center gap-3 p-2 border-b border-gray-200">
+            <label class="font-medium text-gray-700 w-2/3 text-sm">${courseName}</label>
+            <input type="text" 
+                   class="qp-code-input block w-1/3 p-2 border border-gray-300 rounded-md shadow-sm text-sm" 
+                   value="${savedCode}" 
+                   data-course="${courseKey.replace(/"/g, '&quot;')}"  /* Store full string, handle quotes */
+                   placeholder="Enter QP Code">
+        </div>
+    `);
+});
+    
     
     qpCodeContainer.innerHTML = htmlChunks.join('');
     
@@ -4139,7 +4135,6 @@ function showStudentDetailsModal(regNo, sessionKey) {
     loadQPCodes(); // Ensures qpCodeMap is populated
     const sessionQPCodes = qpCodeMap[sessionKey] || {};
     const qpCode = sessionQPCodes[student.Course] || "Not Entered"; // Use the full course string
-    const qpCode = sessionQPCodes[courseKey] || "Not Entered";
 
    // 5. Populate Modal
     searchResultName.textContent = student.Name;
