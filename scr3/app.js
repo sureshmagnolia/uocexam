@@ -1,3 +1,19 @@
+// *** EARLY INITIALIZATION: Attach functions that Python needs ***
+window.clear_csv_upload_status = function() {
+    const csvLoadStatusElement = document.getElementById('csv-load-status');
+    const correctedCsvUploadElement = document.getElementById('corrected-csv-upload');
+    
+    if (csvLoadStatusElement) {
+        csvLoadStatusElement.textContent = "";
+    }
+    if (correctedCsvUploadElement) {
+        correctedCsvUploadElement.value = "";
+    }
+}
+// *** END EARLY INITIALIZATION ***
+
+// (Rest of app.js continues below...)
+
 // --- Debounce Helper Function ---
 function debounce(func, delay) {
     let timeout;
@@ -2029,21 +2045,6 @@ roomConfigContainer.addEventListener('click', (e) => {
 // Listener moved above
 
 // --- (V33) NEW CSV UPLOAD LOGIC ---
-
-// V33: Function called by Python to clear the CSV upload status
-// *** FIX: Attached to window object ***
-window.clear_csv_upload_status = function() {
-    // Query DOM elements directly to avoid scope issues
-    const csvLoadStatusElement = document.getElementById('csv-load-status');
-    const correctedCsvUploadElement = document.getElementById('corrected-csv-upload');
-    
-    if (csvLoadStatusElement) {
-        csvLoadStatusElement.textContent = "";
-    }
-    if (correctedCsvUploadElement) {
-        correctedCsvUploadElement.value = ""; // Clear the file input
-    }
-}
 
 // V33: Add event listener for the new "Load CSV" button
 loadCsvButton.addEventListener('click', () => {
