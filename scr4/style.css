@@ -37,6 +37,7 @@
 /* --- REPLACEMENT CSS FOR PRINT SECTION --- */
 
 /* 1. Hide Navigation, Modals, PyScript, and Sibling Views */
+header,
 #main-nav,
 #student-edit-modal,
 #room-selection-modal,
