@@ -4123,11 +4123,13 @@ function loadPyScript() {
             // --- 2. Add py-config (must be in body) ---
             const config = document.createElement('py-config');
 
-            // --- THIS IS THE CORRECTED CONFIG ---
+            // --- THIS IS THE CRITICAL FIX ---
+            // We pin pdfplumber to a version before it used pypdfium2,
+            // and we explicitly add the pdfminer.six backend.
             config.innerHTML = 'packages = ["pandas", "pdfplumber==0.10.3", "pdfminer.six==20221105"]';
             // ------------------------------------
             
-            console.log("Loading PyScript with pandas and pdfplumber...");
+            console.log("Loading PyScript with pinned pdfplumber==0.10.3 and pdfminer.six...");
             document.body.appendChild(config);
 
             // --- 3. Add py-script (must be in body) ---
