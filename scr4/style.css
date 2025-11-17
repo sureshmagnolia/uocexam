@@ -252,6 +252,7 @@ main, #report-controls {
     /* Day-wise Report */
     .print-header-group {
         break-inside: avoid;
+        break-after: avoid; /* <-- ADD THIS LINE */
     }
     
     .print-page-daywise h1 { font-size: 14pt; }
