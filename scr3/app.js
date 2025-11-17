@@ -2250,7 +2250,7 @@ function parseCsvAndLoadData(csvText) {
 // --- (V56) NEW ABSENTEE LOGIC ---
 
 // *** FIX: Attach to window object ***
-window.disable_absentee_tab = function(disabled) {
+function disable_absentee_tab(disabled) {
     navAbsentees.disabled = disabled;
     if (disabled) {
         absenteeLoader.classList.remove('hidden');
@@ -2262,9 +2262,9 @@ window.disable_absentee_tab = function(disabled) {
         navAbsentees.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
-
+window.disable_absentee_tab = disable_absentee_tab;
 // *** FIX: Attach to window object ***
-window.populate_session_dropdown = function() {
+function populate_session_dropdown() {
     try {
         allStudentData = JSON.parse(jsonDataStore.innerHTML || '[]');
         if (allStudentData.length === 0) {
@@ -2357,6 +2357,7 @@ window.populate_session_dropdown = function() {
         disable_absentee_tab(true);
     }
 }
+window.populate_session_dropdown = populate_session_dropdown;
 sessionSelect.addEventListener('change', () => {
     const sessionKey = sessionSelect.value;
     if (sessionKey) {
@@ -2545,7 +2546,7 @@ function removeAbsentee(regNo) {
 // --- (V89) NEW QP CODE LOGIC (DIFFERENT STRATEGY) ---
 
 // *** FIX: Attach to window object ***
-window.disable_qpcode_tab = function(disabled) {
+function disable_qpcode_tab(disabled) {
     navQPCodes.disabled = disabled;
     if (disabled) {
         qpcodeLoader.classList.remove('hidden');
@@ -2557,6 +2558,7 @@ window.disable_qpcode_tab = function(disabled) {
         navQPCodes.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
+window.disable_qpcode_tab = disable_qpcode_tab;
 
 // V89: Loads the *entire* QP code map from localStorage into the global var
 function loadQPCodes() {
@@ -2565,7 +2567,7 @@ function loadQPCodes() {
 
 // V61: Populates the QP Code session dropdown
 // *** FIX: Attach to window object ***
-window.populate_qp_code_session_dropdown = function() {
+function populate_qp_code_session_dropdown() {
     try {
         if (allStudentData.length === 0) {
              allStudentData = JSON.parse(jsonDataStore.innerHTML || '[]');
@@ -2603,7 +2605,7 @@ window.populate_qp_code_session_dropdown = function() {
         disable_qpcode_tab(true);
     }
 }
-
+window.populate_qp_code_session_dropdown = populate_qp_code_session_dropdown;
 // V61: Event listener for the QP Code session dropdown
 sessionSelectQP.addEventListener('change', () => {
     const sessionKey = sessionSelectQP.value;
@@ -2935,7 +2937,7 @@ function loadInitialData() {
 
 // Disable/Enable Room Allotment Tab
 // *** FIX: Attach to window object ***
-window.disable_room_allotment_tab = function(disabled) {
+function disable_room_allotment_tab(disabled) {
     navRoomAllotment.disabled = disabled;
     if (disabled) {
         roomAllotmentLoader.classList.remove('hidden');
@@ -2947,10 +2949,10 @@ window.disable_room_allotment_tab = function(disabled) {
         navRoomAllotment.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
-
+window.disable_room_allotment_tab = disable_room_allotment_tab;
 // Populate Room Allotment Session Dropdown
 // *** FIX: Attach to window object ***
-window.populate_room_allotment_session_dropdown = function() {
+function populate_room_allotment_session_dropdown() {
     try {
         if (allStudentData.length === 0) {
             allStudentData = JSON.parse(jsonDataStore.innerHTML || '[]');
@@ -2990,6 +2992,7 @@ window.populate_room_allotment_session_dropdown = function() {
         disable_room_allotment_tab(true);
     }
 }
+window.populate_room_allotment_session_dropdown = populate_room_allotment_session_dropdown;
 
 // Load Room Allotment for a session
 function loadRoomAllotment(sessionKey) {
