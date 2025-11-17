@@ -1,5 +1,5 @@
 // *** EARLY INITIALIZATION: Attach functions that Python needs ***
-window.clear_csv_upload_status = function() {
+function clear_csv_upload_status() {
     const csvLoadStatusElement = document.getElementById('csv-load-status');
     const correctedCsvUploadElement = document.getElementById('corrected-csv-upload');
     
@@ -10,6 +10,8 @@ window.clear_csv_upload_status = function() {
         correctedCsvUploadElement.value = "";
     }
 }
+window.clear_csv_upload_status = clear_csv_upload_status;
+// *** END EARLY INITIALIZATION ***
 // *** END EARLY INITIALIZATION ***
 
 // (Rest of app.js continues below...)
