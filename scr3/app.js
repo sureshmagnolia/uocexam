@@ -2616,6 +2616,7 @@ sessionSelectQP.addEventListener('change', () => {
 });
 
 // V61: Renders the course list for the selected session
+// V61: Renders the course list for the selected session
 function render_qp_code_list(sessionKey) {
     
     // 1. Filter students for this specific session
@@ -2641,11 +2642,11 @@ function render_qp_code_list(sessionKey) {
 
 
 uniqueCoursesArray.forEach(courseName => {
-    // The full course name IS the unique key.
+    // The full course name IS the unique key
     const courseKey = courseName; 
 
     // Look up the code using the full name
-    const savedCode = sessionCodes[courseKey] || ""; 
+    const savedCode = sessionCodes[courseKey] || "";
 
     htmlChunks.push(`
         <div class="flex items-center gap-3 p-2 border-b border-gray-200">
@@ -2653,7 +2654,7 @@ uniqueCoursesArray.forEach(courseName => {
             <input type="text" 
                    class="qp-code-input block w-1/3 p-2 border border-gray-300 rounded-md shadow-sm text-sm" 
                    value="${savedCode}" 
-                   data-course="${courseKey.replace(/"/g, '&quot;')}"  /* Store the full name, handle quotes */
+                   data-course="${courseKey.replace(/"/g, '&quot;')}"  /* Store full string, handle quotes */
                    placeholder="Enter QP Code">
         </div>
     `);
