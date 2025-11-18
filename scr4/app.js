@@ -1676,8 +1676,11 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
     }
 });
 // *** NEW: Event listener for "Generate Scribe Report" ***
+// *** NEW: Event listener for "Generate Scribe Report" (FIXED) ***
 generateScribeReportButton.addEventListener('click', async () => {
-    const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+    const sessionKey = reportsSessionSelect.value; 
+    if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+    
     generateScribeReportButton.disabled = true;
     generateScribeReportButton.textContent = "Generating...";
     reportOutputArea.innerHTML = "";
@@ -1688,7 +1691,8 @@ generateScribeReportButton.addEventListener('click', async () => {
     
     try {
         currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
-        getRoomCapacitiesFromStorage(); // <-- ADD THIS LINE
+        getRoomCapacitiesFromStorage(); 
+        
         // 1. Get all data
         const allData = JSON.parse(jsonDataStore.innerHTML || '[]');
         if (allData.length === 0) {
@@ -1707,8 +1711,8 @@ generateScribeReportButton.addEventListener('click', async () => {
         // 3. Get all scribe students from the main data
         const allScribeStudents = allData.filter(s => scribeRegNos.has(s['Register Number']));
         
-        // 4. Get Original Room Allotments (by running the "original" allocation logic)
-        const originalAllotments = performOriginalAllocation(allData); // Use the central function
+        // 4. Get Original Room Allotments
+        const originalAllotments = performOriginalAllocation(allData); 
         const originalRoomMap = originalAllotments.reduce((map, s) => {
             map[s['Register Number']] = s['Room No'];
             return map;
@@ -1716,7 +1720,7 @@ generateScribeReportButton.addEventListener('click', async () => {
 
         // 5. Load Scribe Allotments and QP Codes
         const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
-        loadQPCodes(); // populates qpCodeMap
+        loadQPCodes(); 
 
         // 6. Collate all data for the report
         const reportRows = [];
@@ -1724,21 +1728,21 @@ generateScribeReportButton.addEventListener('click', async () => {
             const sessionKey = `${s.Date} | ${s.Time}`;
             const sessionScribeRooms = allScribeAllotments[sessionKey] || {};
             const sessionQPCodes = qpCodeMap[sessionKey] || {};
-            const courseKey = cleanCourseKey(s.Course);
+            
+            // *** FIX: Use getBase64CourseKey instead of the missing cleanCourseKey ***
+            const courseKey = getBase64CourseKey(s.Course);
             
             const originalRoomData = originalRoomMap[s['Register Number']] || { room: 'N/A', seat: 'N/A' };
             
-            // --- NEW: Logic to get Scribe Room + Location ---
+            // --- Logic to get Scribe Room + Location ---
             const rawScribeRoom = sessionScribeRooms[s['Register Number']];
             let scribeRoomDisplay = 'Not Allotted';
             
             if (rawScribeRoom) {
                 const rInfo = currentRoomConfig[rawScribeRoom];
-                // Check if location exists and format it
                 const rLoc = (rInfo && rInfo.location) ? ` (${rInfo.location})` : ""; 
                 scribeRoomDisplay = `${rawScribeRoom}${rLoc}`;
             }
-            // ------------------------------------------------
 
             reportRows.push({
                 Date: s.Date,
@@ -1747,7 +1751,7 @@ generateScribeReportButton.addEventListener('click', async () => {
                 Name: s.Name,
                 Course: s.Course,
                 OriginalRoom: `${originalRoomData.room} (Seat: ${originalRoomData.seat})`,
-                ScribeRoom: scribeRoomDisplay, // <--- Updated to use the new display string
+                ScribeRoom: scribeRoomDisplay,
                 QPCode: sessionQPCodes[courseKey] || 'N/A'
             });
         }
