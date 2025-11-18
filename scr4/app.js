@@ -3244,10 +3244,14 @@ function updateAllotmentDisplay() {
     }
 }
 
-// Render the list of allotted rooms
+// Render the list of allotted rooms (WITH SERIAL NUMBER)
 function renderAllottedRooms() {
     allottedRoomsList.innerHTML = '';
     
+    // --- NEW: Get Serial Map ---
+    const roomSerialMap = getRoomSerialMap(currentSessionKey);
+    // ---------------------------
+
     if (currentSessionAllotment.length === 0) {
         allottedRoomsList.innerHTML = '<p class="text-gray-500 text-sm">No rooms allotted yet.</p>';
         return;
@@ -3260,10 +3264,13 @@ function renderAllottedRooms() {
         const roomInfo = currentRoomConfig[room.roomName];
         const location = (roomInfo && roomInfo.location) ? ` (${roomInfo.location})` : '';
         
+        // --- NEW: Get Serial Number ---
+        const serialNo = roomSerialMap[room.roomName] || '-';
+        
         roomDiv.innerHTML = `
             <div class="flex justify-between items-start">
                 <div class="flex-grow">
-                    <h4 class="font-semibold text-gray-800">${room.roomName}${location}</h4>
+                    <h4 class="font-semibold text-gray-800">${serialNo} | ${room.roomName}${location}</h4>
                     <p class="text-sm text-gray-600">Capacity: ${room.capacity} | Allotted: ${room.students.length}</p>
                 </div>
                 <button class="text-red-600 hover:text-red-800 font-medium text-sm" onclick="deleteRoom(${index})">
@@ -3553,10 +3560,9 @@ function loadScribeAllotment(sessionKey) {
 }
 
 
-// Render the list of scribe students for the selected session
+// Render the list of scribe students for the selected session (WITH SERIAL NUMBER)
 function renderScribeAllotmentList(sessionKey) {
     const [date, time] = sessionKey.split(' | ');
-    // Get all students for this session
     const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
     
     // Filter to get only scribe students *in this session*
@@ -3569,7 +3575,6 @@ function renderScribeAllotmentList(sessionKey) {
         return;
     }
 
-    // Get unique students for this session (in case of multiple papers)
     const uniqueSessionScribeStudents = [];
     const seenRegNos = new Set();
     for (const student of sessionScribeStudents) {
@@ -3581,6 +3586,10 @@ function renderScribeAllotmentList(sessionKey) {
     
     uniqueSessionScribeStudents.sort((a,b) => a['Register Number'].localeCompare(b['Register Number']));
 
+    // --- NEW: Get Serial Map (Needed to look up serial number when rendering) ---
+    const roomSerialMap = getRoomSerialMap(sessionKey);
+    // ---------------------------------------------------------------------------
+
     uniqueSessionScribeStudents.forEach(student => {
         const regNo = student['Register Number'];
         const allottedRoom = currentScribeAllotment[regNo];
@@ -3590,10 +3599,17 @@ function renderScribeAllotmentList(sessionKey) {
         
         let roomHtml = '';
         if (allottedRoom) {
+            // --- NEW: Format Room Display with Serial Number ---
+            const serialNo = roomSerialMap[allottedRoom] || '-';
+            const roomInfo = currentRoomConfig[allottedRoom];
+            const location = (roomInfo && roomInfo.location) ? ` (${roomInfo.location})` : '';
+            const displayRoom = `${serialNo} | ${allottedRoom}${location}`;
+            // ----------------------------------------------------
+
             roomHtml = `
                 <div>
                     <span class="text-sm font-medium text-gray-700">Allotted Room:</span>
-                    <span class="font-bold text-blue-600 ml-2">${allottedRoom}</span>
+                    <span class="font-bold text-blue-600 ml-2">${displayRoom}</span>
                 </div>
                 <button class="ml-4 inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-2 px-3 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
                         onclick="openScribeRoomModal('${regNo}', '${student.Name}')">
@@ -3621,6 +3637,7 @@ function renderScribeAllotmentList(sessionKey) {
         scribeAllotmentList.appendChild(item);
     });
 }
+
 // Find available rooms for scribes
 async function findAvailableRooms(sessionKey) {
     
