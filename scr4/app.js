@@ -736,12 +736,8 @@ function checkManualAllotment(sessionKey) {
 }
 
 // --- 1. Event listener for the "Generate Room-wise Report" button ---
-
-// --- 1. Event listener for the "Generate Room-wise Report" button ---
 generateReportButton.addEventListener('click', async () => {
-    const sessionKey = reportsSessionSelect.value; 
-    if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
-    
+    const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
     generateReportButton.disabled = true;
     generateReportButton.textContent = "Allocating Rooms & Generating Report...";
     reportOutputArea.innerHTML = "";
@@ -886,6 +882,7 @@ generateReportButton.addEventListener('click', async () => {
             const hasScribe = session.students.some(s => s.isPlaceholder);
             const scribeFootnote = hasScribe ? '<div class="scribe-footnote">* = Scribe Assistance</div>' : '';
 
+            // *** FIX: Added style to force right alignment ***
             const invigilatorFooterHtml = `
                 <div class="invigilator-footer">
                     <div class="course-summary-footer">
@@ -903,7 +900,7 @@ generateReportButton.addEventListener('click', async () => {
                         </div>
                     </div>
 
-                    <div class="signature">
+                    <div class="signature" style="margin-left: auto; text-align: center;">
                         Name and Dated Signature of the Invigilator
                     </div>
                     ${scribeFootnote}
@@ -987,11 +984,13 @@ generateReportButton.addEventListener('click', async () => {
             }
         });
 
+        // 7. Show report and controls
         reportOutputArea.innerHTML = allPagesHtml;
         reportOutputArea.style.display = 'block'; 
         reportStatus.textContent = `Generated ${totalPagesGenerated} total pages for ${sortedSessionKeys.length} room sessions.`;
         reportControls.classList.remove('hidden');
         
+        // 8. Add download button
         roomCsvDownloadContainer.innerHTML = `
             <button id="download-room-csv-button" class="w-full inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-3 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
                 Download Room Allocation Report (.csv)
@@ -1008,6 +1007,7 @@ generateReportButton.addEventListener('click', async () => {
         generateReportButton.textContent = "Generate Room-wise Seating Report";
     }
 });
+
     
 // --- (V29) Event listener for the "Day-wise Student List" button ---
 generateDaywiseReportButton.addEventListener('click', async () => {
