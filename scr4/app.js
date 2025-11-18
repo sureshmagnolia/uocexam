@@ -1350,8 +1350,12 @@ generateQPaperReportButton.addEventListener('click', async () => {
 });
 
 // *** NEW: Event listener for QP Distribution by QP-Code Report ***
+
+// *** UPDATED: Event listener for QP Distribution by QP-Code Report (With Serial No) ***
 generateQpDistributionReportButton.addEventListener('click', async () => {
-    const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+    const sessionKey = reportsSessionSelect.value; 
+    if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+    
     generateQpDistributionReportButton.disabled = true;
     generateQpDistributionReportButton.textContent = "Generating...";
     reportOutputArea.innerHTML = "";
@@ -1361,10 +1365,9 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
     await new Promise(resolve => setTimeout(resolve, 50));
     
     try {
-        // 1. Get College Name
         currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
-        getRoomCapacitiesFromStorage(); // <-- ADD THIS LINE
-        // 2. Get FILTERED RAW student data
+        getRoomCapacitiesFromStorage(); 
+        
         const data = getFilteredReportData('qp-distribution');
         if (data.length === 0) {
             alert("No data found for the selected filter/session.");
@@ -1373,29 +1376,21 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
             return;
         }
 
-        // 3. Get ORIGINAL allocation. This is key, as it includes scribes in their original rooms.
         const processed_rows_with_rooms = performOriginalAllocation(data);
+        loadQPCodes(); 
 
-        // 4. Load QP Codes
-        loadQPCodes(); // populates qpCodeMap
-
-        // 5. Aggregate data (NEW LOGIC: Group by QP Code first)
         const sessions = {};
         for (const student of processed_rows_with_rooms) {
             const sessionKey = `${student.Date}_${student.Time}`;
             const roomName = student['Room No'];
             const courseName = student.Course;
 
-            // --- MODIFIED TO USE Base64 KEY ---
+            // Use Base64 Key
             const courseKey = getBase64CourseKey(courseName);
-            // --- END MODIFICATION ---
-
-            // Get QP Code
             const sessionKeyPipe = `${student.Date} | ${student.Time}`;
             const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
-            const qpCode = sessionQPCodes[courseKey] || 'N/A'; // <-- Use Base64 key for lookup
+            const qpCode = sessionQPCodes[courseKey] || 'N/A'; 
 
-            // Initialize nested objects
             if (!sessions[sessionKey]) {
                 sessions[sessionKey] = { Date: student.Date, Time: student.Time, qps: {} };
             }
@@ -1410,12 +1405,10 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
                 sessions[sessionKey].qps[qpCode].rooms[roomName] = 0;
             }
             
-            // Increment counts
             sessions[sessionKey].qps[qpCode].rooms[roomName]++;
             sessions[sessionKey].qps[qpCode].total++;
         }
         
-        // 6. Build HTML
         let allPagesHtml = '';
         const sortedSessionKeys = Object.keys(sessions).sort();
         
@@ -1429,7 +1422,11 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
         for (const sessionKey of sortedSessionKeys) {
             const session = sessions[sessionKey];
             
-            // Start a new page for each session
+            // --- NEW: Get Room Serial Numbers for this specific session ---
+            const sessionKeyPipe = `${session.Date} | ${session.Time}`;
+            const roomSerialMap = getRoomSerialMap(sessionKeyPipe);
+            // ------------------------------------------------------------
+
             allPagesHtml += `
                 <div class="print-page">
                     <div class="print-header-group">
@@ -1439,17 +1436,13 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
                     </div>
             `;
             
-            // Sort QP codes
             const sortedQPCodes = Object.keys(session.qps).sort();
 
-            // Loop through each QP Code and create a table
             for (const qpCode of sortedQPCodes) {
                 const qpData = session.qps[qpCode];
                 
-                // Add QP Header
                 allPagesHtml += `<h4 class="qp-header">QP Code: ${qpCode} &nbsp; (Course: ${qpData.courseName})</h4>`;
                 
-                // Add Table
                 allPagesHtml += `
                     <table class="qp-distribution-table">
                         <thead>
@@ -1461,7 +1454,6 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
                         <tbody>
                 `;
                 
-                // Sort rooms numerically
                 const sortedRoomKeys = Object.keys(qpData.rooms).sort((a, b) => {
                     const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
                     const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
@@ -1471,20 +1463,21 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
                 for (const roomName of sortedRoomKeys) {
                     const count = qpData.rooms[roomName];
                     
-                    // --- NEW: Get Location ---
                     const roomInfo = currentRoomConfig[roomName];
                     const location = (roomInfo && roomInfo.location) ? ` <span style="font-size: 0.85em; color: #555;">(${roomInfo.location})</span>` : "";
-                    // -------------------------
+                    
+                    // --- NEW: Add Serial Number ---
+                    const serialNo = roomSerialMap[roomName] || '-';
+                    // ------------------------------
 
                     allPagesHtml += `
                         <tr>
-                            <td><strong>${roomName}</strong>${location}</td>
+                            <td><strong>${serialNo} | ${roomName}</strong>${location}</td>
                             <td>${count}</td>
                         </tr>
                     `;
                 }
                 
-                // Add total row
                 allPagesHtml += `
                     </tbody>
                     <tfoot>
@@ -1496,11 +1489,9 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
                     </table>
                 `;
             }
-            
-            allPagesHtml += `</div>`; // Close print-page
+            allPagesHtml += `</div>`; 
         }
         
-        // 7. Show report
         reportOutputArea.innerHTML = allPagesHtml;
         reportOutputArea.style.display = 'block'; 
         reportStatus.textContent = `Generated QP Distribution Report for ${sortedSessionKeys.length} sessions.`;
