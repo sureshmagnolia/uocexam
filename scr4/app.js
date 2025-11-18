@@ -1077,9 +1077,9 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 <table class="daywise-report-table">
                     <thead>
                         <tr>
-                            <th style="width: 25%;">Register No</th>
-                            <th style="width: 35%;">Name</th>
-                            <th style="width: 30%;">Room (Location)</th>
+                            <th style="width: 15%;">Register No</th>
+                            <th style="width: 25%;">Name</th>
+                            <th style="width: 60%;">Room (Location)</th>
                             <th style="width: 10%;">Seat No</th>
                         </tr>
                     </thead>
