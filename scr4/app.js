@@ -2573,9 +2573,22 @@ window.real_populate_session_dropdown = function() {
             }
         });
         
-        if (defaultSession) {
+if (defaultSession) {
+            // 1. Default Absentee Tab
             sessionSelect.value = defaultSession;
-            sessionSelect.dispatchEvent(new Event('change')); // Trigger change to load list
+            sessionSelect.dispatchEvent(new Event('change')); 
+            
+            // 2. Default Search Tab (NEW)
+            if (searchSessionSelect) {
+                searchSessionSelect.value = defaultSession;
+                searchSessionSelect.dispatchEvent(new Event('change')); // Load students for search immediately
+            }
+            
+            // 3. Default Edit Data Tab (Optional, good for UX)
+            if (editSessionSelect) {
+                editSessionSelect.value = defaultSession;
+                // We don't trigger 'change' here to avoid auto-loading the edit table unnecessarily
+            }
         }
         
         // V68: Ensure report filters are visible and default set
