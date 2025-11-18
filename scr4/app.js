@@ -736,8 +736,12 @@ function checkManualAllotment(sessionKey) {
 }
 
 // --- 1. Event listener for the "Generate Room-wise Report" button ---
+
+// --- 1. Event listener for the "Generate Room-wise Report" button ---
 generateReportButton.addEventListener('click', async () => {
-    const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+    const sessionKey = reportsSessionSelect.value; 
+    if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+    
     generateReportButton.disabled = true;
     generateReportButton.textContent = "Allocating Rooms & Generating Report...";
     reportOutputArea.innerHTML = "";
@@ -775,7 +779,7 @@ generateReportButton.addEventListener('click', async () => {
                 final_student_list_for_report.push({ 
                     ...student, 
                     Name: student.Name, 
-                    remark: `${scribeRoom}`, // Remark is the new room
+                    remark: `${scribeRoom}`, 
                     isPlaceholder: true 
                 });
             } else {
@@ -821,31 +825,41 @@ generateReportButton.addEventListener('click', async () => {
         sortedSessionKeys.forEach(key => {
             const session = sessions[key];
             
-            // (V28) Get location for this room
+            // Get location for this room
             const roomInfo = currentRoomConfig[session.Room];
             const location = (roomInfo && roomInfo.location) ? roomInfo.location : "";
             const locationHtml = location ? `<div class="report-location-header">Location: ${location}</div>` : "";
 
-            // --- Get Room Serial Number ---
+            // Get Room Serial Number
             const sessionKeyPipe = `${session.Date} | ${session.Time}`;
             const roomSerialMap = getRoomSerialMap(sessionKeyPipe);
             const serialNo = roomSerialMap[session.Room] || '-';
-            
-            // --- NEW: Prepare Course Summary with QP Codes ---
+
             const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
+
+            // --- Prepare Course Summary & QP Split-up ---
             let courseSummaryHtml = '';
-            
+            const uniqueQPCodesInRoom = new Set();
+
             for (const [courseName, count] of Object.entries(session.courseCounts)) {
-                // Look up QP Code using Base64 Key
                 const courseKey = getBase64CourseKey(courseName);
                 const qpCode = sessionQPCodes[courseKey];
-                const qpDisplay = qpCode ? ` (QP: ${qpCode})` : "";
+                
+                // Add to QP List for Balance section
+                if (qpCode) uniqueQPCodesInRoom.add(qpCode);
+                else uniqueQPCodesInRoom.add(courseName.substring(0, 15)); // Fallback if no code
 
+                const qpDisplay = qpCode ? ` (QP: ${qpCode})` : "";
                 courseSummaryHtml += `<div style="font-weight: bold;">${courseName}${qpDisplay}: ${count} Student(s)</div>`; 
             }
-            // -------------------------------------------------
             
-            // Header with Serial Number
+            // Build the Balance Split-up HTML
+            let qpBalanceHtml = '';
+            uniqueQPCodesInRoom.forEach(code => {
+                qpBalanceHtml += `<span style="white-space: nowrap;">${code}: __________</span> &nbsp;&nbsp; `;
+            });
+            // --------------------------------------------
+            
             const pageHeaderHtml = `
                 <div class="print-header-group">
                     <h1>${currentCollegeName}</h1> 
@@ -880,7 +894,15 @@ generateReportButton.addEventListener('click', async () => {
                     </div>
                     <div><strong>Answer Booklets Received:</strong> _________________</div>
                     <div><strong>Answer Booklets Used:</strong> _________________</div>
-                    <div><strong>Answer Booklets Returned (Balance):</strong> _________________</div>
+                    
+                    <div style="margin-top: 4px; margin-bottom: 4px;">
+                        <strong>Answer Booklets Returned (Balance):</strong><br>
+                        <div style="margin-top: 6px; line-height: 1.8;">
+                            ${qpBalanceHtml}
+                            <span style="font-weight: bold; white-space: nowrap;">Total: __________</span>
+                        </div>
+                    </div>
+
                     <div class="signature">
                         Name and Dated Signature of the Invigilator
                     </div>
@@ -898,7 +920,6 @@ generateReportButton.addEventListener('click', async () => {
                     const seatNumber = student.seatNumber;
                     const asterisk = student.isPlaceholder ? '*' : '';
                     
-                    // Use Base64 Key for Table Rows too
                     const courseKey = getBase64CourseKey(student.Course);
                     const qpCode = sessionQPCodes[courseKey] || "";
                     
@@ -966,13 +987,11 @@ generateReportButton.addEventListener('click', async () => {
             }
         });
 
-        // 7. Show report and controls
         reportOutputArea.innerHTML = allPagesHtml;
         reportOutputArea.style.display = 'block'; 
         reportStatus.textContent = `Generated ${totalPagesGenerated} total pages for ${sortedSessionKeys.length} room sessions.`;
         reportControls.classList.remove('hidden');
         
-        // 8. Add download button
         roomCsvDownloadContainer.innerHTML = `
             <button id="download-room-csv-button" class="w-full inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-3 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
                 Download Room Allocation Report (.csv)
@@ -989,8 +1008,6 @@ generateReportButton.addEventListener('click', async () => {
         generateReportButton.textContent = "Generate Room-wise Seating Report";
     }
 });
-
-
     
 // --- (V29) Event listener for the "Day-wise Student List" button ---
 generateDaywiseReportButton.addEventListener('click', async () => {
