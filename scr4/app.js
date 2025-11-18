@@ -1841,9 +1841,9 @@ generateScribeReportButton.addEventListener('click', async () => {
 });
 // *******************************************************
 
-// --- SAFE VERSION: Scribe Proforma Report ---
+// --- ROBUST VERSION: Scribe Proforma Report ---
 generateScribeProformaButton.addEventListener('click', async () => {
-    console.log("Starting Scribe Proforma Generation...");
+    // 1. UI Feedback
     generateScribeProformaButton.disabled = true;
     generateScribeProformaButton.textContent = "Generating...";
     reportOutputArea.innerHTML = "";
@@ -1851,72 +1851,74 @@ generateScribeProformaButton.addEventListener('click', async () => {
     roomCsvDownloadContainer.innerHTML = "";
     lastGeneratedReportType = "";
     
-    // Small delay to let UI update
+    // Allow UI to update before heavy processing
     await new Promise(resolve => setTimeout(resolve, 50));
     
     try {
-        // 1. Load Settings & Data
-        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
-        
-        // Ensure Room Config is loaded for Locations
-        getRoomCapacitiesFromStorage(); 
-        if (!currentRoomConfig) currentRoomConfig = {}; // Safety fallback
-
-        // 2. Get Filtered Student Data
-        const data = getFilteredReportData('scribe-proforma');
-        if (!data || data.length === 0) {
-            alert("No data found for the selected filter/session.");
-            throw new Error("No Data");
+        // 2. Load Global Settings & Data
+        if (typeof getRoomCapacitiesFromStorage === 'function') {
+            getRoomCapacitiesFromStorage(); // Refreshes currentRoomConfig with Locations
+        }
+        if (typeof loadQPCodes === 'function') {
+            loadQPCodes(); // Refreshes qpCodeMap
         }
         
-        // 3. Get Global Scribe List
+        currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+        const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+        
+        // 3. Get Filtered Data
+        const data = getFilteredReportData('scribe-proforma');
+        if (!data || data.length === 0) {
+            throw new Error("No student data found for the selected session.");
+        }
+        
+        // 4. Get Global Scribe List
         const globalScribeList = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
         if (globalScribeList.length === 0) {
-            alert("No students have been added to the Scribe List in Scribe Assistance.");
-            throw new Error("No Scribes");
+            throw new Error("Scribe List is empty. Please add scribes in 'Scribe Assistance' first.");
         }
         const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
         
-        // 4. Filter for Scribes in this Session
+        // 5. Filter: Find Scribes in Current Data
         const allScribeStudents = data.filter(s => scribeRegNos.has(s['Register Number']));
         if (allScribeStudents.length === 0) {
-            alert("No scribe students found in the current filtered session.");
-            throw new Error("No Scribes in Session");
+            throw new Error("No scribe students found in the selected session.");
         }
         
-        // 5. Calculate Allocations
+        // 6. Run Allocation Logic (to get original rooms)
         const originalAllotments = performOriginalAllocation(data); 
         const originalRoomMap = originalAllotments.reduce((map, s) => {
             map[s['Register Number']] = { room: s['Room No'], seat: s.seatNumber };
             return map;
         }, {});
 
-        // 6. Load Extras
-        const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
-        loadQPCodes(); // populates qpCodeMap
-
-        // 7. Build Data Rows
+        // 7. Build Report Rows
         const reportRows = [];
         
         for (const s of allScribeStudents) {
             const sessionKey = `${s.Date} | ${s.Time}`;
             const sessionScribeRooms = allScribeAllotments[sessionKey] || {};
             const sessionQPCodes = qpCodeMap[sessionKey] || {};
-            const courseKey = cleanCourseKey(s.Course);
+            
+            // *** FIX: Use getBase64CourseKey instead of cleanCourseKey ***
+            const courseKey = getBase64CourseKey(s.Course);
             
             const originalRoomData = originalRoomMap[s['Register Number']] || { room: 'N/A', seat: 'N/A' };
             
-            // --- LOCATION LOGIC ---
+            // --- LOCATION DATA LOGIC (Safe) ---
             const rawScribeRoom = sessionScribeRooms[s['Register Number']];
-            let scribeRoomDisplay = 'Not Allotted';
+            let scribeRoomDisplay = '<span style="color:red;">Not Allotted</span>';
             
             if (rawScribeRoom) {
-                const rInfo = currentRoomConfig[rawScribeRoom];
-                // Only add location if it exists and is not empty
-                const locationStr = (rInfo && rInfo.location) ? ` (${rInfo.location})` : "";
-                scribeRoomDisplay = `<strong>${rawScribeRoom}</strong>${locationStr}`;
+                // Safety: Check if currentRoomConfig exists before accessing
+                let locText = "";
+                if (typeof currentRoomConfig !== 'undefined' && currentRoomConfig[rawScribeRoom]) {
+                    const rLoc = currentRoomConfig[rawScribeRoom].location;
+                    if (rLoc) locText = ` (${rLoc})`;
+                }
+                scribeRoomDisplay = `<strong>${rawScribeRoom}</strong>${locText}`;
             }
-            // ---------------------
+            // ----------------------------------
 
             reportRows.push({
                 Date: s.Date,
@@ -1925,12 +1927,12 @@ generateScribeProformaButton.addEventListener('click', async () => {
                 Name: s.Name,
                 Course: s.Course,
                 OriginalRoom: `${originalRoomData.room} (Seat: ${originalRoomData.seat})`,
-                ScribeRoom: scribeRoomDisplay, 
+                ScribeRoom: scribeRoomDisplay,
                 QPCode: sessionQPCodes[courseKey] || 'N/A'
             });
         }
         
-        // 8. Generate HTML
+        // 8. Generate HTML Pages
         let allPagesHtml = '';
         reportRows.forEach(student => {
             allPagesHtml += `
@@ -1993,22 +1995,17 @@ generateScribeProformaButton.addEventListener('click', async () => {
             `;
         });
         
-        // 9. Show Report
+        // 9. Finalize UI
         reportOutputArea.innerHTML = allPagesHtml;
         reportOutputArea.style.display = 'block'; 
         reportStatus.textContent = `Generated ${reportRows.length} Scribe Proforma pages.`;
         reportControls.classList.remove('hidden');
         lastGeneratedReportType = "Scribe_Proforma";
-        console.log("Scribe Proforma Generation Complete.");
 
     } catch (e) {
-        console.error("Error generating scribe proforma report:", e);
-        if (e.message !== "No Data" && e.message !== "No Scribes" && e.message !== "No Scribes in Session") {
-            reportStatus.textContent = "An error occurred. Check Console (F12) for details.";
-        } else {
-             reportStatus.textContent = ""; // Alert handled the message
-        }
-        reportControls.classList.remove('hidden');
+        console.error("Scribe Report Error:", e);
+        alert("Error generating report: " + e.message); 
+        reportStatus.textContent = "Generation failed.";
     } finally {
         generateScribeProformaButton.disabled = false;
         generateScribeProformaButton.textContent = "Generate Scribe Proforma (One Page Per Scribe)";
