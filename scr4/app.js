@@ -1419,9 +1419,15 @@ generateQpDistributionReportButton.addEventListener('click', async () => {
 
                 for (const roomName of sortedRoomKeys) {
                     const count = qpData.rooms[roomName];
+                    
+                    // --- NEW: Get Location ---
+                    const roomInfo = currentRoomConfig[roomName];
+                    const location = (roomInfo && roomInfo.location) ? ` <span style="font-size: 0.85em; color: #555;">(${roomInfo.location})</span>` : "";
+                    // -------------------------
+
                     allPagesHtml += `
                         <tr>
-                            <td>${roomName}</td>
+                            <td><strong>${roomName}</strong>${location}</td>
                             <td>${count}</td>
                         </tr>
                     `;
