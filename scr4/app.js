@@ -1675,8 +1675,7 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
         generateAbsenteeReportButton.textContent = "Generate Absentee Statement";
     }
 });
-// *** NEW: Event listener for "Generate Scribe Report" ***
-// *** NEW: Event listener for "Generate Scribe Report" (FIXED) ***
+// *** CORRECTED: Event listener for "Generate Scribe Report" ***
 generateScribeReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; 
     if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
@@ -1693,10 +1692,11 @@ generateScribeReportButton.addEventListener('click', async () => {
         currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
         getRoomCapacitiesFromStorage(); 
         
-        // 1. Get all data
-        const allData = JSON.parse(jsonDataStore.innerHTML || '[]');
-        if (allData.length === 0) {
-            alert("No data loaded.");
+        // 1. Get FILTERED data (Respects "All Sessions" vs "Specific Session")
+        //
+        const data = getFilteredReportData('scribe-report'); 
+        if (!data || data.length === 0) {
+            alert("No data found for the selected filter/session.");
             return;
         }
         
@@ -1708,13 +1708,22 @@ generateScribeReportButton.addEventListener('click', async () => {
         }
         const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
         
-        // 3. Get all scribe students from the main data
-        const allScribeStudents = allData.filter(s => scribeRegNos.has(s['Register Number']));
+        // 3. Get all scribe students from the filtered data
+        const allScribeStudents = data.filter(s => scribeRegNos.has(s['Register Number']));
+        if (allScribeStudents.length === 0) {
+            alert("No scribe students found in the selected data.");
+            return;
+        }
         
         // 4. Get Original Room Allotments
-        const originalAllotments = performOriginalAllocation(allData); 
+        // We run allocation on the FULL dataset to ensure correct seat numbers/rooms
+        // even if we are only reporting on a subset.
+        const allDataRaw = JSON.parse(jsonDataStore.innerHTML || '[]');
+        const originalAllotments = performOriginalAllocation(allDataRaw); 
+        
+        // *** FIX 1: Store Object { room, seat } instead of just String ***
         const originalRoomMap = originalAllotments.reduce((map, s) => {
-            map[s['Register Number']] = s['Room No'];
+            map[s['Register Number']] = { room: s['Room No'], seat: s.seatNumber };
             return map;
         }, {});
 
@@ -1729,10 +1738,12 @@ generateScribeReportButton.addEventListener('click', async () => {
             const sessionScribeRooms = allScribeAllotments[sessionKey] || {};
             const sessionQPCodes = qpCodeMap[sessionKey] || {};
             
-            // *** FIX: Use getBase64CourseKey instead of the missing cleanCourseKey ***
-            const courseKey = getBase64CourseKey(s.Course);
+            // *** FIX 2: Use cleanCourseKey to match QP Code storage ***
+            const courseKey = cleanCourseKey(s.Course);
             
+            // *** FIX 1 Usage: Access .room and .seat properties safely ***
             const originalRoomData = originalRoomMap[s['Register Number']] || { room: 'N/A', seat: 'N/A' };
+            const originalRoomDisplay = `${originalRoomData.room} (Seat: ${originalRoomData.seat})`;
             
             // --- Logic to get Scribe Room + Location ---
             const rawScribeRoom = sessionScribeRooms[s['Register Number']];
@@ -1750,7 +1761,7 @@ generateScribeReportButton.addEventListener('click', async () => {
                 RegisterNumber: s['Register Number'],
                 Name: s.Name,
                 Course: s.Course,
-                OriginalRoom: `${originalRoomData.room} (Seat: ${originalRoomData.seat})`,
+                OriginalRoom: originalRoomDisplay, // Uses the fixed display string
                 ScribeRoom: scribeRoomDisplay,
                 QPCode: sessionQPCodes[courseKey] || 'N/A'
             });
@@ -1774,11 +1785,6 @@ generateScribeReportButton.addEventListener('click', async () => {
         let allPagesHtml = '';
         let totalPages = 0;
         const sortedSessionKeys = Object.keys(sessions).sort();
-
-        if (sortedSessionKeys.length === 0) {
-            alert("No scribe students found for any session with loaded data.");
-            return;
-        }
 
         sortedSessionKeys.forEach(key => {
             const session = sessions[key];
@@ -1836,7 +1842,8 @@ generateScribeReportButton.addEventListener('click', async () => {
 
     } catch (e) {
         console.error("Error generating scribe report:", e);
-        reportStatus.textContent = "An error occurred generating the report.";
+        alert("Error generating report: " + e.message);
+        reportStatus.textContent = "Generation failed.";
         reportControls.classList.remove('hidden');
     } finally {
         generateScribeReportButton.disabled = false;
