@@ -1739,7 +1739,7 @@ generateScribeReportButton.addEventListener('click', async () => {
             const sessionQPCodes = qpCodeMap[sessionKey] || {};
             
             // *** FIX 2: Use cleanCourseKey to match QP Code storage ***
-            const courseKey = cleanCourseKey(s.Course);
+            const courseKey = getBase64CourseKey(s.Course);
             
             // *** FIX 1 Usage: Access .room and .seat properties safely ***
             const originalRoomData = originalRoomMap[s['Register Number']] || { room: 'N/A', seat: 'N/A' };
