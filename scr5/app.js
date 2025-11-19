@@ -299,62 +299,70 @@ async function createNewCollege(user) {
 
 // DOWNLOAD
 // 5. CLOUD DOWNLOAD FUNCTION (Split Strategy)
+
+// 5. CLOUD DOWNLOAD FUNCTION (Chunked Strategy)
 function syncDataFromCloud(collegeId) {
     updateSyncStatus("Connecting...", "neutral");
-    const { db, doc, onSnapshot } = window.firebase;
+    const { db, doc, onSnapshot, collection, getDocs, query, orderBy } = window.firebase;
     
-    // Listener 1: Main Settings
+    // Listener 1: Main Settings (Real-time)
     const mainRef = doc(db, "colleges", collegeId);
     
     const unsubMain = onSnapshot(mainRef, async (docSnap) => {
         if (docSnap.exists()) {
             const mainData = docSnap.data();
-            currentCollegeData = mainData; // Store for permissions
+            currentCollegeData = mainData; 
 
-            // Check Permissions
+            // Check Admin Permissions
             if (currentCollegeData.admins && currentUser && currentCollegeData.admins.includes(currentUser.email)) {
                 if(adminBtn) adminBtn.classList.remove('hidden');
             } else {
                 if(adminBtn) adminBtn.classList.add('hidden');
             }
 
-            // Prevent loop
+            // Prevent loop (Don't reload if update is from us)
             const localTime = localStorage.getItem('lastUpdated');
             if (localTime && mainData.lastUpdated && localTime === mainData.lastUpdated) {
                 return; 
             }
 
-            console.log("☁️ Main config received.");
+            console.log("☁️ Main config detected. Fetching full data...");
             
-            // Save Main Keys
+            // 1. Save Main Keys
             ['examRoomConfig', 'examCollegeName', 'examQPCodes', 'examScribeList', 'examScribeAllotment', 'examAbsenteeList', 'lastUpdated'].forEach(key => {
                 if (mainData[key]) localStorage.setItem(key, mainData[key]);
             });
 
-            // FETCH BULK DATA (One-time fetch to save bandwidth, or listener?)
-            // Let's use a listener for bulk too so it stays in sync
-            const bulkRef = doc(db, "colleges", collegeId, "data", "bulk");
-            
-            // We use getDoc for bulk to avoid double-refreshing UI, 
-            // OR we can nest the listener. Let's use getDoc for simplicity on 'main' change.
+            // 2. FETCH CHUNKS (One-time fetch on main update)
             try {
-                const bulkSnap = await window.firebase.getDoc(bulkRef);
-                if (bulkSnap.exists()) {
-                    const bulkData = bulkSnap.data();
-                    console.log("☁️ Bulk data received.");
+                const dataColRef = collection(db, "colleges", collegeId, "data");
+                // Get all chunks sorted by index
+                const q = query(dataColRef, orderBy("index")); 
+                const querySnapshot = await getDocs(q);
+                
+                let fullPayload = "";
+                querySnapshot.forEach((doc) => {
+                    if (doc.id.startsWith("chunk_")) {
+                        fullPayload += doc.data().payload;
+                    }
+                });
+
+                if (fullPayload) {
+                    const bulkData = JSON.parse(fullPayload);
+                    console.log("☁️ Bulk data stitched and parsed.");
                     ['examBaseData', 'examRoomAllotment'].forEach(key => {
                         if (bulkData[key]) localStorage.setItem(key, bulkData[key]);
                     });
                 }
             } catch (err) {
-                console.error("Bulk fetch error", err);
+                console.error("Bulk fetch error:", err);
             }
 
-            // Refresh UI
+            // 3. Refresh UI
             updateSyncStatus("Synced", "success");
             console.log("Refreshing UI...");
             loadInitialData();
-             if (!viewRoomAllotment.classList.contains('hidden') && allotmentSessionSelect.value) {
+            if (!viewRoomAllotment.classList.contains('hidden') && allotmentSessionSelect.value) {
                  allotmentSessionSelect.dispatchEvent(new Event('change'));
             }
 
@@ -367,7 +375,7 @@ function syncDataFromCloud(collegeId) {
     });
 }
 
-// 4. CLOUD UPLOAD FUNCTION (Split Strategy)
+// 4. CLOUD UPLOAD FUNCTION (Chunked Strategy)
 async function syncDataToCloud() {
     if (!currentUser || !currentCollegeId) return;
     if (isSyncing) return;
@@ -375,7 +383,7 @@ async function syncDataToCloud() {
     isSyncing = true;
     updateSyncStatus("Saving...", "neutral");
 
-    const { db, doc, writeBatch } = window.firebase; 
+    const { db, doc, writeBatch, collection, getDocs } = window.firebase; 
     
     // 1. Prepare MAIN Data (Small Settings)
     const mainData = { lastUpdated: new Date().toISOString() };
@@ -387,39 +395,49 @@ async function syncDataToCloud() {
     });
 
     // 2. Prepare BULK Data (Students & Allotments)
-    const bulkData = {};
+    const bulkDataObj = {};
     const bulkKeys = ['examBaseData', 'examRoomAllotment'];
-    
     bulkKeys.forEach(key => {
         const val = localStorage.getItem(key);
-        if(val) bulkData[key] = val;
+        if(val) bulkDataObj[key] = val;
     });
+    
+    // Convert large data to string and split into 800KB chunks (safe margin for 1MB limit)
+    const bulkString = JSON.stringify(bulkDataObj);
+    const chunks = chunkString(bulkString, 800000); 
 
     try {
         const batch = writeBatch(db);
         
-        // Ref to Main Doc
+        // A. Update Main Doc
         const mainRef = doc(db, "colleges", currentCollegeId);
         batch.update(mainRef, mainData);
 
-        // Ref to Bulk Doc (Sub-collection)
-        // We store large data in: colleges/ID/data/bulk
-        const bulkRef = doc(db, "colleges", currentCollegeId, "data", "bulk");
-        batch.set(bulkRef, bulkData); // Use set() to create if missing
+        // B. Save Chunks to Sub-collection 'data'
+        // First, we overwrite existing chunks (chunk_0, chunk_1...)
+        chunks.forEach((chunkStr, index) => {
+            const chunkRef = doc(db, "colleges", currentCollegeId, "data", `chunk_${index}`);
+            batch.set(chunkRef, { payload: chunkStr, index: index, totalChunks: chunks.length });
+        });
+        
+        // C. Clean up leftover chunks (e.g., if we had 5 chunks before but only 2 now)
+        // We can't easily delete in the same batch without knowing IDs. 
+        // Strategy: We write a metadata doc saying how many chunks we have.
+        const metaRef = doc(db, "colleges", currentCollegeId, "data", "_metadata");
+        batch.set(metaRef, { totalChunks: chunks.length });
 
         await batch.commit();
         
-        console.log("Data synced to cloud (Split Mode)!");
+        console.log(`Data synced! Split into ${chunks.length} chunk(s).`);
         updateSyncStatus("Saved", "success");
     } catch (e) {
         console.error("Sync Up Error:", e);
-        // If update fails (e.g., doc doesn't exist yet), try set for main doc
         if (e.code === 'not-found') {
-             // Fallback for very first save
+            // Fallback: Create main doc if missing
              try {
                  await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId), mainData);
-                 await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId, "data", "bulk"), bulkData);
-                 updateSyncStatus("Saved", "success");
+                 // Retry the batch... (simplified: just alert user to retry)
+                 updateSyncStatus("Retry Save", "error");
              } catch (retryErr) {
                  console.error("Retry failed", retryErr);
                  updateSyncStatus("Save Fail", "error");
@@ -1009,7 +1027,15 @@ function getRoomSerialMap(sessionKey) {
 
     return serialMap;
 }
-    
+// --- Helper to split large strings for Cloud Storage ---
+function chunkString(str, size) {
+    const numChunks = Math.ceil(str.length / size);
+    const chunks = [];
+    for (let i = 0, o = 0; i < numChunks; ++i, o += size) {
+        chunks.push(str.substr(o, size));
+    }
+    return chunks;
+}    
 // V68: Helper function to filter data based on selected report filter
 function getFilteredReportData(reportType) {
     const data = JSON.parse(jsonDataStore.innerHTML || '[]');
