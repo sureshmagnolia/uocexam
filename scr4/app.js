@@ -1688,6 +1688,7 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
                 </tr>
             `;
             
+            // *** FIX: Reverted signature to "Chief Superintendent" ***
             allPagesHtml += `
                 <div class="print-page">
                     <div class="print-header-group">
@@ -1711,7 +1712,7 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
                     
                     <div class="absentee-footer">
                         <div class="signature">
-                            Name and Dated Signature of the Invigilator
+                            Chief Superintendent
                         </div>
                     </div>
                 </div>
