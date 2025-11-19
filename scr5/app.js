@@ -255,62 +255,7 @@ setTimeout(() => {
     }
 }, 1000);
 
-// --- 2. CORE SYNC FUNCTIONS ---
 
-async function findMyCollege(user) {
-    // Run Super Admin Check
-    checkSuperAdminAccess(user);
-
-    updateSyncStatus("Searching...", "neutral");
-    const { db, collection, query, where, getDocs, doc, getDoc } = window.firebase;
-    const email = user.email;
-
-    try {
-        // 1. Try to find an EXISTING college where this user is a member
-        const collegesRef = collection(db, "colleges");
-        const q = query(collegesRef, where("allowedUsers", "array-contains", email));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            // SUCCESS: Found existing college
-            const collegeDoc = querySnapshot.docs[0];
-            currentCollegeId = collegeDoc.id;
-            console.log("Joined College:", currentCollegeId);
-            syncDataFromCloud(currentCollegeId);
-        } else {
-            // FAIL: No college found. 
-            // 2. CHECK WHITELIST: Is this user allowed to create a NEW college?
-            console.log("Checking whitelist authorization...");
-            const whitelistRef = doc(db, "global", "whitelist");
-            const whitelistSnap = await getDoc(whitelistRef);
-            
-            let isAuthorized = false;
-            if (whitelistSnap.exists()) {
-                const allowedEmails = whitelistSnap.data().emails || [];
-                if (allowedEmails.includes(email) || email === SUPER_ADMIN_EMAIL) {
-                    isAuthorized = true;
-                }
-            } else if (email === SUPER_ADMIN_EMAIL) {
-                // Allow Super Admin to create the very first DB
-                isAuthorized = true; 
-            }
-
-            if (isAuthorized) {
-                if(confirm("No existing database found for your account, but you are AUTHORIZED.\n\nClick OK to create a new College Database.")) {
-                    await createNewCollege(user);
-                }
-            } else {
-                // BLOCKED
-                alert("⛔ ACCESS DENIED ⛔\n\nYou are not part of any college team, and you are not authorized to create a new database.\n\nPlease contact the Super Admin to get access.");
-                const { auth, signOut } = window.firebase;
-                signOut(auth).then(() => location.reload());
-            }
-        }
-    } catch (e) {
-        console.error("Error finding college:", e);
-        updateSyncStatus("Auth Error", "error");
-    }
-}
 
 async function createNewCollege(user) {
     const { db, collection, addDoc } = window.firebase;
@@ -4869,10 +4814,11 @@ saveCollegeNameButton.addEventListener('click', () => {
 });
 // --- END: STUDENT SEARCH FUNCTIONALITY ---
 // ==========================================
+// ==========================================
 // 🚀 SUPER ADMIN LOGIC
 // ==========================================
 
-const SUPER_ADMIN_EMAIL = "sureshmagnolia@gmail.com"; // YOUR EMAIL
+const SUPER_ADMIN_EMAIL = "sureshmagnolia@gmail.com"; 
 
 const superAdminBtn = document.getElementById('super-admin-btn');
 const superAdminModal = document.getElementById('super-admin-modal');
@@ -4980,6 +4926,62 @@ window.removeFromWhitelist = async function(email) {
         alert("Error: " + e.message);
     }
 };
+
+// --- REPLACEMENT FOR findMyCollege ---
+async function findMyCollege(user) {
+    // Run Super Admin Check
+    checkSuperAdminAccess(user);
+
+    updateSyncStatus("Searching...", "neutral");
+    const { db, collection, query, where, getDocs, doc, getDoc } = window.firebase;
+    const email = user.email;
+
+    try {
+        // 1. Try to find an EXISTING college where this user is a member
+        const collegesRef = collection(db, "colleges");
+        const q = query(collegesRef, where("allowedUsers", "array-contains", email));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            // SUCCESS: Found existing college
+            const collegeDoc = querySnapshot.docs[0];
+            currentCollegeId = collegeDoc.id;
+            console.log("Joined College:", currentCollegeId);
+            syncDataFromCloud(currentCollegeId);
+        } else {
+            // FAIL: No college found. 
+            // 2. CHECK WHITELIST: Is this user allowed to create a NEW college?
+            console.log("Checking whitelist authorization...");
+            const whitelistRef = doc(db, "global", "whitelist");
+            const whitelistSnap = await getDoc(whitelistRef);
+            
+            let isAuthorized = false;
+            if (whitelistSnap.exists()) {
+                const allowedEmails = whitelistSnap.data().emails || [];
+                if (allowedEmails.includes(email) || email === SUPER_ADMIN_EMAIL) {
+                    isAuthorized = true;
+                }
+            } else if (email === SUPER_ADMIN_EMAIL) {
+                // Allow Super Admin to create the very first DB
+                isAuthorized = true; 
+            }
+
+            if (isAuthorized) {
+                if(confirm("No existing database found for your account, but you are AUTHORIZED.\n\nClick OK to create a new College Database.")) {
+                    await createNewCollege(user);
+                }
+            } else {
+                // BLOCKED
+                alert("⛔ ACCESS DENIED ⛔\n\nYou are not part of any college team, and you are not authorized to create a new database.\n\nPlease contact the Super Admin to get access.");
+                const { auth, signOut } = window.firebase;
+                signOut(auth).then(() => location.reload());
+            }
+        }
+    } catch (e) {
+        console.error("Error finding college:", e);
+        updateSyncStatus("Auth Error", "error");
+    }
+}
 
 // --- Run on initial page load ---
 loadInitialData();
