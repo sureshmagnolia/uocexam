@@ -1962,7 +1962,7 @@ function formatRegNoList(regNos) {
     return outputHtml.join('<br>');
 }
         
-// --- (V56) Event listener for "Generate Absentee Statement" (QP Code Wise) ---
+// --- (V56) Event listener for "Generate Absentee Statement" (Renamed) ---
 generateAbsenteeReportButton.addEventListener('click', async () => {
     const sessionKey = sessionSelect.value;
     if (!sessionKey) {
@@ -1989,15 +1989,17 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
         for (const student of sessionStudents) {
             const courseDisplay = student.Course;
             
-            // Get QP Code
+            // Use Base64 Key
             const courseKey = getBase64CourseKey(courseDisplay);
+            if (!courseKey) continue; 
+            
             const sessionCodes = qpCodeMap[sessionKey] || {};
-            const qpCode = sessionCodes[courseKey] || "Not Entered"; // Default grouping
+            const qpCode = sessionCodes[courseKey] || "Not Entered"; 
             
             if (!qpGroups[qpCode]) {
                 qpGroups[qpCode] = {
                     code: qpCode,
-                    courses: {}, // Will hold data per course
+                    courses: {}, 
                     grandTotalPresent: 0,
                     grandTotalAbsent: 0
                 };
@@ -2038,17 +2040,18 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
                 const presentListHtml = formatRegNoList(courseData.present);
                 const absentListHtml = formatRegNoList(courseData.absent);
                 
+                // *** FIX: Added font-size: 13pt and line-height to register number cells ***
                 tableRowsHtml += `
                     <tr style="background-color: #f9fafb;">
                         <td colspan="2" style="font-weight: bold; border-bottom: 2px solid #ccc;">Course: ${courseData.name}</td>
                     </tr>
                     <tr>
                         <td style="vertical-align: top; width: 25%;"><strong>Present (${courseData.present.length})</strong></td>
-                        <td class="regno-list" style="vertical-align: top;">${presentListHtml}</td>
+                        <td class="regno-list" style="vertical-align: top; font-size: 13pt; line-height: 1.6;">${presentListHtml}</td>
                     </tr>
                     <tr>
                         <td style="vertical-align: top;"><strong>Absent (${courseData.absent.length})</strong></td>
-                        <td class="regno-list" style="vertical-align: top;">${absentListHtml}</td>
+                        <td class="regno-list" style="vertical-align: top; font-size: 13pt; line-height: 1.6;">${absentListHtml}</td>
                     </tr>
                 `;
             }
@@ -2065,12 +2068,12 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
                 </tr>
             `;
             
-            // *** FIX: Reverted signature to "Chief Superintendent" ***
+            // *** FIX: Changed Title to "Statement of Answer Scripts" ***
             allPagesHtml += `
                 <div class="print-page">
                     <div class="print-header-group">
                         <h1>${currentCollegeName}</h1>
-                        <h2>Absentee Statement</h2>
+                        <h2>Statement of Answer Scripts</h2>
                         <h3>${date} &nbsp;|&nbsp; ${time}</h3>
                         <h3 style="border: 1px solid black; padding: 5px; display: inline-block; margin-top: 5px;">QP Code: ${qpCode}</h3>
                     </div>
@@ -2101,10 +2104,11 @@ generateAbsenteeReportButton.addEventListener('click', async () => {
         reportStatus.textContent = `Generated ${totalPages} page(s) for ${sortedQpKeys.length} QP Codes.`;
         reportControls.classList.remove('hidden');
         roomCsvDownloadContainer.innerHTML = ""; 
-        lastGeneratedReportType = `Absentee_Statement_${date.replace(/\./g, '_')}_${time.replace(/\s/g, '')}`; 
+        // Updated report type name for clarity
+        lastGeneratedReportType = `Statement_Answer_Scripts_${date.replace(/\./g, '_')}_${time.replace(/\s/g, '')}`; 
 
     } catch (e) {
-        console.error("Error generating absentee report:", e);
+        console.error("Error generating report:", e);
         reportStatus.textContent = "An error occurred while generating the report.";
         reportControls.classList.remove('hidden');
     } finally {
