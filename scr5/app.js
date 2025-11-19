@@ -308,7 +308,8 @@ async function createNewCollege(user) {
 }
 
 // DOWNLOAD
-// 5. CLOUD DOWNLOAD FUNCTION (Chunked Strategy + Fixed UI Load)
+
+// 5. CLOUD DOWNLOAD FUNCTION (Fixed Status Update)
 function syncDataFromCloud(collegeId) {
     updateSyncStatus("Connecting...", "neutral");
     const { db, doc, onSnapshot, collection, getDocs, query, orderBy } = window.firebase;
@@ -331,11 +332,9 @@ function syncDataFromCloud(collegeId) {
             // === LOOP PREVENTION CHECK ===
             const localTime = localStorage.getItem('lastUpdated');
             if (localTime && mainData.lastUpdated && localTime === mainData.lastUpdated) {
-                // Data is identical. No need to save to localStorage.
-                // *** FIX: BUT WE MUST STILL LOAD THE UI! ***
-                console.log("☁️ Data is up to date. Loading UI...");
-                updateSyncStatus("Synced", "success");
-                loadInitialData(); 
+                // Data is up to date!
+                console.log("☁️ Data is up to date.");
+                updateSyncStatus("Synced", "success"); // <--- THIS WAS MISSING!
                 return; 
             }
             // ==============================
