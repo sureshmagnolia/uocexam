@@ -1665,17 +1665,6 @@ async function generateNoticeBoardReport(numCols) {
 
 
 
-if(btnNoticeA) {
-    const newBtnA = btnNoticeA.cloneNode(true);
-    if (btnNoticeA.parentNode) btnNoticeA.parentNode.replaceChild(newBtnA, btnNoticeA);
-    newBtnA.addEventListener('click', () => generateNoticeBoardReport(1));
-}
-
-if(btnNoticeB) {
-    const newBtnB = btnNoticeB.cloneNode(true);
-    if (btnNoticeB.parentNode) btnNoticeB.parentNode.replaceChild(newBtnB, btnNoticeB);
-    newBtnB.addEventListener('click', () => generateNoticeBoardReport(2));
-}
 
 // 3. Helper: Render Page
 function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
@@ -1821,21 +1810,6 @@ function prepareScribeSummaryRows_Notice(scribes, session, allotments) {
 
 
 
-// --- Helper: Listeners ---
-const btnNoticeA = document.getElementById('generate-daywise-1col-btn');
-const btnNoticeB = document.getElementById('generate-daywise-2col-btn');
-
-if(btnNoticeA) {
-    const newBtnA = btnNoticeA.cloneNode(true);
-    if (btnNoticeA.parentNode) btnNoticeA.parentNode.replaceChild(newBtnA, btnNoticeA);
-    newBtnA.addEventListener('click', () => generateNoticeBoardReport(1));
-}
-
-if(btnNoticeB) {
-    const newBtnB = btnNoticeB.cloneNode(true);
-    if (btnNoticeB.parentNode) btnNoticeB.parentNode.replaceChild(newBtnB, btnNoticeB);
-    newBtnB.addEventListener('click', () => generateNoticeBoardReport(2));
-}
 
 
 
@@ -7583,7 +7557,31 @@ async function findMyCollege(user) {
             syncDataToCloud();
         }
     };
-    
+    // ==========================================
+// 📋 NOTICE BOARD REPORT LISTENERS (Correct Order)
+// ==========================================
+
+// 1. Define variables
+const btnNoticeA = document.getElementById('generate-daywise-1col-btn');
+const btnNoticeB = document.getElementById('generate-daywise-2col-btn');
+
+// 2. Attach Listeners (Safe Check)
+if (btnNoticeA) {
+    // Clone to prevent duplicate listeners if this code runs twice
+    const newBtnA = btnNoticeA.cloneNode(true);
+    if (btnNoticeA.parentNode) {
+        btnNoticeA.parentNode.replaceChild(newBtnA, btnNoticeA);
+        newBtnA.addEventListener('click', () => generateNoticeBoardReport(1));
+    }
+}
+
+if (btnNoticeB) {
+    const newBtnB = btnNoticeB.cloneNode(true);
+    if (btnNoticeB.parentNode) {
+        btnNoticeB.parentNode.replaceChild(newBtnB, btnNoticeB);
+        newBtnB.addEventListener('click', () => generateNoticeBoardReport(2));
+    }
+}
 // --- Run on initial page load ---
 loadInitialData();
 });
