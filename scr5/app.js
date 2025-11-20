@@ -1502,7 +1502,7 @@ generateReportButton.addEventListener('click', async () => {
     
 // --- (V40) Event listener for "Seating Details" (Final Fixed Page Numbers) ---
 // ==========================================
-// 📋 NOTICE BOARD REPORT LOGIC (Robust 2-Column)
+// 📋 NOTICE BOARD REPORT LOGIC (Fixed Undefined/[object Object])
 // ==========================================
 
 async function generateNoticeBoardReport(numCols) {
@@ -1569,8 +1569,8 @@ async function generateNoticeBoardReport(numCols) {
                 
                 // 1. Flatten Data into a Print Queue
                 const printQueue = [];
-                const studentsByCourse = {};
                 
+                const studentsByCourse = {};
                 session.students.forEach(s => {
                     if (!studentsByCourse[s.Course]) studentsByCourse[s.Course] = [];
                     studentsByCourse[s.Course].push(s);
@@ -1581,7 +1581,7 @@ async function generateNoticeBoardReport(numCols) {
                     const courseStudents = studentsByCourse[courseName];
                     courseStudents.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
 
-                    // Add Header
+                    // Header Row
                     printQueue.push({ type: 'header', text: courseName });
 
                     courseStudents.forEach(s => {
@@ -1595,7 +1595,7 @@ async function generateNoticeBoardReport(numCols) {
                         const location = roomInfo.location ? `(${roomInfo.location})` : "";
                         const serial = roomSerialMap[roomName] || "";
                         
-                        // Simple Location Display
+                        // Location Display
                         const locDisplay = location 
                             ? `<b>${serial} | ${roomInfo.location}</b><br><span style="font-size:0.75em">(${roomName})</span>`
                             : `<b>${serial} | ${roomName}</b>`;
@@ -1605,7 +1605,7 @@ async function generateNoticeBoardReport(numCols) {
                             reg: s['Register Number'],
                             name: s.Name,
                             seat: s.isScribe ? 'Scribe' : s.seatNumber,
-                            locationRaw: roomName,
+                            locationRaw: roomName, // Used for merging logic
                             locationDisplay: locDisplay,
                             isScribe: s.isScribe
                         });
@@ -1613,7 +1613,7 @@ async function generateNoticeBoardReport(numCols) {
                     printQueue.push({ type: 'spacer' });
                 });
 
-                // Add Scribe Summary
+                // Scribe Summary (Added to end of queue)
                 const sessionScribes = session.students.filter(s => s.isScribe);
                 if (sessionScribes.length > 0) {
                     printQueue.push({ type: 'divider', text: "SCRIBE SUMMARY" });
@@ -1628,7 +1628,7 @@ async function generateNoticeBoardReport(numCols) {
                 const flushPage = () => {
                     if (col1.length > 0 || col2.length > 0) {
                         totalPagesGenerated++;
-                        // Render with correct arguments
+                        // Render with correct arguments (Ensure Strings are passed as Strings)
                         let pageHtml = renderNoticePage(col1, col2, String(streamName), session, numCols, totalPagesGenerated);
                         allPagesHtml += pageHtml;
                         col1 = []; col2 = [];
@@ -1636,6 +1636,7 @@ async function generateNoticeBoardReport(numCols) {
                 };
 
                 printQueue.forEach(item => {
+                    // Scribe rows consume 1 slot
                     if (numCols === 1) {
                         if (col1.length >= MAX_ROWS_PER_COL) flushPage();
                         col1.push(item);
@@ -1648,14 +1649,14 @@ async function generateNoticeBoardReport(numCols) {
                         else if (col2.length < MAX_ROWS_PER_COL) {
                             col2.push(item);
                         } 
-                        // Both Full -> Flush
+                        // Both Full -> Flush -> Start new page in Col 1
                         else {
                             flushPage();
                             col1.push(item);
                         }
                     }
                 });
-                flushPage();
+                flushPage(); // Flush remaining items
             });
         }
 
@@ -1672,14 +1673,7 @@ async function generateNoticeBoardReport(numCols) {
     }
 }
 
-// --- Listeners ---
-const btn1Col = document.getElementById('generate-daywise-1col-btn');
-const btn2Col = document.getElementById('generate-daywise-2col-btn');
-if(btn1Col) btn1Col.addEventListener('click', () => generateNoticeBoardReport(1));
-if(btn2Col) btn2Col.addEventListener('click', () => generateNoticeBoardReport(2));
-
-
-// --- Helper: Render Page (Flexbox Layout for Print Safety) ---
+// --- Helper: Render Page (Fixed [object Object]) ---
 function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
     
     const renderColumn = (rows) => {
@@ -1689,23 +1683,26 @@ function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
 
         rows.forEach((row) => {
             if (row.type === 'header') {
+                // Ensure row.text is a string
+                const headerText = String(row.text || ""); 
                 html += `
                     <tr class="bg-gray-200 print:bg-gray-200">
                         <td colspan="4" style="font-weight: bold; font-size: 0.85em; padding: 3px 4px; border: 1px solid #000; text-align: left; border-top: 2px solid #000;">
-                            ${row.text}
+                            ${headerText}
                         </td>
                     </tr>`;
                 lastLocation = ""; 
             } else if (row.type === 'student') {
                 const sClass = row.isScribe ? 'font-bold text-orange-700' : '';
                 
-                // Visual Merge Logic (Border suppression)
-                let locContent = row.locationDisplay;
-                let rowBorder = "border-top: 2px solid #000;"; // Default heavy border for new room
+                // Fix: Check for undefined locationDisplay
+                let locContent = row.locationDisplay || ""; 
+                let rowBorder = "border-top: 2px solid #000;"; 
 
+                // Visual Merge Logic
                 if (row.locationRaw === lastLocation) {
-                    locContent = ""; // Hide text for same room
-                    rowBorder = "border-top: 1px solid #ddd;"; // Light border for same room
+                    locContent = ""; 
+                    rowBorder = "border-top: 1px solid #ddd;"; 
                 }
                 lastLocation = row.locationRaw;
 
@@ -1739,13 +1736,13 @@ function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
             </tr>
         </thead>`;
 
-    // Use FLEXBOX for 2-column layout (Safe for PDF)
+    // Flexbox Layout
     let bodyContent = "";
     if (numCols === 1) {
         bodyContent = `
             <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
                 ${tableHeader}
-                <tbody>${renderColumn(col1)}</tbody>
+                <tbody>${renderTable(col1)}</tbody>
             </table>`;
     } else {
         bodyContent = `
@@ -1753,13 +1750,13 @@ function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
                 <div style="flex: 1;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
                         ${tableHeader}
-                        <tbody>${renderColumn(col1)}</tbody>
+                        <tbody>${renderTable(col1)}</tbody>
                     </table>
                 </div>
                 <div style="flex: 1;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
                         ${tableHeader}
-                        <tbody>${renderColumn(col2)}</tbody>
+                        <tbody>${renderTable(col2)}</tbody>
                     </table>
                 </div>
             </div>`;
@@ -1769,16 +1766,13 @@ function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
         <div class="print-page print-page-daywise" style="height: 100%; display: flex; flex-direction: column;">
             
             <div class="print-header-group" style="width: 100%; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 5px; position: relative;">
-                
                 <div style="position: absolute; top: 0; left: 0; border: 2px solid #000; padding: 4px 10px; background: #fff;">
                     <span style="font-size: 10pt; font-weight: bold;">Page</span><br>
                     <span style="font-size: 16pt; font-weight: bold;">${pageNo}</span>
                 </div>
-
                 <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px; background: #eee;">
                     ${streamName}
                 </div>
-
                 <div style="text-align: center; width: 100%;"> 
                     <h1 style="font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase;">${currentCollegeName}</h1>
                     <h2 style="font-size: 12pt; margin: 4px 0 0 0; font-weight: bold;">Seating Details for Candidates</h2>
@@ -1788,6 +1782,10 @@ function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
             
             <div style="flex-grow: 1;">
                 ${bodyContent}
+            </div>
+            
+            <div style="margin-top: auto; padding-top: 2px; font-size: 7pt; text-align: center; color: #888;">
+                Generated by ExamFlow System
             </div>
         </div>
     `;
@@ -1816,6 +1814,9 @@ function prepareScribeSummaryRows_Notice(scribes, session, allotments) {
     });
     return rows;
 }
+
+
+
 
 // 2. Attach Listeners to New Buttons
 const btn1Col = document.getElementById('generate-daywise-1col-btn');
