@@ -4301,7 +4301,33 @@ saveRoomConfigButton.addEventListener('click', () => {
     }
 });
 
-// --- (V79) Load data into dynamic form (in Settings) ---
+// --- (V97) College Name Save Logic (Updated with Edit Button) ---
+const editCollegeNameBtn = document.getElementById('edit-college-name-btn');
+
+if (editCollegeNameBtn) {
+    editCollegeNameBtn.addEventListener('click', () => {
+        collegeNameInput.disabled = false;
+        collegeNameInput.classList.remove('disabled:bg-gray-100', 'disabled:text-gray-500');
+        collegeNameInput.focus();
+    });
+}
+
+if (saveCollegeNameButton) {
+    saveCollegeNameButton.addEventListener('click', () => {
+        const collegeName = collegeNameInput.value.trim() || "University of Calicut";
+        localStorage.setItem(COLLEGE_NAME_KEY, collegeName);
+        currentCollegeName = collegeName;
+        
+        // Lock it again
+        collegeNameInput.disabled = true;
+        collegeNameInput.classList.add('disabled:bg-gray-100', 'disabled:text-gray-500');
+
+        collegeNameStatus.textContent = "College name saved!";
+        setTimeout(() => { collegeNameStatus.textContent = ""; }, 2000);
+        
+        if (typeof syncDataToCloud === 'function') syncDataToCloud();
+    });
+}
 
  // --- (V79) Load data into dynamic form (in Settings) ---
 function loadRoomConfig() {
@@ -6735,33 +6761,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
     });
 
     // --- END: STUDENT SEARCH FUNCTIONALITY ---
-// --- College Name Edit/Save Logic ---
-const editCollegeNameBtn = document.getElementById('edit-college-name-btn');
 
-if (editCollegeNameBtn) {
-    editCollegeNameBtn.addEventListener('click', () => {
-        collegeNameInput.disabled = false;
-        collegeNameInput.classList.remove('disabled:bg-gray-100', 'disabled:text-gray-500');
-        collegeNameInput.focus();
-    });
-}
-
-saveCollegeNameButton.addEventListener('click', () => {
-    const collegeName = collegeNameInput.value.trim() || "University of Calicut";
-    localStorage.setItem(COLLEGE_NAME_KEY, collegeName);
-    currentCollegeName = collegeName;
-    
-    // Lock it again
-    collegeNameInput.disabled = true;
-    collegeNameInput.classList.add('disabled:bg-gray-100', 'disabled:text-gray-500');
-
-    collegeNameStatus.textContent = "College name saved!";
-    setTimeout(() => { collegeNameStatus.textContent = ""; }, 2000);
-    
-    syncDataToCloud();
-});
-// --- END: STUDENT SEARCH FUNCTIONALITY ---
-// ==========================================
 // ==========================================
 // 🚀 SUPER ADMIN LOGIC
 // ==========================================
