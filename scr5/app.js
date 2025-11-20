@@ -1500,11 +1500,11 @@ generateReportButton.addEventListener('click', async () => {
     }
 });
     
-// --- (V30) Event listener for "Seating Details" (Smart A4 Optimized) ---
+// --- (V31) Event listener for "Seating Details" (Dense A4 Optimized) ---
 generateDaywiseReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
     generateDaywiseReportButton.disabled = true;
-    generateDaywiseReportButton.textContent = "Generating Smart Layout...";
+    generateDaywiseReportButton.textContent = "Optimizing Layout...";
     reportOutputArea.innerHTML = "";
     reportControls.classList.add('hidden');
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -1535,17 +1535,14 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         let allPagesHtml = '';
         let totalPagesGenerated = 0;
         
-        // --- DYNAMIC SIZING CONSTANTS ---
-        // We use "Units". 1 Student Row = 1 Unit. Header = 2.5 Units.
-        // A4 Page Capacity ~ 48 Units (Safe margin)
-        const PAGE_CAPACITY_UNITS = 48; 
+        // --- DENSITY CONSTANTS ---
+        // We aim for ~45 rows per page.
+        const MAX_ROWS_PER_PAGE = 44; 
 
         // MAIN LOOP
         for (const streamName of sortedStreamNames) {
             const streamData = dataByStream[streamName];
             const processed_rows = performOriginalAllocation(streamData);
-            
-            // Serial Map for Room Numbers
             const sampleSession = streamData.length > 0 ? `${streamData[0].Date} | ${streamData[0].Time}` : "";
             const roomSerialMap = getRoomSerialMap(sampleSession);
 
@@ -1562,36 +1559,26 @@ generateDaywiseReportButton.addEventListener('click', async () => {
             sortedSessionKeys.forEach(key => {
                 const session = daySessions[key];
                 
-                // 2. Group Students by COURSE
+                // 2. Prepare Flat List of Rows (Header + Students)
+                const flatRows = [];
+                
+                // Group by COURSE
                 const studentsByCourse = {};
                 session.students.forEach(s => {
                     if (!studentsByCourse[s.Course]) studentsByCourse[s.Course] = [];
                     studentsByCourse[s.Course].push(s);
                 });
-
                 const sortedCourses = Object.keys(studentsByCourse).sort();
-                
-                // --- PAGE BUILDER ENGINE ---
-                let currentPageContent = [];
-                let currentUnitsUsed = 0;
-
-                // Helper to flush page
-                const flushPage = () => {
-                    if (currentPageContent.length > 0) {
-                        allPagesHtml += renderSmartPage(currentPageContent, streamName, session, currentUnitsUsed, PAGE_CAPACITY_UNITS);
-                        totalPagesGenerated++;
-                        currentPageContent = [];
-                        currentUnitsUsed = 0;
-                    }
-                };
 
                 sortedCourses.forEach(courseName => {
                     const courseStudents = studentsByCourse[courseName];
-                    // Sort by RegNo
                     courseStudents.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
 
-                    // Prepare Data Rows with Location Info
-                    const rows = courseStudents.map(s => {
+                    // Add Header Row
+                    flatRows.push({ type: 'header', text: courseName });
+
+                    // Add Student Rows
+                    courseStudents.forEach(s => {
                         let roomName = s['Room No'];
                         if (s.isScribe) {
                             const sessionKeyPipe = `${s.Date} | ${s.Time}`;
@@ -1600,58 +1587,67 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                         }
                         
                         const roomInfo = currentRoomConfig[roomName] || {};
-                        const location = roomInfo.location ? `(${roomInfo.location})` : ""; // Clean Location
+                        const location = roomInfo.location ? `(${roomInfo.location})` : "";
                         const serial = roomSerialMap[roomName] || "";
                         
-                        // Display Format: Location (Room X)
-                        // If Location exists: "Commerce Block (Room 1)"
-                        // If No Location: "Room 1"
                         const locDisplay = location 
-                            ? `<span class="font-bold">${roomInfo.location}</span><br><span class="text-xs text-gray-500">(${roomName})</span>`
-                            : `<span class="font-bold">${roomName}</span>`;
+                            ? `<span class="font-bold text-black">${roomInfo.location}</span><br><span class="text-xs text-gray-600">(${roomName})</span>`
+                            : `<span class="font-bold text-black">${roomName}</span>`;
 
-                        return {
+                        flatRows.push({
+                            type: 'student',
                             reg: s['Register Number'],
                             name: s.Name,
                             seat: s.isScribe ? 'Scribe' : s.seatNumber,
-                            locationRaw: roomName + location, // For merging check
+                            locationRaw: roomName,
                             locationDisplay: locDisplay,
                             isScribe: s.isScribe
-                        };
-                    });
-
-                    // -- HEADER LOGIC --
-                    // Cost of adding a new course header
-                    const headerCost = 2.5;
-                    
-                    // Check if we have space for Header + at least 1 row
-                    if (currentUnitsUsed + headerCost + 1 > PAGE_CAPACITY_UNITS) {
-                        flushPage();
-                    }
-
-                    // Add Header to Page
-                    currentPageContent.push({ type: 'header', text: courseName });
-                    currentUnitsUsed += headerCost;
-
-                    // -- ROW LOGIC --
-                    rows.forEach(row => {
-                        if (currentUnitsUsed + 1 > PAGE_CAPACITY_UNITS) {
-                            flushPage();
-                            // If split, add a "Continuation" header on new page
-                            currentPageContent.push({ type: 'header', text: `${courseName} (Cont.)` });
-                            currentUnitsUsed += headerCost;
-                        }
-                        currentPageContent.push({ type: 'student', data: row });
-                        currentUnitsUsed += 1;
+                        });
                     });
                 });
 
-                flushPage(); // End of Session
-
-                // 3. Scribe Summary (Separate Page)
+                // 3. Prepare Scribe Summary Rows (if any)
                 const sessionScribes = session.students.filter(s => s.isScribe);
+                let scribeRows = [];
                 if (sessionScribes.length > 0) {
-                    allPagesHtml += renderScribeSummaryPage(sessionScribes, streamName, session, allScribeAllotments);
+                    scribeRows = prepareScribeSummaryRows(sessionScribes, session, allScribeAllotments);
+                }
+
+                // 4. Page Builder Engine
+                // We flow student rows first, then immediately append scribe rows if space permits
+                let allContent = [...flatRows];
+                if (scribeRows.length > 0) {
+                    // Add a "Divider" row
+                    allContent.push({ type: 'divider', text: "SCRIBE ASSISTANCE SUMMARY" });
+                    allContent = allContent.concat(scribeRows);
+                }
+
+                let currentPage = [];
+                let currentRowCount = 0;
+
+                allContent.forEach((row, index) => {
+                    // Calculate Row "Cost"
+                    let cost = 1;
+                    if (row.type === 'scribe-room') cost = Math.max(1, Math.ceil(row.studentCount / 2)); // Estimate height for list
+
+                    if (currentRowCount + cost > MAX_ROWS_PER_PAGE && currentRowCount > 0) {
+                        // Flush Page
+                        allPagesHtml += renderDensePage(currentPage, streamName, session);
+                        totalPagesGenerated++;
+                        currentPage = [];
+                        currentRowCount = 0;
+                        
+                        // If splitting a student list, repeat the Header? 
+                        // Logic handled inside render to repeat Room Name
+                    }
+                    
+                    currentPage.push(row);
+                    currentRowCount += cost;
+                });
+
+                // Flush Final Page
+                if (currentPage.length > 0) {
+                    allPagesHtml += renderDensePage(currentPage, streamName, session);
                     totalPagesGenerated++;
                 }
             });
@@ -1659,7 +1655,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
 
         reportOutputArea.innerHTML = allPagesHtml;
         reportOutputArea.style.display = 'block'; 
-        reportStatus.textContent = `Generated ${totalPagesGenerated} pages (Smart Layout).`;
+        reportStatus.textContent = `Generated ${totalPagesGenerated} Dense Pages.`;
         reportControls.classList.remove('hidden');
         lastGeneratedReportType = "Daywise_Seating_Details"; 
     } catch (e) {
@@ -1670,6 +1666,154 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         generateDaywiseReportButton.textContent = "Generate Seating Details for Candidates (Compact)";
     }
 });
+
+// --- Helper: Prepare Scribe Rows ---
+function prepareScribeSummaryRows(scribes, session, allotments) {
+    const scribesByRoom = {};
+    scribes.forEach(s => {
+        const sessionKeyPipe = `${session.Date} | ${session.Time}`;
+        const newRoom = allotments[sessionKeyPipe]?.[s['Register Number']] || "Unallotted";
+        if(!scribesByRoom[newRoom]) scribesByRoom[newRoom] = [];
+        scribesByRoom[newRoom].push(s);
+    });
+
+    const rows = [];
+    Object.keys(scribesByRoom).sort().forEach(roomName => {
+        const students = scribesByRoom[roomName];
+        // Create a comma-separated string
+        const studentList = students.map(s => `<b>${s.Name}</b> (${s['Register Number']})`).join(', ');
+        
+        const roomInfo = currentRoomConfig[roomName] || {};
+        const location = roomInfo.location ? `(${roomInfo.location})` : "";
+
+        rows.push({
+            type: 'scribe-room',
+            roomDisplay: `${roomName} ${location}`,
+            content: studentList,
+            studentCount: students.length
+        });
+    });
+    return rows;
+}
+
+// --- Helper: Render Dense Page ---
+function renderDensePage(rows, streamName, session) {
+    let tableBodyHtml = "";
+    
+    // Calculate Merges for this specific page
+    const locationSpans = new Array(rows.length).fill(0);
+    
+    for (let i = 0; i < rows.length; i++) {
+        if (rows[i].type !== 'student') {
+            locationSpans[i] = 1; continue;
+        }
+        if (locationSpans[i] === -1) continue;
+        
+        let span = 1;
+        for (let j = i + 1; j < rows.length; j++) {
+            if (rows[j].type === 'student' && rows[j].locationRaw === rows[i].locationRaw) {
+                span++;
+                locationSpans[j] = -1;
+            } else {
+                break;
+            }
+        }
+        locationSpans[i] = span;
+    }
+
+    rows.forEach((row, index) => {
+        if (row.type === 'header') {
+            // Course Header
+            tableBodyHtml += `
+                <tr class="bg-gray-200 print:bg-gray-200">
+                    <td colspan="4" style="font-weight: bold; font-size: 0.95em; padding: 3px 6px; border: 1px solid #000; text-align: left; border-top: 2px solid #000;">
+                        ${row.text}
+                    </td>
+                </tr>
+            `;
+        } else if (row.type === 'student') {
+            const scribeClass = row.isScribe ? 'font-bold text-orange-700' : '';
+            let locCell = '';
+            
+            if (locationSpans[index] > 0) {
+                const rowspan = locationSpans[index] > 1 ? `rowspan="${locationSpans[index]}"` : '';
+                locCell = `<td ${rowspan} style="border: 1px solid #000; padding: 2px 4px; width: 35%; vertical-align: middle; text-align: center; background-color: #fff; font-size:0.9em;">${row.locationDisplay}</td>`;
+            }
+
+            tableBodyHtml += `
+                <tr class="${scribeClass}">
+                    ${locCell}
+                    <td style="border: 1px solid #000; padding: 2px 4px; width: 20%; text-align:left;">${row.reg}</td>
+                    <td style="border: 1px solid #000; padding: 2px 4px; width: 35%;">${row.name}</td>
+                    <td style="border: 1px solid #000; padding: 2px 4px; width: 10%; text-align: center; font-weight: bold;">${row.seat}</td>
+                </tr>
+            `;
+        } else if (row.type === 'divider') {
+            // Scribe Section Header
+            tableBodyHtml += `
+                <tr>
+                    <td colspan="4" style="border: 0; padding: 15px 0 5px 0;">
+                        <div style="border-bottom: 3px double #000; text-align: center; font-weight: bold; font-size: 1.2em;">
+                            ${row.text}
+                        </div>
+                    </td>
+                </tr>
+                <tr class="bg-gray-100">
+                    <td style="border: 1px solid #000; padding: 4px; font-weight: bold;">Scribe Room</td>
+                    <td colspan="2" style="border: 1px solid #000; padding: 4px; font-weight: bold;">Allocated Students</td>
+                    <td style="border: 1px solid #000; padding: 4px; font-weight: bold; text-align:center;">Count</td>
+                </tr>
+            `;
+        } else if (row.type === 'scribe-room') {
+            // Scribe Row
+            tableBodyHtml += `
+                <tr>
+                    <td style="border: 1px solid #000; padding: 6px; font-weight: bold; vertical-align: top;">${row.roomDisplay}</td>
+                    <td colspan="2" style="border: 1px solid #000; padding: 6px; font-size: 0.9em; line-height: 1.3;">${row.content}</td>
+                    <td style="border: 1px solid #000; padding: 6px; font-weight: bold; text-align: center; vertical-align: top;">${row.studentCount}</td>
+                </tr>
+            `;
+        }
+    });
+
+    return `
+        <div class="print-page print-page-daywise" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="print-header-group" style="margin-bottom: 8px; border-bottom: 2px solid #000; padding-bottom: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <h1 style="font-size: 14pt; font-weight: bold; margin: 0;">${currentCollegeName}</h1>
+                        <h2 style="font-size: 11pt; margin: 0;">Seating Details: ${session.Date} (${session.Time})</h2>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 1px 6px; display: inline-block;">
+                            ${streamName}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="flex-grow: 1;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+                    <thead>
+                        <tr style="background-color: #f3f4f6; border-bottom: 2px solid #000;">
+                            <th style="border: 1px solid #000; padding: 4px; text-align: center;">Location / Room</th>
+                            <th style="border: 1px solid #000; padding: 4px; text-align: left;">Register No</th>
+                            <th style="border: 1px solid #000; padding: 4px; text-align: left;">Name</th>
+                            <th style="border: 1px solid #000; padding: 4px; text-align: center;">Seat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableBodyHtml}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="margin-top: auto; padding-top: 5px; font-size: 8pt; text-align: center; color: #666;">
+                Page Generated by ExamFlow
+            </div>
+        </div>
+    `;
+}
 
 // --- Helper: Render Smart Page (Auto-sizing) ---
 function renderSmartPage(rows, streamName, session, unitsUsed, maxUnits) {
