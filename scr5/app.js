@@ -1500,11 +1500,11 @@ generateReportButton.addEventListener('click', async () => {
     }
 });
     
-// --- (V37) Event listener for "Seating Details" (Print-Safe 2-Col) ---
+// --- (V38) Event listener for "Seating Details" (Final Notice Board Layout) ---
 generateDaywiseReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
     generateDaywiseReportButton.disabled = true;
-    generateDaywiseReportButton.textContent = "Optimizing Layout...";
+    generateDaywiseReportButton.textContent = "Generating Layout...";
     reportOutputArea.innerHTML = "";
     reportControls.classList.add('hidden');
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -1519,16 +1519,12 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         const colSelect = document.getElementById('reports-column-select');
         const NUM_COLS = colSelect ? parseInt(colSelect.value) : 2;
 
-        // --- HEIGHT CONSTANTS (Calibrated for A4) ---
-        // A4 ~1123px height. 
-        // We reserve 50px for Header, 30px for Footer.
-        // Safe Content Area: ~950px.
-        const PAGE_MAX_HEIGHT = 950; 
+        // --- HEIGHT CONSTANTS ---
+        const PAGE_MAX_HEIGHT = 960; 
         const ROW_HEIGHT = 22;       
         const HEADER_HEIGHT = 35;    
         const SPACER_HEIGHT = 5;
 
-        // 1. Split Data by Stream
         const dataByStream = {};
         const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
         
@@ -1566,8 +1562,9 @@ generateDaywiseReportButton.addEventListener('click', async () => {
             sortedSessionKeys.forEach(key => {
                 const session = daySessions[key];
                 const flatItems = [];
-                const studentsByCourse = {};
                 
+                // Group by Course
+                const studentsByCourse = {};
                 session.students.forEach(s => {
                     if (!studentsByCourse[s.Course]) studentsByCourse[s.Course] = [];
                     studentsByCourse[s.Course].push(s);
@@ -1589,9 +1586,12 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                         }
                         const roomInfo = currentRoomConfig[roomName] || {};
                         const location = roomInfo.location ? `(${roomInfo.location})` : "";
+                        const serial = roomSerialMap[roomName] || "";
+                        
+                        // Format: Serial | Room
                         const locDisplay = location 
-                            ? `<b>${roomInfo.location}</b><br><span style="font-size:0.8em">(${roomName})</span>`
-                            : `<b>${roomName}</b>`;
+                            ? `<b>${serial} | ${roomInfo.location}</b><br><span style="font-size:0.75em">(${roomName})</span>`
+                            : `<b>${serial} | ${roomName}</b>`;
 
                         flatItems.push({
                             type: 'student',
@@ -1617,7 +1617,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                     });
                 }
 
-                // --- COLUMN FILLER ENGINE ---
+                // --- FILLER ENGINE ---
                 let col1Items = [];
                 let col2Items = [];
                 let h1 = 0;
@@ -1626,11 +1626,14 @@ generateDaywiseReportButton.addEventListener('click', async () => {
 
                 const flushPage = () => {
                     if (col1Items.length > 0 || col2Items.length > 0) {
-                       let pageHtml = render2ColPage(col1Items, col2Items, streamName, session, NUM_COLS);
-totalPagesGenerated++;
-// Inject actual page number
-pageHtml = pageHtml.replace('<span class="page-number-placeholder"></span>', totalPagesGenerated);
-allPagesHtml += pageHtml;
+                        totalPagesGenerated++;
+                        // Render Page
+                        let pageHtml = render2ColPage(col1Items, col2Items, streamName, session, NUM_COLS);
+                        // Inject Page Number
+                        pageHtml = pageHtml.replace('{{PAGE_NO}}', totalPagesGenerated);
+                        allPagesHtml += pageHtml;
+                        
+                        // Reset
                         col1Items = []; col2Items = [];
                         h1 = 0; h2 = 0;
                         fillingRight = false;
@@ -1687,6 +1690,121 @@ allPagesHtml += pageHtml;
         generateDaywiseReportButton.textContent = "Generate Seating Details for Candidates (Compact)";
     }
 });
+
+// --- Helper: Render 2-Column Page (Centered Header + Page No) ---
+function render2ColPage(col1, col2, streamName, session, numCols) {
+    const renderTable = (items) => {
+        if (!items || items.length === 0) return "";
+        let html = "";
+        let lastLocation = ""; 
+
+        items.forEach((row, idx) => {
+            if (row.type === 'header') {
+                html += `
+                    <tr class="bg-gray-200 print:bg-gray-200">
+                        <td colspan="4" style="font-weight: bold; font-size: 0.85em; padding: 3px 4px; border: 1px solid #000; text-align: left; border-top: 2px solid #000;">
+                            ${row.text}
+                        </td>
+                    </tr>`;
+                lastLocation = ""; 
+            } else if (row.type === 'student') {
+                const sClass = row.isScribe ? 'font-bold text-orange-700' : '';
+                let locContent = "";
+                let rowBorder = "border-top: 1px solid #ddd;"; 
+                
+                if (row.locationRaw !== lastLocation) {
+                    locContent = row.locationDisplay;
+                    rowBorder = "border-top: 2px solid #000;"; 
+                    lastLocation = row.locationRaw;
+                }
+
+                html += `
+                    <tr class="${sClass}">
+                        <td style="border-left: 1px solid #000; border-right: 1px solid #000; ${rowBorder} padding: 2px; width: 25%; vertical-align: top; text-align: center; font-size:0.8em; background-color: #fff;">
+                            ${locContent}
+                        </td>
+                        <td style="border: 1px solid #000; padding: 2px; width: 20%; text-align:left; font-size: 0.9em; vertical-align: top;">${row.reg}</td>
+                        <td style="border: 1px solid #000; padding: 2px 4px; width: 45%; font-size: 0.8em; overflow: hidden; vertical-align: top;">${row.name}</td>
+                        <td style="border: 1px solid #000; padding: 2px; width: 10%; text-align: center; font-weight: bold; font-size: 0.9em; vertical-align: top;">${row.seat}</td>
+                    </tr>`;
+            } else if (row.type === 'divider') {
+                html += `<tr><td colspan="4" style="border-bottom: 2px double #000; font-weight: bold; text-align: center; padding: 5px 0 2px; font-size:0.9em;">${row.text}</td></tr>`;
+            } else if (row.type === 'scribe-room') {
+                html += `<tr><td colspan="4" style="border: 1px solid #000; padding: 4px; font-size: 0.8em;"><strong>${row.roomDisplay}:</strong> ${row.content}</td></tr>`;
+            } else if (row.type === 'spacer') {
+                html += `<tr><td colspan="4" style="height:4px; border:0;"></td></tr>`;
+            }
+        });
+        return html;
+    };
+
+    const tableHeader = `
+        <thead>
+            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #000;">
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Loc</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Reg No</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Name</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">St</th>
+            </tr>
+        </thead>`;
+
+    let bodyContent = "";
+    if (numCols === 1) {
+        bodyContent = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+                ${tableHeader}
+                <tbody>${renderTable(col1)}</tbody>
+            </table>`;
+    } else {
+        // GRID LAYOUT for precise 2-column
+        bodyContent = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; align-items: start;">
+                <div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                        ${tableHeader}
+                        <tbody>${renderTable(col1)}</tbody>
+                    </table>
+                </div>
+                <div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                        ${tableHeader}
+                        <tbody>${renderTable(col2)}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }
+
+    return `
+        <div class="print-page print-page-daywise" style="height: 100%; display: flex; flex-direction: column;">
+            
+            <div class="print-header-group" style="width: 100%; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 5px; position: relative;">
+                
+                <div style="position: absolute; top: 0; left: 0; border: 2px solid #000; padding: 2px 8px; background: #fff;">
+                    <span style="font-size: 10pt; font-weight: bold;">Page</span><br>
+                    <span style="font-size: 14pt; font-weight: bold;">{{PAGE_NO}}</span>
+                </div>
+
+                <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px; background: #eee;">
+                    ${streamName}
+                </div>
+
+                <div style="text-align: center; width: 100%;"> 
+                    <h1 style="font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase;">${currentCollegeName}</h1>
+                    <h2 style="font-size: 12pt; margin: 4px 0 0 0; font-weight: bold;">Seating Details for Candidates</h2>
+                    <h3 style="font-size: 11pt; margin: 2px 0 0 0;">${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
+                </div>
+            </div>
+            
+            <div style="flex-grow: 1;">
+                ${bodyContent}
+            </div>
+            
+            <div style="position: absolute; bottom: 5px; left: 0; right: 0; text-align: center; font-size: 8pt; color: #666; border-top: 1px solid #eee; padding-top: 2px;">
+                Generated by ExamFlow System
+            </div>
+        </div>
+    `;
+}
 
 // --- Helper: Render 2-Column Page (Centered Header + Prominent Page No) ---
 function render2ColPage(col1, col2, streamName, session, numCols) {
