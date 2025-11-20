@@ -5992,15 +5992,23 @@ scribeCloseRoomModal.addEventListener('click', () => {
 // **********************************
 
 // --- Helper function to disable all report buttons ---
-// *** FIX: This is the REAL implementation of the function Python calls ***
 window.real_disable_all_report_buttons = function(disabled) {
-    if (generateReportButton) generateReportButton.disabled = disabled;
-    if (generateQPaperReportButton) generateQPaperReportButton.disabled = disabled;
-    if (generateDaywiseReportButton) generateDaywiseReportButton.disabled = disabled;
-    if (generateScribeReportButton) generateScribeReportButton.disabled = disabled;
-    if (generateScribeProformaButton) generateScribeProformaButton.disabled = disabled;
-    if (generateQpDistributionReportButton) generateQpDistributionReportButton.disabled = disabled;
-    if (generateInvigilatorReportButton) generateInvigilatorReportButton.disabled = disabled;
+    const ids = [
+        'generate-report-button',
+        'generate-daywise-1col-btn', // <--- Updated
+        'generate-daywise-2col-btn', // <--- Updated
+        'generate-qpaper-report-button',
+        'generate-daywise-report-button', // Keep for safety if referenced elsewhere
+        'generate-scribe-report-button',
+        'generate-scribe-proforma-button',
+        'generate-qp-distribution-report-button',
+        'generate-invigilator-report-button'
+    ];
+
+    ids.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.disabled = disabled;
+    });
 }
 
 // --- NEW: STUDENT DATA EDIT FUNCTIONALITY (MODAL VERSION) ---
@@ -7161,8 +7169,7 @@ async function findMyCollege(user) {
         return str;
     }
 
-   
-// --- Helper: Load Data into App & Cloud ---
+  // --- Helper: Load Data into App & Cloud ---
     function loadStudentData(dataArray) {
         // 1. Update Global Var
         allStudentData = dataArray;
@@ -7189,13 +7196,13 @@ async function findMyCollege(user) {
         // *** FIX: Enable the NEW 1-Col and 2-Col Buttons ***
         const reportBtns = [
             'generate-report-button',
-            'generate-daywise-1col-btn', // New Button 1
-            'generate-daywise-2col-btn', // New Button 2
-            'generate-qpaper-report-button', 
+            'generate-daywise-1col-btn', // <--- NEW BUTTON 1
+            'generate-daywise-2col-btn', // <--- NEW BUTTON 2
+            'generate-qpaper-report-button',
             'generate-qp-distribution-report-button',
-            'generate-scribe-report-button', 
+            'generate-scribe-report-button',
             'generate-scribe-proforma-button',
-            'generate-invigilator-report-button', 
+            'generate-invigilator-report-button',
             'generate-absentee-report-button'
         ];
         
@@ -7212,8 +7219,8 @@ async function findMyCollege(user) {
             mainCsvStatus.textContent = `Success! Loaded ${dataArray.length} records.`;
             mainCsvStatus.className = "text-sm font-medium text-green-600";
         }
-
-        // 7. CSV Download Button
+        
+        // 7. CSV Download
         const downloadContainer = document.getElementById('csv-download-container');
         if (downloadContainer) {
             const csvContent = convertToCSV(dataArray);
@@ -7224,11 +7231,12 @@ async function findMyCollege(user) {
                 <a href="${url}" download="Extracted_Student_Data.csv" 
                    class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                   Download Data as CSV (${dataArray.length} records)
+                   Download Data as CSV
                 </a>
             `;
         }
-    }
+    } 
+
 
 // ==========================================
     // 🐍 PYTHON INTEGRATION (Connects PDF to Merge Logic)
