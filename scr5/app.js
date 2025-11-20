@@ -1044,7 +1044,33 @@ function chunkString(str, size) {
         chunks.push(str.substr(o, size));
     }
     return chunks;
-}    
+}
+
+// --- Update Dashboard Function ---
+function updateDashboard() {
+    const dashContainer = document.getElementById('data-snapshot');
+    const dashStudent = document.getElementById('dash-student-count');
+    const dashCourse = document.getElementById('dash-course-count');
+    const dashDay = document.getElementById('dash-day-count');
+
+    if (!allStudentData || allStudentData.length === 0) {
+        if(dashContainer) dashContainer.classList.add('hidden');
+        return;
+    }
+
+    // Calculate Stats
+    const totalStudents = allStudentData.length;
+    const uniqueCourses = new Set(allStudentData.map(s => s.Course)).size;
+    const uniqueDays = new Set(allStudentData.map(s => s.Date)).size;
+
+    // Update UI
+    if(dashStudent) dashStudent.textContent = totalStudents.toLocaleString();
+    if(dashCourse) dashCourse.textContent = uniqueCourses.toLocaleString();
+    if(dashDay) dashDay.textContent = uniqueDays.toLocaleString();
+    
+    if(dashContainer) dashContainer.classList.remove('hidden');
+}
+    
 // V68: Helper function to filter data based on selected report filter
 function getFilteredReportData(reportType) {
     const data = JSON.parse(jsonDataStore.innerHTML || '[]');
@@ -3507,8 +3533,10 @@ function loadInitialData() {
                 loadGlobalScribeList(); // <-- NEW
                 // *** NEW: Enable Edit Data Tab ***
                 disable_edit_data_tab(false);
+                updateDashboard();
                 // *********************************
                 console.log(`Successfully loaded ${savedData.length} records from local storage.`);
+                
                 
                 // Update log status (Optional, good for user feedback)
                 document.getElementById("status-log").innerHTML = `<p class="mb-1 text-green-700">&gt; [${new Date().toLocaleTimeString()}] Successfully loaded data from previous session.</p>`;
@@ -5300,7 +5328,7 @@ async function findMyCollege(user) {
         populate_session_dropdown();
         populate_qp_code_session_dropdown();
         populate_room_allotment_session_dropdown();
-        
+        updateDashboard();
         // Enable Tabs
         disable_absentee_tab(false);
         disable_qpcode_tab(false);
