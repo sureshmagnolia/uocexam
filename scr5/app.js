@@ -5120,27 +5120,25 @@ async function findMyCollege(user) {
     }
 }
 // ==========================================
-    // 📄 CSV & TEMPLATE LOGIC (Works Offline)
+    // 📄 CSV & TEMPLATE LOGIC (Advanced Merge)
     // ==========================================
 
     const SAMPLE_CSV_CONTENT = `Date,Time,Course,Register Number,Name
 24.11.2025,2:00 PM,ARA1FA102 (1) - BASIC ARABIC LANGUAGE SKILLS [ARABIC 2024 SYLLABUS],ABCDEFC001,NAME ONE
-24.11.2025,2:00 PM,ARA1FA102 (1) - BASIC ARABIC LANGUAGE SKILLS [ARABIC 2024 SYLLABUS],ABCDEFC002,NAME TWO
-24.11.2025,2:00 PM,ARA1FA102 (1) - BASIC ARABIC LANGUAGE SKILLS [ARABIC 2024 SYLLABUS],ABCDEFC003,NAME ONE
-24.11.2025,2:00 PM,ARA1FA102 (1) - BASIC ARABIC LANGUAGE SKILLS [ARABIC 2024 SYLLABUS],ABCDEFC004,NAME TWO
-24.11.2025,2:00 PM,ARA1FA102 (1) - BASIC ARABIC LANGUAGE SKILLS [ARABIC 2024 SYLLABUS],ABCDEFC005,NAME ONE
-24.11.2025,2:00 PM,ARA1FA102 (2) - MODERN STANDARD ARABIC 1 [ARABIC 2024 SYLLABUS],ABCDEFC006,NAME TWO
-24.11.2025,2:00 PM,ARA1FA102 (2) - MODERN STANDARD ARABIC 1 [ARABIC 2024 SYLLABUS],ABCDEFC007,NAME ONE
-24.11.2025,2:00 PM,ARA1FA102 (2) - MODERN STANDARD ARABIC 1 [ARABIC 2024 SYLLABUS],ABCDEFC008,NAME TWO
-24.11.2025,2:00 PM,ARA1FA102 (2) - MODERN STANDARD ARABIC 1 [ARABIC 2024 SYLLABUS],ABCDEFC009,NAME ONE
-24.11.2025,2:00 PM,ARA1FA102 (2) - MODERN STANDARD ARABIC 1 [ARABIC 2024 SYLLABUS],ABCDEFC010,NAME TWO
-24.11.2025,2:00 PM,ARA1FA102 (2) - MODERN STANDARD ARABIC 1 [ARABIC 2024 SYLLABUS],ABCDEFC011,NAME ONE
-24.11.2025,2:00 PM,ARA1FA102 (3) - ESSENTIAL SKILLS IN ARABIC [ARABIC 2024 SYLLABUS],ABCDEFC012,NAME TWO
-25.11.2025,2:00 PM,BCA1FM105 - DIGITAL MARKETING [COMPUTER APPLICATION 2024 SYLLABUS],ABCDEFC013,NAME ONE
-24.11.2025,2:00 PM,BHAG I [HINDI 2025 SYLLABUS],ABCDEFC014,NAME TWO
-24.11.2025,2:00 PM,BHAG I [HINDI 2025 SYLLABUS],ABCDEFC015,NAME ONE
-24.11.2025,2:00 PM,BHAG I [HINDI 2025 SYLLABUS],ABCDEFC016,NAME TWO
-24.11.2025,2:00 PM,BHAG I [HINDI 2025 SYLLABUS],ABCDEFC017,NAME ONE`;
+24.11.2025,2:00 PM,ARA1FA102 (1) - BASIC ARABIC LANGUAGE SKILLS [ARABIC 2024 SYLLABUS],ABCDEFC002,NAME TWO`;
+
+    // Modal Elements
+    const conflictModal = document.getElementById('csv-conflict-modal');
+    const conflictExistingCount = document.getElementById('conflict-existing-count');
+    const conflictTotalNew = document.getElementById('conflict-total-new');
+    const conflictUniqueCount = document.getElementById('conflict-unique-count');
+    const btnMerge = document.getElementById('btn-merge-data');
+    const btnReplace = document.getElementById('btn-replace-data');
+    const btnCancel = document.getElementById('btn-cancel-upload');
+
+    // Temp storage for the uploaded data
+    let tempNewData = [];
+    let tempUniqueData = [];
 
     // 1. Download Template Button
     const downloadSampleBtn = document.getElementById('download-sample-csv-btn');
@@ -5157,7 +5155,7 @@ async function findMyCollege(user) {
         });
     }
 
-    // 2. Load CSV Button (The new primary button)
+    // 2. Load CSV Button (Primary)
     const mainLoadCsvBtn = document.getElementById('main-load-csv-btn');
     const mainCsvInput = document.getElementById('main-csv-upload');
     const mainCsvStatus = document.getElementById('main-csv-status');
@@ -5171,33 +5169,59 @@ async function findMyCollege(user) {
                 return;
             }
             
-            mainCsvStatus.textContent = "Processing...";
+            mainCsvStatus.textContent = "Analyzing file...";
             mainCsvStatus.className = "text-sm font-medium text-blue-600";
 
             const reader = new FileReader();
             reader.onload = (event) => {
                 const csvText = event.target.result;
                 
-                // Use the existing parsing logic
-                // We temporarily point the 'csvLoadStatus' element to our new status div
-                // so the existing function updates the right UI
-                const originalStatus = document.getElementById('csv-load-status'); // Backup
-                
-                // Hijack the status display for the parsing function
-                if(typeof parseCsvAndLoadData === 'function') {
-                    try {
-                        parseCsvAndLoadData(csvText);
-                        mainCsvStatus.textContent = `Success! Loaded data. Syncing to cloud...`;
-                        mainCsvStatus.className = "text-sm font-medium text-green-600";
-                        
-                        // Trigger Cloud Sync if available
-                        if (typeof syncDataToCloud === 'function') syncDataToCloud();
-                        
-                    } catch(e) {
-                        console.error(e);
-                        mainCsvStatus.textContent = "Error parsing CSV. Check format.";
-                        mainCsvStatus.className = "text-sm font-medium text-red-600";
+                try {
+                    // Step A: Parse the new file
+                    tempNewData = parseCsvRaw(csvText); // Parse but don't save yet
+                    
+                    if (tempNewData.length === 0) {
+                        throw new Error("No valid data found in CSV.");
                     }
+
+                    // Step B: Check against existing data
+                    if (!allStudentData || allStudentData.length === 0) {
+                        // No existing data, load directly
+                        loadStudentData(tempNewData);
+                    } else {
+                        // Data exists! Calculate Diff
+                        const existingKeys = new Set(allStudentData.map(s => 
+                            `${s.Date}|${s.Time}|${s['Register Number']}|${s.Course}`.toUpperCase()
+                        ));
+                        
+                        tempUniqueData = tempNewData.filter(s => {
+                            const key = `${s.Date}|${s.Time}|${s['Register Number']}|${s.Course}`.toUpperCase();
+                            return !existingKeys.has(key);
+                        });
+
+                        // Step C: Show Options Modal
+                        conflictExistingCount.textContent = allStudentData.length;
+                        conflictTotalNew.textContent = tempNewData.length;
+                        conflictUniqueCount.textContent = tempUniqueData.length;
+                        
+                        // Hide/Show buttons based on data
+                        if (tempUniqueData.length === 0) {
+                            btnMerge.textContent = "No New Records to Add";
+                            btnMerge.disabled = true;
+                            btnMerge.classList.add('opacity-50', 'cursor-not-allowed');
+                        } else {
+                            btnMerge.innerHTML = `✅ Add <strong>${tempUniqueData.length}</strong> New Records (Merge)`;
+                            btnMerge.disabled = false;
+                            btnMerge.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+
+                        conflictModal.classList.remove('hidden');
+                    }
+
+                } catch(e) {
+                    console.error(e);
+                    mainCsvStatus.textContent = "Error parsing CSV: " + e.message;
+                    mainCsvStatus.className = "text-sm font-medium text-red-600";
                 }
             };
             reader.onerror = () => {
@@ -5206,6 +5230,116 @@ async function findMyCollege(user) {
             };
             reader.readAsText(file);
         });
+    }
+
+    // --- Modal Button Handlers ---
+    
+    if (btnMerge) {
+        btnMerge.addEventListener('click', () => {
+            const mergedData = [...allStudentData, ...tempUniqueData];
+            loadStudentData(mergedData);
+            conflictModal.classList.add('hidden');
+        });
+    }
+
+    if (btnReplace) {
+        btnReplace.addEventListener('click', () => {
+            // Ask one last time
+            if (confirm("Are you sure you want to overwrite ALL existing data? This cannot be undone.")) {
+                loadStudentData(tempNewData);
+                conflictModal.classList.add('hidden');
+            }
+        });
+    }
+
+    if (btnCancel) {
+        btnCancel.addEventListener('click', () => {
+            conflictModal.classList.add('hidden');
+            mainCsvStatus.textContent = "Upload cancelled.";
+            mainCsvStatus.className = "text-sm font-medium text-gray-600";
+        });
+    }
+
+    // --- Helper: Parse CSV String to JSON (No Side Effects) ---
+    function parseCsvRaw(csvText) {
+        const lines = csvText.trim().split('\n');
+        const headersLine = lines.shift().trim();
+        const headers = headersLine.split(',');
+
+        const dateIndex = headers.indexOf('Date');
+        const timeIndex = headers.indexOf('Time');
+        const courseIndex = headers.indexOf('Course');
+        const regNumIndex = headers.indexOf('Register Number');
+        const nameIndex = headers.indexOf('Name');
+
+        if (regNumIndex === -1 || nameIndex === -1 || courseIndex === -1) {
+            throw new Error("Missing required headers (Register Number, Name, Course)");
+        }
+
+        const parsedData = [];
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            // Regex for quoted CSV fields
+            const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+            const values = line.split(regex).map(val => val.trim().replace(/^"|"$/g, ''));
+            
+            if (values.length === headers.length) {
+                parsedData.push({
+                    'Date': values[dateIndex],
+                    'Time': values[timeIndex],
+                    'Course': values[courseIndex], 
+                    'Register Number': values[regNumIndex],
+                    'Name': values[nameIndex]
+                });
+            }
+        }
+        
+        // Sort the new data
+        try {
+            parsedData.sort((a, b) => {
+                const keyA = getJsSortKey(a);
+                const keyB = getJsSortKey(b);
+                if (keyA.dateObj.getTime() !== keyB.dateObj.getTime()) return keyA.dateObj - keyB.dateObj;
+                if (keyA.timeObj.getTime() !== keyB.timeObj.getTime()) return keyA.timeObj - keyB.timeObj;
+                return keyA.courseName.localeCompare(keyB.courseName);
+            });
+        } catch (e) { console.warn("Sort failed", e); }
+
+        return parsedData;
+    }
+
+    // --- Helper: Load Data into App & Cloud ---
+    function loadStudentData(dataArray) {
+        // 1. Update Global Var
+        allStudentData = dataArray;
+        
+        // 2. Update Data Stores
+        const jsonStr = JSON.stringify(dataArray);
+        jsonDataStore.innerHTML = jsonStr;
+        localStorage.setItem(BASE_DATA_KEY, jsonStr);
+
+        // 3. Update UI
+        updateUniqueStudentList();
+        populate_session_dropdown();
+        populate_qp_code_session_dropdown();
+        populate_room_allotment_session_dropdown();
+        
+        // Enable Tabs
+        disable_absentee_tab(false);
+        disable_qpcode_tab(false);
+        disable_room_allotment_tab(false);
+        disable_scribe_settings_tab(false);
+        disable_edit_data_tab(false);
+        if (generateReportButton) generateReportButton.disabled = false;
+
+        // 4. Sync
+        if (typeof syncDataToCloud === 'function') syncDataToCloud();
+
+        // 5. Feedback
+        if (mainCsvStatus) {
+            mainCsvStatus.textContent = `Success! Loaded ${dataArray.length} records.`;
+            mainCsvStatus.className = "text-sm font-medium text-green-600";
+        }
     }
     // ==========================================
 // --- Run on initial page load ---
