@@ -1841,6 +1841,148 @@ function prepareScribeSummaryRows(scribes, session, allotments) {
         if(!scribesByRoom[newRoom]) scribesByRoom[newRoom] = [];
         scribesByRoom[newRoom].push(s);
     });
+    const rows = [];
+    Object.keys(scribesByRoom).sort().forEach(roomName => {
+        const students = scribesByRoom[roomName];
+        const studentList = students.map(s => `<b>${s.Name}</b> (${s['Register Number']})`).join(', ');
+        const roomInfo = currentRoomConfig[roomName] || {};
+        const location = roomInfo.location ? `(${roomInfo.location})` : "";
+        rows.push({
+            type: 'scribe-room',
+            roomDisplay: `${roomName} ${location}`,
+            content: studentList,
+            studentCount: students.length
+        });
+    });
+    return rows;
+}
+
+// --- Helper: Render 2-Column Page (Grid Layout + No Rowspan) ---
+function render2ColPage(col1, col2, streamName, session, numCols) {
+    
+    const renderTable = (items) => {
+        if (!items || items.length === 0) return "";
+
+        let html = "";
+        let lastLocation = ""; // Track location change manually
+
+        items.forEach((row, idx) => {
+            if (row.type === 'header') {
+                html += `
+                    <tr class="bg-gray-200 print:bg-gray-200">
+                        <td colspan="4" style="font-weight: bold; font-size: 0.85em; padding: 3px 4px; border: 1px solid #000; text-align: left; border-top: 2px solid #000;">
+                            ${row.text}
+                        </td>
+                    </tr>`;
+                lastLocation = ""; // Reset on header
+            } else if (row.type === 'student') {
+                const sClass = row.isScribe ? 'font-bold text-orange-700' : '';
+                
+                // Location Logic: Show only if changed
+                let locContent = "";
+                let rowBorder = "border-top: 1px solid #ddd;"; // Light border for same room
+                
+                if (row.locationRaw !== lastLocation) {
+                    locContent = row.locationDisplay;
+                    rowBorder = "border-top: 2px solid #000;"; // Heavy border for new room
+                    lastLocation = row.locationRaw;
+                } else {
+                    locContent = ""; // Empty cell for repeated room
+                }
+
+                html += `
+                    <tr class="${sClass}">
+                        <td style="border-left: 1px solid #000; border-right: 1px solid #000; ${rowBorder} padding: 2px; width: 25%; vertical-align: top; text-align: center; font-size:0.8em; background-color: #fff;">
+                            ${locContent}
+                        </td>
+                        <td style="border: 1px solid #000; padding: 2px; width: 20%; text-align:left; font-size: 0.9em; vertical-align: top;">${row.reg}</td>
+                        <td style="border: 1px solid #000; padding: 2px 4px; width: 45%; font-size: 0.8em; overflow: hidden; vertical-align: top;">${row.name}</td>
+                        <td style="border: 1px solid #000; padding: 2px; width: 10%; text-align: center; font-weight: bold; font-size: 0.9em; vertical-align: top;">${row.seat}</td>
+                    </tr>`;
+            } else if (row.type === 'divider') {
+                html += `<tr><td colspan="4" style="border-bottom: 2px double #000; font-weight: bold; text-align: center; padding: 5px 0 2px; font-size:0.9em;">${row.text}</td></tr>`;
+            } else if (row.type === 'scribe-room') {
+                html += `<tr><td colspan="4" style="border: 1px solid #000; padding: 4px; font-size: 0.8em;"><strong>${row.roomDisplay}:</strong> ${row.content}</td></tr>`;
+            } else if (row.type === 'spacer') {
+                html += `<tr><td colspan="4" style="height:4px; border:0;"></td></tr>`;
+            }
+        });
+        return html;
+    };
+
+    const tableHeader = `
+        <thead>
+            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #000;">
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Loc</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Reg No</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Name</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Seat</th>
+            </tr>
+        </thead>`;
+
+    // GRID LAYOUT (The real fix for PDF alignment)
+    let bodyContent = "";
+    if (numCols === 1) {
+        bodyContent = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+                ${tableHeader}
+                <tbody>${renderTable(col1)}</tbody>
+            </table>`;
+    } else {
+        // Use GRID instead of Flex to ensure equal column widths and alignment in PDF
+        bodyContent = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; align-items: start;">
+                <div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                        ${tableHeader}
+                        <tbody>${renderTable(col1)}</tbody>
+                    </table>
+                </div>
+                <div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                        ${tableHeader}
+                        <tbody>${renderTable(col2)}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }
+
+    return `
+        <div class="print-page print-page-daywise" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="print-header-group" style="margin-bottom: 4px; border-bottom: 1px solid #000; padding-bottom: 2px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div>
+                        <h1 style="font-size: 12pt; font-weight: bold; margin: 0;">${currentCollegeName}</h1>
+                        <h2 style="font-size: 10pt; margin: 0;">Seating Details: ${session.Date} (${session.Time})</h2>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: bold; font-size: 10pt; border: 1px solid #000; padding: 1px 4px; display: inline-block;">
+                            ${streamName}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="flex-grow: 1;">
+                ${bodyContent}
+            </div>
+            
+            <div style="margin-top: auto; padding-top: 2px; font-size: 7pt; text-align: center; color: #888;">
+                ExamFlow System
+            </div>
+        </div>
+    `;
+}
+
+// --- Helper: Scribe Rows ---
+function prepareScribeSummaryRows(scribes, session, allotments) {
+    const scribesByRoom = {};
+    scribes.forEach(s => {
+        const sessionKeyPipe = `${session.Date} | ${session.Time}`;
+        const newRoom = allotments[sessionKeyPipe]?.[s['Register Number']] || "Unallotted";
+        if(!scribesByRoom[newRoom]) scribesByRoom[newRoom] = [];
+        scribesByRoom[newRoom].push(s);
+    });
 
     const rows = [];
     Object.keys(scribesByRoom).sort().forEach(roomName => {
