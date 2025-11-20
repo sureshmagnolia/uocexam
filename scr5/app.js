@@ -2678,29 +2678,6 @@ roomConfigContainer.addEventListener('click', (e) => {
         inputs[0].focus(); // Focus on capacity
     }
 });
-// --- (V33) NEW CSV UPLOAD LOGIC ---
-
-// V33: Add event listener for the new "Load CSV" button
-loadCsvButton.addEventListener('click', () => {
-    const file = correctedCsvUpload.files[0];
-    if (!file) {
-        csvLoadStatus.textContent = "Please select a CSV file first.";
-        return;
-    }
-    
-    // *** WORKFLOW FIX: Removed logic that disables PDF buttons ***
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const csvText = event.target.result;
-        parseCsvAndLoadData(csvText);
-    };
-    reader.onerror = () => {
-        csvLoadStatus.textContent = "Error reading file.";
-        // *** WORKFLOW FIX: Removed logic that disables PDF buttons ***
-    };
-    reader.readAsText(file);
-});
 
 // *** NEW: Helper function to sort CSV data just like Python sort ***
 function getJsSortKey(row) {
