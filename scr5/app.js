@@ -1500,11 +1500,11 @@ generateReportButton.addEventListener('click', async () => {
     }
 });
     
-// --- (V35) Event listener for "Seating Details" (Notice Board - Grid Layout) ---
+// --- (V36) Event listener for "Seating Details" (Safe A4 Fit) ---
 generateDaywiseReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
     generateDaywiseReportButton.disabled = true;
-    generateDaywiseReportButton.textContent = "Optimizing Layout...";
+    generateDaywiseReportButton.textContent = "Optimizing Layout (Safe Fit)...";
     reportOutputArea.innerHTML = "";
     reportControls.classList.add('hidden');
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -1516,18 +1516,16 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         const baseData = getFilteredReportData('day-wise');
         if (baseData.length === 0) { alert("No data found."); return; }
 
-        // User Preference
         const colSelect = document.getElementById('reports-column-select');
-        const NUM_COLS = colSelect ? parseInt(colSelect.value) : 2; // Default to 2
+        const NUM_COLS = colSelect ? parseInt(colSelect.value) : 2;
 
-        // --- HEIGHT CONSTANTS (Aggressive A4 Filling) ---
-        // A4 Height ~1120px. Header ~100px. Footer ~30px. Usable ~990px.
-        const PAGE_MAX_HEIGHT = 980; 
+        // --- TUNED HEIGHT CONSTANTS (Safe A4) ---
+        // Reduced Max Height to ensure bottom margin is never breached
+        const PAGE_MAX_HEIGHT = 810; 
         const ROW_HEIGHT = 22;       
-        const HEADER_HEIGHT = 35;    
-        const SPACER_HEIGHT = 5;
+        const HEADER_HEIGHT = 38;    
+        const SPACER_HEIGHT = 10;
 
-        // Split Data by Stream
         const dataByStream = {};
         const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
         
@@ -1546,7 +1544,6 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         let allPagesHtml = '';
         let totalPagesGenerated = 0;
 
-        // MAIN LOOP
         for (const streamName of sortedStreamNames) {
             const streamData = dataByStream[streamName];
             const processed_rows = performOriginalAllocation(streamData);
@@ -1564,9 +1561,8 @@ generateDaywiseReportButton.addEventListener('click', async () => {
 
             sortedSessionKeys.forEach(key => {
                 const session = daySessions[key];
-                
-                // Prepare Flat Items List
                 const flatItems = [];
+                
                 const studentsByCourse = {};
                 session.students.forEach(s => {
                     if (!studentsByCourse[s.Course]) studentsByCourse[s.Course] = [];
@@ -1578,7 +1574,6 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                     const courseStudents = studentsByCourse[courseName];
                     courseStudents.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
 
-                    // Course Header
                     flatItems.push({ type: 'header', text: courseName, height: HEADER_HEIGHT });
 
                     courseStudents.forEach(s => {
@@ -1591,10 +1586,8 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                         
                         const roomInfo = currentRoomConfig[roomName] || {};
                         const location = roomInfo.location ? `(${roomInfo.location})` : "";
-                        const serial = roomSerialMap[roomName] || "";
-                        
                         const locDisplay = location 
-                            ? `<b>${roomInfo.location}</b><br><span style="font-size:0.8em">(${roomName})</span>`
+                            ? `<b>${roomInfo.location}</b><br><span style="font-size:0.75em">(${roomName})</span>`
                             : `<b>${roomName}</b>`;
 
                         flatItems.push({
@@ -1611,18 +1604,17 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                     flatItems.push({ type: 'spacer', height: SPACER_HEIGHT });
                 });
 
-                // Scribe Summary
                 const sessionScribes = session.students.filter(s => s.isScribe);
                 if (sessionScribes.length > 0) {
-                    flatItems.push({ type: 'divider', text: "SCRIBE ASSISTANCE SUMMARY", height: 40 });
+                    flatItems.push({ type: 'divider', text: "SCRIBE ASSISTANCE SUMMARY", height: 45 });
                     const scribeRows = prepareScribeSummaryRows(sessionScribes, session, allScribeAllotments);
                     scribeRows.forEach(r => {
-                        r.height = Math.max(ROW_HEIGHT, 14 * r.studentCount);
+                        r.height = Math.max(ROW_HEIGHT, 15 * r.studentCount);
                         flatItems.push(r);
                     });
                 }
 
-                // --- COLUMN FILLER ENGINE ---
+                // --- FILLER ENGINE ---
                 let col1Items = [];
                 let col2Items = [];
                 let h1 = 0;
@@ -1678,7 +1670,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
 
         reportOutputArea.innerHTML = allPagesHtml;
         reportOutputArea.style.display = 'block'; 
-        reportStatus.textContent = `Generated ${totalPagesGenerated} Optimized Pages.`;
+        reportStatus.textContent = `Generated ${totalPagesGenerated} Safe-Fit Pages.`;
         reportControls.classList.remove('hidden');
         lastGeneratedReportType = "Daywise_Seating_Details"; 
     } catch (e) {
