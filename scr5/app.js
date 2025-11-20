@@ -5457,7 +5457,8 @@ async function findMyCollege(user) {
     }
 
     // --- Helper: Parse CSV String to JSON (No Side Effects) ---
-  function parseCsvRaw(csvText, streamName = "Regular") {
+// --- Helper: Parse CSV String to JSON (Corrected) ---
+    function parseCsvRaw(csvText, streamName = "Regular") {
         const lines = csvText.trim().split('\n');
         const headersLine = lines.shift().trim();
         const headers = headersLine.split(',');
@@ -5472,7 +5473,12 @@ async function findMyCollege(user) {
             throw new Error("Missing required headers (Register Number, Name, Course)");
         }
 
-        if (!line.trim()) continue;
+        const parsedData = [];
+        
+        // This loop is required for 'continue' to work
+        for (const line of lines) {
+            if (!line.trim()) continue; // Skips empty lines
+            
             // Regex for quoted CSV fields
             const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
             const values = line.split(regex).map(val => val.trim().replace(/^"|"$/g, ''));
@@ -5483,8 +5489,8 @@ async function findMyCollege(user) {
                     'Time': values[timeIndex],
                     'Course': values[courseIndex], 
                     'Register Number': values[regNumIndex],
-                    'Name': values[nameIndex], // Comma added here
-                    'Stream': streamName       // Stream tag injected
+                    'Name': values[nameIndex],
+                    'Stream': streamName 
                 });
             }
         }
