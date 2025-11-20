@@ -5377,7 +5377,6 @@ async function findMyCollege(user) {
         });
     }
 
-    // --- Helper: Parse CSV String to JSON (No Side Effects) ---
 // --- Helper: Parse CSV String to JSON (Corrected) ---
     function parseCsvRaw(csvText, streamName = "Regular") {
         const lines = csvText.trim().split('\n');
@@ -5429,7 +5428,31 @@ async function findMyCollege(user) {
 
         return parsedData;
     }
+// --- Helper: Convert JSON Data to CSV String ---
+    function convertToCSV(objArray) {
+        const array = typeof objArray != 'object' ? JSON.parse(objArray) : objArray;
+        // CSV Header
+        let str = 'Date,Time,Course,Register Number,Name,Stream\r\n';
 
+        for (let i = 0; i < array.length; i++) {
+            let line = '';
+            // Handle fields and escape commas/quotes if necessary
+            const date = array[i].Date || "";
+            const time = array[i].Time || "";
+            // Remove existing commas in Course to prevent CSV breaking, or wrap in quotes
+            const course = (array[i].Course || "").replace(/"/g, '""'); 
+            const reg = array[i]['Register Number'] || "";
+            const name = (array[i].Name || "").replace(/"/g, '""');
+            const stream = array[i].Stream || "Regular";
+
+            // Wrap strings in quotes
+            line = `${date},${time},"${course}",${reg},"${name}",${stream}`;
+            str += line + '\r\n';
+        }
+        return str;
+    }
+// --- Helper: Load Data into App & Cloud ---
+   
 // --- Helper: Load Data into App & Cloud ---
     function loadStudentData(dataArray) {
         // 1. Update Global Var
@@ -5445,7 +5468,7 @@ async function findMyCollege(user) {
         populate_session_dropdown();
         populate_qp_code_session_dropdown();
         populate_room_allotment_session_dropdown();
-        updateDashboard(); // Update the top cards
+        updateDashboard(); 
         
         // 4. ENABLE ALL TABS AND BUTTONS
         disable_absentee_tab(false);
@@ -5454,34 +5477,42 @@ async function findMyCollege(user) {
         disable_scribe_settings_tab(false);
         disable_edit_data_tab(false);
 
-        // *** FIX: Explicitly Enable ALL Report Buttons ***
         const reportBtns = [
-            'generate-report-button',
-            'generate-daywise-report-button',
-            'generate-qpaper-report-button',
-            'generate-qp-distribution-report-button',
-            'generate-scribe-report-button',
-            'generate-scribe-proforma-button',
-            'generate-invigilator-report-button',
-            'generate-absentee-report-button' // Also enable this
+            'generate-report-button', 'generate-daywise-report-button',
+            'generate-qpaper-report-button', 'generate-qp-distribution-report-button',
+            'generate-scribe-report-button', 'generate-scribe-proforma-button',
+            'generate-invigilator-report-button', 'generate-absentee-report-button'
         ];
-        
         reportBtns.forEach(id => {
             const btn = document.getElementById(id);
             if(btn) btn.disabled = false;
         });
-        // *************************************************
 
         // 5. Sync
         if (typeof syncDataToCloud === 'function') syncDataToCloud();
 
-        // 6. Feedback
+        // 6. Feedback & CSV GENERATION (Restored Feature)
         if (mainCsvStatus) {
             mainCsvStatus.textContent = `Success! Loaded ${dataArray.length} records.`;
             mainCsvStatus.className = "text-sm font-medium text-green-600";
         }
-    }
 
+        // *** NEW: Generate Download Button in the PDF Section ***
+        const downloadContainer = document.getElementById('csv-download-container');
+        if (downloadContainer) {
+            const csvContent = convertToCSV(dataArray);
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            downloadContainer.innerHTML = `
+                <a href="${url}" download="Extracted_Student_Data.csv" 
+                   class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                   <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                   Download Data as CSV (${dataArray.length} records)
+                </a>
+            `;
+        }
+    }
 
 // ==========================================
     // 🐍 PYTHON INTEGRATION (Connects PDF to Merge Logic)
