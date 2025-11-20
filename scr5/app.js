@@ -1502,10 +1502,9 @@ generateReportButton.addEventListener('click', async () => {
     
 // --- (V40) Event listener for "Seating Details" (Final Fixed Page Numbers) ---
 // ==========================================
-// 📋 NOTICE BOARD REPORT LOGIC (1 & 2 Column)
+// 📋 NOTICE BOARD REPORT LOGIC (Robust 2-Column)
 // ==========================================
 
-// 1. Define the Shared Generator Function
 async function generateNoticeBoardReport(numCols) {
     const sessionKey = reportsSessionSelect.value; 
     if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
@@ -1527,8 +1526,8 @@ async function generateNoticeBoardReport(numCols) {
         const baseData = getFilteredReportData('day-wise');
         if (baseData.length === 0) { alert("No data found."); return; }
 
-        // --- SETTINGS ---
-        const MAX_ROWS_PER_COL = 40; // Perfect fit for A4
+        // --- CONSTANTS ---
+        const MAX_ROWS_PER_COL = 40; // Strict limit for A4 fit
         
         // Split by Stream
         const dataByStream = {};
@@ -1568,10 +1567,10 @@ async function generateNoticeBoardReport(numCols) {
             sortedSessionKeys.forEach(key => {
                 const session = daySessions[key];
                 
-                // 1. Flatten Data into a "Print Queue"
+                // 1. Flatten Data into a Print Queue
                 const printQueue = [];
-                
                 const studentsByCourse = {};
+                
                 session.students.forEach(s => {
                     if (!studentsByCourse[s.Course]) studentsByCourse[s.Course] = [];
                     studentsByCourse[s.Course].push(s);
@@ -1582,7 +1581,7 @@ async function generateNoticeBoardReport(numCols) {
                     const courseStudents = studentsByCourse[courseName];
                     courseStudents.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
 
-                    // Header Row
+                    // Add Header
                     printQueue.push({ type: 'header', text: courseName });
 
                     courseStudents.forEach(s => {
@@ -1596,7 +1595,7 @@ async function generateNoticeBoardReport(numCols) {
                         const location = roomInfo.location ? `(${roomInfo.location})` : "";
                         const serial = roomSerialMap[roomName] || "";
                         
-                        // Location Display
+                        // Simple Location Display
                         const locDisplay = location 
                             ? `<b>${serial} | ${roomInfo.location}</b><br><span style="font-size:0.75em">(${roomName})</span>`
                             : `<b>${serial} | ${roomName}</b>`;
@@ -1606,20 +1605,19 @@ async function generateNoticeBoardReport(numCols) {
                             reg: s['Register Number'],
                             name: s.Name,
                             seat: s.isScribe ? 'Scribe' : s.seatNumber,
-                            locationRaw: roomName, // Used for merging logic
+                            locationRaw: roomName,
                             locationDisplay: locDisplay,
                             isScribe: s.isScribe
                         });
                     });
-                    // Spacer Row
                     printQueue.push({ type: 'spacer' });
                 });
 
-                // Scribe Summary (Added to end of queue)
+                // Add Scribe Summary
                 const sessionScribes = session.students.filter(s => s.isScribe);
                 if (sessionScribes.length > 0) {
                     printQueue.push({ type: 'divider', text: "SCRIBE SUMMARY" });
-                    const scribeRows = prepareScribeSummaryRows(sessionScribes, session, allScribeAllotments);
+                    const scribeRows = prepareScribeSummaryRows_Notice(sessionScribes, session, allScribeAllotments);
                     scribeRows.forEach(r => printQueue.push(r));
                 }
 
@@ -1630,17 +1628,14 @@ async function generateNoticeBoardReport(numCols) {
                 const flushPage = () => {
                     if (col1.length > 0 || col2.length > 0) {
                         totalPagesGenerated++;
-                        let pageHtml = renderNoticePage(col1, col2, streamName, session, numCols);
-                        pageHtml = pageHtml.replace(/{{PAGE_NO}}/g, totalPagesGenerated);
+                        // Render with correct arguments
+                        let pageHtml = renderNoticePage(col1, col2, String(streamName), session, numCols, totalPagesGenerated);
                         allPagesHtml += pageHtml;
                         col1 = []; col2 = [];
                     }
                 };
 
                 printQueue.forEach(item => {
-                    // Scribe rows consume 2 slots to ensure they fit nicely? 
-                    // For now, 1 slot = 1 row is simplest.
-                    
                     if (numCols === 1) {
                         if (col1.length >= MAX_ROWS_PER_COL) flushPage();
                         col1.push(item);
@@ -1653,14 +1648,14 @@ async function generateNoticeBoardReport(numCols) {
                         else if (col2.length < MAX_ROWS_PER_COL) {
                             col2.push(item);
                         } 
-                        // Page Full -> Flush -> Start new page in Col 1
+                        // Both Full -> Flush
                         else {
                             flushPage();
                             col1.push(item);
                         }
                     }
                 });
-                flushPage(); // Flush remaining items
+                flushPage();
             });
         }
 
@@ -1675,6 +1670,151 @@ async function generateNoticeBoardReport(numCols) {
     } finally {
         if(btn) btn.disabled = false;
     }
+}
+
+// --- Listeners ---
+const btn1Col = document.getElementById('generate-daywise-1col-btn');
+const btn2Col = document.getElementById('generate-daywise-2col-btn');
+if(btn1Col) btn1Col.addEventListener('click', () => generateNoticeBoardReport(1));
+if(btn2Col) btn2Col.addEventListener('click', () => generateNoticeBoardReport(2));
+
+
+// --- Helper: Render Page (Flexbox Layout for Print Safety) ---
+function renderNoticePage(col1, col2, streamName, session, numCols, pageNo) {
+    
+    const renderColumn = (rows) => {
+        if (!rows || rows.length === 0) return "";
+        let html = "";
+        let lastLocation = ""; 
+
+        rows.forEach((row) => {
+            if (row.type === 'header') {
+                html += `
+                    <tr class="bg-gray-200 print:bg-gray-200">
+                        <td colspan="4" style="font-weight: bold; font-size: 0.85em; padding: 3px 4px; border: 1px solid #000; text-align: left; border-top: 2px solid #000;">
+                            ${row.text}
+                        </td>
+                    </tr>`;
+                lastLocation = ""; 
+            } else if (row.type === 'student') {
+                const sClass = row.isScribe ? 'font-bold text-orange-700' : '';
+                
+                // Visual Merge Logic (Border suppression)
+                let locContent = row.locationDisplay;
+                let rowBorder = "border-top: 2px solid #000;"; // Default heavy border for new room
+
+                if (row.locationRaw === lastLocation) {
+                    locContent = ""; // Hide text for same room
+                    rowBorder = "border-top: 1px solid #ddd;"; // Light border for same room
+                }
+                lastLocation = row.locationRaw;
+
+                html += `
+                    <tr class="${sClass}">
+                        <td style="border-left: 1px solid #000; border-right: 1px solid #000; ${rowBorder} padding: 2px; width: 25%; vertical-align: top; text-align: center; font-size:0.8em; background-color: #fff;">
+                            ${locContent}
+                        </td>
+                        <td style="border: 1px solid #000; padding: 2px; width: 20%; text-align:left; font-size: 0.9em; vertical-align: top;">${row.reg}</td>
+                        <td style="border: 1px solid #000; padding: 2px 4px; width: 45%; font-size: 0.8em; overflow: hidden; vertical-align: top;">${row.name}</td>
+                        <td style="border: 1px solid #000; padding: 2px; width: 10%; text-align: center; font-weight: bold; font-size: 0.9em; vertical-align: top;">${row.seat}</td>
+                    </tr>`;
+            } else if (row.type === 'divider') {
+                html += `<tr><td colspan="4" style="border-bottom: 2px double #000; font-weight: bold; text-align: center; padding: 5px 0 2px; font-size:0.9em;">${row.text}</td></tr>`;
+            } else if (row.type === 'scribe-room') {
+                html += `<tr><td colspan="4" style="border: 1px solid #000; padding: 4px; font-size: 0.8em;"><strong>${row.roomDisplay}:</strong> ${row.content}</td></tr>`;
+            } else if (row.type === 'spacer') {
+                html += `<tr><td colspan="4" style="height:4px; border:0;"></td></tr>`;
+            }
+        });
+        return html;
+    };
+
+    const tableHeader = `
+        <thead>
+            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #000;">
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Loc</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Reg No</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">Name</th>
+                <th style="border: 1px solid #000; padding: 2px; font-size:0.85em;">St</th>
+            </tr>
+        </thead>`;
+
+    // Use FLEXBOX for 2-column layout (Safe for PDF)
+    let bodyContent = "";
+    if (numCols === 1) {
+        bodyContent = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+                ${tableHeader}
+                <tbody>${renderColumn(col1)}</tbody>
+            </table>`;
+    } else {
+        bodyContent = `
+            <div style="display: flex; gap: 15px; width: 100%; align-items: flex-start;">
+                <div style="flex: 1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                        ${tableHeader}
+                        <tbody>${renderColumn(col1)}</tbody>
+                    </table>
+                </div>
+                <div style="flex: 1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                        ${tableHeader}
+                        <tbody>${renderColumn(col2)}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }
+
+    return `
+        <div class="print-page print-page-daywise" style="height: 100%; display: flex; flex-direction: column;">
+            
+            <div class="print-header-group" style="width: 100%; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 5px; position: relative;">
+                
+                <div style="position: absolute; top: 0; left: 0; border: 2px solid #000; padding: 4px 10px; background: #fff;">
+                    <span style="font-size: 10pt; font-weight: bold;">Page</span><br>
+                    <span style="font-size: 16pt; font-weight: bold;">${pageNo}</span>
+                </div>
+
+                <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px; background: #eee;">
+                    ${streamName}
+                </div>
+
+                <div style="text-align: center; width: 100%;"> 
+                    <h1 style="font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase;">${currentCollegeName}</h1>
+                    <h2 style="font-size: 12pt; margin: 4px 0 0 0; font-weight: bold;">Seating Details for Candidates</h2>
+                    <h3 style="font-size: 11pt; margin: 2px 0 0 0;">${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
+                </div>
+            </div>
+            
+            <div style="flex-grow: 1;">
+                ${bodyContent}
+            </div>
+        </div>
+    `;
+}
+
+function prepareScribeSummaryRows_Notice(scribes, session, allotments) {
+    const scribesByRoom = {};
+    scribes.forEach(s => {
+        const sessionKeyPipe = `${session.Date} | ${session.Time}`;
+        const newRoom = allotments[sessionKeyPipe]?.[s['Register Number']] || "Unallotted";
+        if(!scribesByRoom[newRoom]) scribesByRoom[newRoom] = [];
+        scribesByRoom[newRoom].push(s);
+    });
+    const rows = [];
+    Object.keys(scribesByRoom).sort().forEach(roomName => {
+        const students = scribesByRoom[roomName];
+        const studentList = students.map(s => `<b>${s.Name}</b> (${s['Register Number']})`).join(', ');
+        const roomInfo = currentRoomConfig[roomName] || {};
+        const location = roomInfo.location ? `(${roomInfo.location})` : "";
+        rows.push({
+            type: 'scribe-room',
+            roomDisplay: `${roomName} ${location}`,
+            content: studentList,
+            studentCount: students.length
+        });
+    });
+    return rows;
 }
 
 // 2. Attach Listeners to New Buttons
