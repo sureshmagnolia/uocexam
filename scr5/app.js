@@ -5124,6 +5124,16 @@ async function findMyCollege(user) {
         updateSyncStatus("Auth Error", "error");
     }
 }
+
+// --- Helper: Generate Unique Key for Comparison ---
+    // We compare only Date, Time, and Register Number (User Requirement)
+    function getRecordKey(row) {
+        const d = row.Date ? row.Date.toString().trim().toUpperCase() : "";
+        const t = row.Time ? row.Time.toString().trim().toUpperCase() : "";
+        const r = row['Register Number'] ? row['Register Number'].toString().trim().toUpperCase() : "";
+        return `${d}|${t}|${r}`;
+    }
+    
 // ==========================================
     // 📄 CSV & TEMPLATE LOGIC (Advanced Merge)
     // ==========================================
@@ -5183,7 +5193,7 @@ async function findMyCollege(user) {
                 
                 try {
                     // Step A: Parse the new file
-                    tempNewData = parseCsvRaw(csvText); // Parse but don't save yet
+                    tempNewData = parseCsvRaw(csvText); 
                     
                     if (tempNewData.length === 0) {
                         throw new Error("No valid data found in CSV.");
@@ -5194,32 +5204,33 @@ async function findMyCollege(user) {
                         // No existing data, load directly
                         loadStudentData(tempNewData);
                     } else {
-                        // Data exists! Calculate Diff
-                        const existingKeys = new Set(allStudentData.map(s => 
-                            `${s.Date}|${s.Time}|${s['Register Number']}|${s.Course}`.toUpperCase()
-                        ));
+                        // *** UPDATED: Use the new getRecordKey helper ***
+                        const existingKeys = new Set(allStudentData.map(getRecordKey));
                         
                         tempUniqueData = tempNewData.filter(s => {
-                            const key = `${s.Date}|${s.Time}|${s['Register Number']}|${s.Course}`.toUpperCase();
-                            return !existingKeys.has(key);
+                            return !existingKeys.has(getRecordKey(s));
                         });
+                        // ************************************************
 
                         // Step C: Show Options Modal
                         conflictExistingCount.textContent = allStudentData.length;
                         conflictTotalNew.textContent = tempNewData.length;
                         conflictUniqueCount.textContent = tempUniqueData.length;
                         
-                        // Hide/Show buttons based on data
                         if (tempUniqueData.length === 0) {
-                            btnMerge.textContent = "No New Records to Add";
+                            btnMerge.innerHTML = "No New Records (All Duplicates)";
                             btnMerge.disabled = true;
                             btnMerge.classList.add('opacity-50', 'cursor-not-allowed');
+                            btnMerge.classList.remove('bg-green-600', 'hover:bg-green-700');
+                            btnMerge.classList.add('bg-gray-400');
                         } else {
                             btnMerge.innerHTML = `✅ Add <strong>${tempUniqueData.length}</strong> New Records (Merge)`;
                             btnMerge.disabled = false;
-                            btnMerge.classList.remove('opacity-50', 'cursor-not-allowed');
+                            btnMerge.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
+                            btnMerge.classList.add('bg-green-600', 'hover:bg-green-700');
                         }
 
+                        const conflictModal = document.getElementById('csv-conflict-modal');
                         conflictModal.classList.remove('hidden');
                     }
 
@@ -5348,10 +5359,9 @@ async function findMyCollege(user) {
     }
     // ==========================================
 // ==========================================
-    // 🐍 PYTHON INTEGRATION (Connects PDF to Merge Logic)
+    // 🐍 PYTHON INTEGRATION (Updated Comparison Logic)
     // ==========================================
 
-    // This function is exposed to the global window object so Python can call it
     window.handlePythonExtraction = function(jsonString) {
         console.log("Received data from Python...");
         try {
@@ -5362,23 +5372,20 @@ async function findMyCollege(user) {
                 return;
             }
 
-            // 1. Assign to temp variable (same as CSV logic)
+            // 1. Assign to temp variable
             tempNewData = parsedData;
 
             // 2. Check against existing data
             if (!allStudentData || allStudentData.length === 0) {
-                // No existing data, load directly
                 loadStudentData(tempNewData);
                 alert(`Success! Extracted ${tempNewData.length} records from PDF.`);
             } else {
-                // Data exists! Calculate Diff
-                const existingKeys = new Set(allStudentData.map(s => 
-                    `${s.Date}|${s.Time}|${s['Register Number']}|${s.Course}`.toUpperCase()
-                ));
+                // Create Set of keys from EXISTING data
+                const existingKeys = new Set(allStudentData.map(getRecordKey));
                 
+                // Filter NEW data: Keep only if Key is NOT in existing set
                 tempUniqueData = tempNewData.filter(s => {
-                    const key = `${s.Date}|${s.Time}|${s['Register Number']}|${s.Course}`.toUpperCase();
-                    return !existingKeys.has(key);
+                    return !existingKeys.has(getRecordKey(s));
                 });
 
                 // 3. Show Options Modal
@@ -5387,16 +5394,18 @@ async function findMyCollege(user) {
                 conflictUniqueCount.textContent = tempUniqueData.length;
                 
                 if (tempUniqueData.length === 0) {
-                    btnMerge.textContent = "No New Records to Add";
+                    btnMerge.innerHTML = "No New Records (All Duplicates)";
                     btnMerge.disabled = true;
                     btnMerge.classList.add('opacity-50', 'cursor-not-allowed');
+                    btnMerge.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    btnMerge.classList.add('bg-gray-400');
                 } else {
                     btnMerge.innerHTML = `✅ Add <strong>${tempUniqueData.length}</strong> New Records (Merge)`;
                     btnMerge.disabled = false;
-                    btnMerge.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnMerge.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
+                    btnMerge.classList.add('bg-green-600', 'hover:bg-green-700');
                 }
 
-                // Show the modal
                 const conflictModal = document.getElementById('csv-conflict-modal');
                 conflictModal.classList.remove('hidden');
             }
