@@ -1548,7 +1548,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         const COLUMNS_PER_PAGE = colsInput ? parseInt(colsInput.value, 10) : 1; 
         const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
 
-        // Helper to build a small table for one column (Updated Widths: Name 30%)
+        // Helper to build a small table for one column (Fixed Widths for PDF)
         function buildColumnTable(studentChunk) {
             // 1. Pre-process data for RowSpans
             const processedRows = studentChunk.map((student, index) => {
@@ -1591,15 +1591,15 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 processedRows[i].span = span;
             }
 
-            // 3. Build HTML with USER-DEFINED COLUMN WIDTHS
-            // Widths: Loc(35%), Reg(25%), Name(30%), Seat(10%)
+            // 3. Build HTML
+            // UPDATED WIDTHS: Loc(22%), Reg(30%), Name(38%), Seat(10%)
             let rowsHtml = '';
             
             processedRows.forEach(row => {
                 if (row.isCourseHeader) {
                     rowsHtml += `
                         <tr>
-                            <td colspan="4" style="background-color: #eee; font-weight: bold; padding: 2px 4px; border: 1px solid #999; font-size: 0.85em;">
+                            <td colspan="4" style="background-color: #eee; font-weight: bold; padding: 2px 4px; border: 1px solid #999; font-size: 0.8em;">
                                 ${row.courseName}
                             </td>
                         </tr>`;
@@ -1610,15 +1610,18 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 if (!row.skipLocation) {
                     const rowspanAttr = row.span > 1 ? `rowspan="${row.span}"` : '';
                     const valign = row.span > 1 ? 'vertical-align: middle;' : 'vertical-align: top;';
-                    rowsHtml += `<td ${rowspanAttr} style="padding: 2px 4px; font-size:0.85em; background-color: #fff; ${valign}">${row.displayRoom}</td>`;
+                    // Reduced font size for Location to handle long text better
+                    rowsHtml += `<td ${rowspanAttr} style="padding: 2px 3px; font-size:0.8em; background-color: #fff; ${valign} line-height: 1.1;">${row.displayRoom}</td>`;
                 }
 
                 rowsHtml += `
-                        <td style="padding: 1px 4px;">${row.student['Register Number']}</td>
+                        <td style="padding: 1px 4px; font-weight: 600; font-size: 0.9em;">${row.student['Register Number']}</td>
+                        
                         <td style="padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0;">
                             ${row.student.Name}
                         </td>
-                        <td style="padding: 1px 4px; text-align: center;">${row.seatNo}</td>
+                        
+                        <td style="padding: 1px 4px; text-align: center; font-weight: bold;">${row.seatNo}</td>
                     </tr>
                 `;
             });
@@ -1626,7 +1629,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
             return `
                 <table class="daywise-report-table" style="width:100%; border-collapse:collapse; font-size:9pt; table-layout: fixed;">
                     <colgroup>
-                        <col style="width: 35%;"> <col style="width: 25%;"> <col style="width: 30%;"> <col style="width: 10%;"> </colgroup>
+                        <col style="width: 22%;"> <col style="width: 30%;"> <col style="width: 38%;"> <col style="width: 10%;"> </colgroup>
                     <thead>
                         <tr>
                             <th>Location</th>
