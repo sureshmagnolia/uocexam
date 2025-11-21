@@ -5382,14 +5382,13 @@ function updateAllotmentDisplay() {
     // Ensure "Regular" exists as fallback
     if (!streamStats["Regular"]) streamStats["Regular"] = { total: 0, allotted: 0 };
 
-    // Count Totals (Excluding Scribes)
-    sessionStudentRecords.forEach(s => {
-        if (!scribeRegNos.has(s['Register Number'])) {
-            const strm = s.Stream || "Regular";
-            if (!streamStats[strm]) streamStats[strm] = { total: 0, allotted: 0 };
-            streamStats[strm].total++;
-        }
-    });
+// Count Totals (Including Scribes)
+sessionStudentRecords.forEach(s => {
+    // Removed scribe exclusion check here
+    const strm = s.Stream || "Regular";
+    if (!streamStats[strm]) streamStats[strm] = { total: 0, allotted: 0 };
+    streamStats[strm].total++;
+});
 
     // Count Allotted
     currentSessionAllotment.forEach(room => {
@@ -5537,7 +5536,6 @@ window.deleteRoom = function(index) {
     }
 };
 
-// Show room selection modal (Smart Stream Selector)
 // Show room selection modal (Updated with Smart Default)
 function showRoomSelectionModal() {
     getRoomCapacitiesFromStorage();
@@ -5554,14 +5552,13 @@ function showRoomSelectionModal() {
     currentStreamConfig.forEach(s => stats[s] = { needed: 0, allotted: 0 });
     if(!stats["Regular"]) stats["Regular"] = { needed: 0, allotted: 0 };
 
-    // Count Needed
-    sessionStudents.forEach(s => {
-        if (!scribeRegNos.has(s['Register Number'])) {
-            const strm = s.Stream || "Regular";
-            if (!stats[strm]) stats[strm] = { needed: 0, allotted: 0 };
-            stats[strm].needed++;
-        }
-    });
+// Count Needed
+sessionStudents.forEach(s => {
+    // Removed scribe exclusion check
+    const strm = s.Stream || "Regular";
+    if (!stats[strm]) stats[strm] = { needed: 0, allotted: 0 };
+    stats[strm].needed++;
+});
     // Count Allotted
     currentSessionAllotment.forEach(room => {
         const roomStream = room.stream || "Regular";
@@ -5652,15 +5649,15 @@ function selectRoomForAllotment(roomName, capacity, targetStream) {
         return a['Register Number'].localeCompare(b['Register Number']);
     });
 
-    for (const student of sessionStudentRecords) {
-        const regNo = student['Register Number'];
-        const studentStream = student.Stream || "Regular"; // Default
+for (const student of sessionStudentRecords) {
+    const regNo = student['Register Number'];
+    const studentStream = student.Stream || "Regular"; // Default
 
-        // Condition: Not Allotted AND Not Scribe AND Matches Selected Stream
-        if (!allottedRegNos.has(regNo) && !scribeRegNos.has(regNo) && studentStream === targetStream) {
-            candidates.push(regNo);
-        }
+    // Condition: Not Allotted AND Matches Selected Stream (Scribes allowed)
+    if (!allottedRegNos.has(regNo) && studentStream === targetStream) {
+        candidates.push(regNo);
     }
+}
     
     // 4. Allot up to capacity
     const newStudentRegNos = candidates.slice(0, capacity);
