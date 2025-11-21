@@ -1504,6 +1504,7 @@ generateReportButton.addEventListener('click', async () => {
 });
     
 // --- (V29 Restored) Event listener for the "Day-wise Student List" (Single Button) ---
+// --- (V29 Restored) Event listener for the "Day-wise Student List" (Single Button) ---
 generateDaywiseReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; 
     if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
@@ -1539,15 +1540,15 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         let allPagesHtml = '';
         let totalPagesGenerated = 0;
         
-// Layout Constants (Dynamic from UI)
+        // Layout Constants (Dynamic from UI)
         const rowsInput = document.getElementById('daywise-rows');
         const colsInput = document.getElementById('daywise-cols');
 
         const STUDENTS_PER_COLUMN = rowsInput ? parseInt(rowsInput.value, 10) : 35; 
         const COLUMNS_PER_PAGE = colsInput ? parseInt(colsInput.value, 10) : 1; 
-        const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE;
+        const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
 
-// Helper to build a small table for one column (Optimized Widths & Merging)
+        // Helper to build a small table for one column (Optimized Widths & Merging)
         function buildColumnTable(studentChunk) {
             // 1. Pre-process data for RowSpans
             const processedRows = studentChunk.map((student, index) => {
@@ -1591,7 +1592,6 @@ generateDaywiseReportButton.addEventListener('click', async () => {
             }
 
             // 3. Build HTML with OPTIMIZED COLUMN WIDTHS
-            // Widths: Loc(25%), Reg(15% - Fit), Name(52% - NoWrap), Seat(8% - Fit)
             let rowsHtml = '';
             
             processedRows.forEach(row => {
@@ -1637,8 +1637,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                     <tbody>${rowsHtml}</tbody>
                 </table>
             `;
-        }   
-        
+        }
 
         // Main Loop
         for (const streamName of sortedStreamNames) {
@@ -1662,31 +1661,6 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                     return a['Register Number'].localeCompare(b['Register Number']);
                 });
                 
-                for (let i = 0; i < session.students.length; i += STUDENTS_PER_PAGE) {
-                    const pageStudents = session.students.slice(i, i + STUDENTS_PER_PAGE);
-                    totalPagesGenerated++;
-                    
-                    const col1Students = pageStudents.slice(0, STUDENTS_PER_COLUMN);
-                    const col2Students = pageStudents.slice(STUDENTS_PER_COLUMN); 
-                    
-                    let columnHtml = '';
-                    if (col2Students.length === 0) {
-                        columnHtml = `<div class="column" style="width:100%">${buildColumnTable(col1Students)}</div>`;
-                    } else {
-                        // 2-Column Layout
-                        columnHtml = `
-                            <div class="column-container" style="display:flex; gap:15px;">
-                                <div class="column" style="flex:1">${buildColumnTable(col1Students)}</div>
-                                <div class="column" style="flex:1">${buildColumnTable(col2Students)}</div>
-                            </div>
-                        `;
-                    }
-                    
-                    // Scribe Summary Logic (Last Page Only)
-                    let scribeListHtml = '';
-                    // ... inside sortedSessionKeys loop ...
-
-                // 1. Generate Student Pages
                 for (let i = 0; i < session.students.length; i += STUDENTS_PER_PAGE) {
                     const pageStudents = session.students.slice(i, i + STUDENTS_PER_PAGE);
                     totalPagesGenerated++;
@@ -1724,10 +1698,9 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                     `;
                 }
 
-                // 2. Generate Separate Scribe Page (If scribes exist in this session)
+                // Generate Separate Scribe Page (If scribes exist in this session)
                 const sessionScribes = session.students.filter(s => s.isScribe);
-                if (sessionScribes.length > 0) {
-                    // Generate the large, aesthetic summary page
+                if (sessionScribes.length > 0 && typeof renderScribeSummaryPage === 'function') {
                     allPagesHtml += renderScribeSummaryPage(sessionScribes, streamName, session, allScribeAllotments);
                 }
             });
