@@ -6749,7 +6749,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
         generateInvigilatorReportButton.textContent = "Generate Invigilator Requirement Summary";
     }
 });
-// --- Event listener for "Generate Room Stickers" (V7: 3-Col, Spacing Fix) ---
+// --- Event listener for "Generate Room Stickers" (V7: Name Truncation & 3-Col Fix) ---
 const generateStickerButton = document.getElementById('generate-sticker-button');
 
 if (generateStickerButton) {
@@ -6799,6 +6799,13 @@ if (generateStickerButton) {
 
             const sortedKeys = Object.keys(sessions).sort((a, b) => getNumericSortKey(a).localeCompare(getNumericSortKey(b)));
 
+            // Helper: Truncate Name
+            function getTruncatedName(name, maxLen = 20) {
+                if (!name) return "";
+                if (name.length <= maxLen) return name;
+                return name.substring(0, maxLen) + "..";
+            }
+
             // 2. Generate Stickers
             const stickers = [];
 
@@ -6846,12 +6853,16 @@ if (generateStickerButton) {
                         const scribeBadge = s.isScribeDisplay ? '<span style="font-size:0.6em; color:white; bg-color:black; padding:0 1px; border-radius:2px; background:black; margin-left:1px;">S</span>' : '';
                         const seatDisplay = s.seatNumber !== undefined ? s.seatNumber : '-';
                         
-                        // *** FIXED: Added margin-left: 6px to Name span for separation ***
+                        // Truncate Name strictly
+                        const displayName = getTruncatedName(s.Name, 20);
+                        
+                        // Compact 3-Col Layout: Seat | Reg | Name
+                        // Added flex:1 and min-width:0 to Name span to ensure CSS truncation works too
                         studentGridHtml += `
                             <div style="display:flex; align-items:center; border-bottom:1px dotted #ccc; padding:${rowPadding} 0; overflow:hidden;">
                                 <span style="font-weight:bold; font-size:${regFontSize}; width:18px; text-align:center; border-right:1px solid #ddd; margin-right:3px; flex-shrink:0;">${seatDisplay}</span>
                                 <span style="font-weight:bold; font-size:${regFontSize}; width:72px; flex-shrink:0;">${s['Register Number']}</span>
-                                <span style="font-size:${nameFontSize}; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#444; margin-left: 6px;">${s.Name} ${scribeBadge}</span>
+                                <span style="font-size:${nameFontSize}; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#444; margin-left: 6px; flex: 1; min-width: 0;">${displayName} ${scribeBadge}</span>
                             </div>
                         `;
                     });
