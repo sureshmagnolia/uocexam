@@ -1219,16 +1219,13 @@ function getFilteredReportData(reportType) {
     
     return filteredData;
 }
-
-// ### NEW HELPER FUNCTION ###
-// ### NEW HELPER FUNCTION (REPLACING THE OLD ONE) ###
 function checkManualAllotment(sessionKey) {
     if (!sessionKey || sessionKey === 'all') {
         alert('Please select a specific session to generate this report.');
         return false;
     }
 
-    // 1. Get total unique students for the session (scribes included)
+    // 1. Get total unique students for the session
     const [date, time] = sessionKey.split(' | ');
     const sessionStudentRecords = allStudentData.filter(s => s.Date === date && s.Time === time);
     const totalUniqueStudents = new Set(sessionStudentRecords.map(s => s['Register Number'])).size;
@@ -1238,35 +1235,41 @@ function checkManualAllotment(sessionKey) {
         return false;
     }
 
-    // 2. Get total manually allotted students for the session
+    // 2. Get Manual Allotment (Regular)
     const allAllotments = JSON.parse(localStorage.getItem(ROOM_ALLOTMENT_KEY) || '{}');
     const manualAllotment = allAllotments[sessionKey] || [];
 
-    if (!manualAllotment || manualAllotment.length === 0) {
-        alert('Error: No manual room allotment found for this session. Please complete the allotment on the "Room Allotment" tab before generating reports.');
-        return false;
-    }
+    // 3. Get Scribe Allotment (NEW ADDITION)
+    const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+    const scribeMap = allScribeAllotments[sessionKey] || {};
 
-    // 3. Count unique allotted students
+    // 4. Count unique allotted students (Regular + Scribes)
     const allottedRegNos = new Set();
+    
+    // Add Regular Allotments
     manualAllotment.forEach(room => {
         room.students.forEach(regNo => {
             allottedRegNos.add(regNo);
         });
     });
+
+    // Add Scribe Allotments
+    Object.keys(scribeMap).forEach(regNo => {
+        allottedRegNos.add(regNo);
+    });
+
     const allottedStudentCount = allottedRegNos.size;
 
-    // 4. Compare counts
+    // 5. Compare counts
     if (allottedStudentCount < totalUniqueStudents) {
-        alert(`Error: Not all students are allotted.\n\nTotal Students: ${totalUniqueStudents}\nManually Allotted: ${allottedStudentCount}\nRemaining to Allot: ${totalUniqueStudents - allottedStudentCount}\n\nPlease complete the allotment.`);
+        const remaining = totalUniqueStudents - allottedStudentCount;
+        alert(`Error: Not all students are allotted.\n\nTotal Students: ${totalUniqueStudents}\nAllotted (Regular + Scribe): ${allottedStudentCount}\nRemaining to Allot: ${remaining}\n\nPlease complete the allotment.`);
         return false;
     }
 
-    // This check is good. All students are allotted.
     return true;
 }
 
-// --- 1. Event listener for the "Generate Room-wise Report" button ---
 // --- 1. Event listener for the "Generate Room-wise Report" button ---
 generateReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
