@@ -6750,7 +6750,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
     }
 });
 
-    // --- Event listener for "Generate Room Stickers" (Optimized V2) ---
+// --- Event listener for "Generate Room Stickers" (V3: Seat No & Margin Fix) ---
 const generateStickerButton = document.getElementById('generate-sticker-button');
 
 if (generateStickerButton) {
@@ -6821,57 +6821,61 @@ if (generateStickerButton) {
                 
                 sortedCourses.forEach(courseName => {
                     const students = studentsByCourse[courseName];
-                    students.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
+                    // Sort by Seat Number if available, else RegNo
+                    students.sort((a, b) => (a.seatNumber || 999) - (b.seatNumber || 999));
                     
                     let studentGridHtml = '';
                     students.forEach(s => {
                         const scribeBadge = s.isScribeDisplay ? '<span style="font-size:0.7em; color:white; bg-color:black; padding:0 2px; border-radius:2px; background:black; margin-left:2px;">SCRIBE</span>' : '';
-                        // Compact Row
+                        const seatDisplay = s.seatNumber !== undefined ? s.seatNumber : '-';
+                        
+                        // New Layout: Seat | Reg | Name
                         studentGridHtml += `
-                            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #eee; padding:1px 0;">
-                                <span style="font-weight:bold; font-size:10pt; min-width:85px;">${s['Register Number']}</span>
-                                <span style="font-size:9pt; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:right;">${s.Name} ${scribeBadge}</span>
+                            <div style="display:flex; align-items:center; border-bottom:1px dotted #ccc; padding:2px 0;">
+                                <span style="font-weight:bold; font-size:10pt; width:25px; text-align:center; border-right:1px solid #ddd; margin-right:4px; flex-shrink:0;">${seatDisplay}</span>
+                                <span style="font-weight:bold; font-size:10pt; width:95px; flex-shrink:0;">${s['Register Number']}</span>
+                                <span style="font-size:9pt; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#333;">${s.Name} ${scribeBadge}</span>
                             </div>
                         `;
                     });
 
                     courseBlocksHtml += `
                         <div style="margin-bottom: 5px; break-inside: avoid;">
-                            <div style="font-weight:bold; font-size:9pt; background:#f3f4f6; padding:2px 5px; border:1px solid #e5e7eb; margin-bottom:2px;">
+                            <div style="font-weight:bold; font-size:9pt; background:#f3f4f6; padding:2px 5px; border:1px solid #e5e7eb; margin-bottom:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
                                 ${courseName} (${students.length})
                             </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; column-gap: 15px; row-gap: 0;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; column-gap: 10px; row-gap: 0;">
                                 ${studentGridHtml}
                             </div>
                         </div>
                     `;
                 });
 
-                // Sticker HTML (Fixed Height 135mm for Half Page)
+                // Sticker HTML (Fixed Height ~138mm)
                 const stickerHtml = `
-                    <div class="exam-sticker" style="border: 2px dashed #333; padding: 8px 12px; height: 135mm; overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; background: white;">
+                    <div class="exam-sticker" style="border: 2px dashed #333; padding: 10px; height: 138mm; overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; background: white; width: 100%;">
                         <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 2px; margin-bottom: 5px; flex-shrink: 0;">
-                            <h1 style="font-size: 14pt; font-weight: bold; margin: 0; text-transform: uppercase; line-height: 1.1;">${currentCollegeName}</h1>
+                            <h1 style="font-size: 14pt; font-weight: bold; margin: 0; text-transform: uppercase; line-height: 1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${currentCollegeName}</h1>
                             <div style="font-size: 10pt; font-weight: bold; margin-top: 2px; color: #444;">
                                 ${session.Date} &nbsp;|&nbsp; ${session.Time}
                             </div>
                             <div style="display:flex; justify-content: space-between; align-items:center; margin-top: 3px; background: #000; color: #fff; padding: 3px 10px;">
-                                <span style="font-size: 9pt; font-weight: normal;">${location}</span>
+                                <span style="font-size: 9pt; font-weight: normal; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; max-width: 70%;">${location}</span>
                                 <span style="font-size: 16pt; font-weight: bold;">${session.Room}</span>
                             </div>
                         </div>
                         <div style="flex-grow: 1; overflow: hidden;">
                             ${courseBlocksHtml}
                         </div>
-                        <div style="text-align: center; font-size: 8pt; color: #666; margin-top: 2px; flex-shrink: 0; border-top: 1px dotted #ccc; padding-top: 2px;">
-                            Total Students: ${session.students.length}
+                        <div style="text-align: center; font-size: 9pt; color: #000; margin-top: 2px; flex-shrink: 0; border-top: 1px solid #ccc; padding-top: 2px; font-weight:bold;">
+                            Total Candidates: ${session.students.length}
                         </div>
                     </div>
                 `;
                 stickers.push(stickerHtml);
             });
 
-            // 3. Build Pages (Custom CSS for this report)
+            // 3. Build Pages (Custom CSS)
             let pagesHtml = `
                 <style>
                     /* Screen Preview */
@@ -6882,25 +6886,27 @@ if (generateStickerButton) {
                         margin: 10px auto;
                         background: white;
                         box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                        box-sizing: border-box;
                     }
                     .sticker-gap { height: 10px; border-bottom: 1px dotted #ccc; margin-bottom: 10px; }
 
-                    /* Print Mode - CLEANUP */
+                    /* Print Mode */
                     @media print {
                         @page {
-                            margin: 5mm; /* Minimum margin to utilize paper */
+                            margin: 0; /* Reset browser margin */
                             size: A4 portrait;
                         }
-                        /* Hide shadow and border of the container page */
                         .print-page-sticker {
-                            padding: 0 !important;
+                            padding: 10mm !important; /* Physical margin on paper */
                             margin: 0 !important;
                             border: none !important;
                             box-shadow: none !important;
-                            height: 100% !important;
+                            height: 297mm !important;
+                            width: 210mm !important;
                             display: flex;
                             flex-direction: column;
-                            justify-content: space-between; /* Distribute 2 stickers evenly */
+                            justify-content: space-between; /* Distribute top/bottom */
+                            box-sizing: border-box;
                         }
                         /* Hide screen separator */
                         .sticker-gap { display: none !important; }
@@ -6908,8 +6914,9 @@ if (generateStickerButton) {
                         /* Ensure Sticker maintains its look */
                         .exam-sticker {
                             border: 2px dashed #000 !important;
-                            height: 135mm !important; /* Enforce height */
+                            height: 136mm !important; /* Slightly less than half (297-20)/2 */
                             break-inside: avoid;
+                            width: 100% !important;
                         }
                     }
                 </style>
@@ -6944,7 +6951,6 @@ if (generateStickerButton) {
         }
     });
 }
- 
 
 // Also update real_disable_all_report_buttons to include the new button ID
 const originalDisableFunc = window.real_disable_all_report_buttons;
