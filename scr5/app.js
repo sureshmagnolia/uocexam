@@ -1270,7 +1270,7 @@ function checkManualAllotment(sessionKey) {
     return true;
 }
 
-// --- 1. Event listener for the "Generate Room-wise Report" button (V5: Fixed Logic Error) ---
+// --- 1. Event listener for the "Generate Room-wise Report" button (V6: Final Polish) ---
 generateReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; 
     if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
@@ -1328,13 +1328,21 @@ generateReportButton.addEventListener('click', async () => {
             sessions[key].courseCounts[course] = (sessions[key].courseCounts[course] || 0) + 1;
         });
 
-        // Custom Styles for Print Layout
+        // --- CUSTOM STYLES: Fix Shadows/Borders in Print ---
         let allPagesHtml = `
             <style>
-                .print-page-room { padding: 15mm !important; }
-                .room-report-row { height: 2.1rem !important; }
+                .print-page-room { 
+                    padding: 15mm !important; 
+                }
+                .room-report-row { 
+                    height: 2.1rem !important; 
+                }
                 @media print {
-                    .print-page-room { padding: 10mm !important; }
+                    .print-page-room, .print-page { 
+                        padding: 10mm !important; 
+                        box-shadow: none !important; 
+                        border: none !important;
+                    }
                 }
             </style>
         `;
@@ -1363,9 +1371,9 @@ generateReportButton.addEventListener('click', async () => {
             const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
             const pageStream = session.students.length > 0 ? (session.students[0].Stream || "Regular") : "Regular";
 
-            // --- 1. Footer Content ---
+            // --- 1. Build Footer Content ---
             
-            // Course Summary
+            // A. Course Summary
             let courseSummaryRows = '';
             const uniqueQPCodesInRoom = new Set();
             
@@ -1387,7 +1395,7 @@ generateReportButton.addEventListener('click', async () => {
                     </tr>`;
             }
 
-            // Written Booklets
+            // B. Booklet Details (Written Scripts)
             let writtenScriptsHtml = '';
             uniqueQPCodesInRoom.forEach(code => {
                 writtenScriptsHtml += `<span style="margin-right: 15px; white-space: nowrap;">${code}: <span style="border-bottom: 1px solid #000; display: inline-block; width: 35px;"></span></span> `;
@@ -1417,7 +1425,7 @@ generateReportButton.addEventListener('click', async () => {
                         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: bold;">
                             <span>Booklets Received: __________</span>
                             <span>Used: __________</span>
-                            <span>Total: __________</span>
+                            <span>Balance Returned: __________</span>
                         </div>
                         
                         <div style="border-top: 1px dotted #999; padding-top: 5px; margin-bottom: 5px;">
@@ -1428,7 +1436,7 @@ generateReportButton.addEventListener('click', async () => {
                         </div>
                         
                         <div style="border-top: 1px dotted #999; padding-top: 5px; text-align: right;">
-                            <strong>Total Booklets Written:</strong> __________
+                            <strong>Total:</strong> __________
                         </div>
                     </div>
                     
@@ -1536,8 +1544,8 @@ generateReportButton.addEventListener('click', async () => {
                     </thead>
                     <tbody>`;
 
-            // --- RENDER PAGE 1 ---
-            // *** CRITICAL FIX: GENERATE THE ROWS BEFORE USING THEM ***
+            // Render Page 1
+            // RESET PREFIXES
             previousCourseName = ""; previousRegNoPrefix = ""; 
             const tableRowsPage1 = generateTableRows(studentsPage1);
             
@@ -1553,7 +1561,8 @@ generateReportButton.addEventListener('click', async () => {
             `;
             totalPagesGenerated++;
 
-            // --- RENDER PAGE 2 ---
+            // Render Page 2
+            // RESET PREFIXES AGAIN
             previousCourseName = ""; previousRegNoPrefix = ""; 
             const tableRowsPage2 = generateTableRows(studentsPage2);
             
