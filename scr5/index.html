@@ -323,6 +323,40 @@
                     </select>
                 </div>
 
+                <div id="bulk-course-update-container" class="hidden mt-4 mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+    <h3 class="text-sm font-bold text-yellow-800 mb-3 uppercase flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        Reschedule / Change Stream for All Students in this Course
+    </h3>
+    
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">New Date (DD.MM.YYYY)</label>
+            <input type="text" id="bulk-new-date" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm focus:border-yellow-500 focus:ring-yellow-500" placeholder="e.g. 25.11.2025">
+        </div>
+        
+        <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">New Time</label>
+            <input type="text" id="bulk-new-time" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm focus:border-yellow-500 focus:ring-yellow-500" placeholder="e.g. 02:00 PM">
+        </div>
+
+        <div>
+            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">New Stream</label>
+            <select id="bulk-new-stream" class="block w-full p-2 border border-gray-300 rounded-md shadow-sm text-sm focus:border-yellow-500 focus:ring-yellow-500">
+                </select>
+        </div>
+
+        <button id="btn-bulk-apply-changes" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-yellow-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
+            Apply to All
+        </button>
+    </div>
+    <p class="text-xs text-yellow-700 mt-2">
+        * This will move all students currently mapped to <strong><span id="bulk-target-course-name">...</span></strong> to the new schedule/stream.
+    </p>
+</div>
+
+
+                
                 <button id="add-new-student-btn" class="w-full inline-flex justify-center items-center rounded-md border border-dashed border-green-500 bg-green-50 py-2 px-4 text-sm font-medium text-green-700 shadow-sm hover:bg-green-100 mb-4 hidden">
                     + Add New Student
                 </button>
