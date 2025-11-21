@@ -1292,23 +1292,25 @@ function formatDateToCSV(dateObj) {
     return `${dd}.${mm}.${yyyy}`;
 }
 
-// --- Helper: Generate HTML Cards for a Date (With Stream-wise Hall Breakdown) ---
+// --- Helper: Generate HTML Cards for a Date (V3: Scribe Separation) ---
 function generateSessionCardsHtml(dateStr) {
-    // Filter students for this specific date
     const studentsForDate = allStudentData.filter(s => s.Date === dateStr);
     if (studentsForDate.length === 0) return null;
 
-    // Group by Time (Session)
     const sessions = {};
     studentsForDate.forEach(s => {
         if (!sessions[s.Time]) sessions[s.Time] = [];
         sessions[s.Time].push(s);
     });
 
+    // Ensure we have the latest scribe list
+    if (globalScribeList.length === 0) {
+        const stored = localStorage.getItem(SCRIBE_LIST_KEY);
+        if (stored) globalScribeList = JSON.parse(stored);
+    }
     const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
-    let sessionsHtml = '';
     
-    // Sort sessions by time
+    let sessionsHtml = '';
     const sortedTimes = Object.keys(sessions).sort(); 
 
     sortedTimes.forEach(time => {
@@ -1317,23 +1319,23 @@ function generateSessionCardsHtml(dateStr) {
         const courseCount = new Set(students.map(s => s.Course)).size;
         
         let scribeCount = 0;
-        
-        // 1. Calculate Counts Per Stream
         const streamCounts = {};
         
+        // 1. Count & Segregate
         students.forEach(s => {
-            if (scribeRegNos.has(s['Register Number'])) scribeCount++;
-            
-            // Default to "Regular" if missing
-            const strm = s.Stream || "Regular";
-            streamCounts[strm] = (streamCounts[strm] || 0) + 1;
+            if (scribeRegNos.has(s['Register Number'])) {
+                scribeCount++;
+            } else {
+                // Only count non-scribes for Stream Halls
+                const strm = s.Stream || "Regular";
+                streamCounts[strm] = (streamCounts[strm] || 0) + 1;
+            }
         });
 
-        // 2. Build Breakdowns (Candidates & Halls)
+        // 2. Build Breakdown HTML
         let candidateBreakdownHtml = '';
         let hallsBreakdownHtml = '';
         
-        // Sort streams to keep "Regular" first if possible, or alphabetical
         const sortedStreams = Object.keys(streamCounts).sort((a, b) => {
             if (a === "Regular") return -1;
             if (b === "Regular") return 1;
@@ -1342,19 +1344,15 @@ function generateSessionCardsHtml(dateStr) {
 
         sortedStreams.forEach(strm => {
             const count = streamCounts[strm];
-            
-            // Candidate Breakdown Line
+            // Candidates
             candidateBreakdownHtml += `
                 <div class="flex justify-between items-center text-[11px] text-gray-600">
                     <span>${strm}:</span> 
                     <strong class="text-gray-800">${count}</strong>
                 </div>`;
             
-            // Hall Calculation: 
-            // "Streams can't mix" means we CEIL each stream independently.
-            // Assuming standard capacity of 30 per hall.
+            // Halls (1 per 30)
             const halls = Math.ceil(count / 30);
-            
             hallsBreakdownHtml += `
                 <div class="flex justify-between items-center text-[11px] text-gray-600 gap-3">
                     <span>${strm}:</span> 
@@ -1362,7 +1360,17 @@ function generateSessionCardsHtml(dateStr) {
                 </div>`;
         });
 
-        // 3. Construct Card HTML
+        // Scribe Halls (1 per 5)
+        if (scribeCount > 0) {
+            const scribeHalls = Math.ceil(scribeCount / 5);
+            hallsBreakdownHtml += `
+                <div class="flex justify-between items-center text-[11px] text-gray-600 gap-3 border-t border-gray-100 pt-1 mt-1">
+                    <span class="text-orange-600 font-bold">Scribe:</span> 
+                    <strong class="text-orange-700 bg-orange-50 px-1.5 rounded">${scribeHalls} Halls</strong>
+                </div>`;
+        }
+
+        // 3. Construct Card
         sessionsHtml += `
             <div class="bg-white border border-indigo-100 rounded-lg shadow-sm p-4 hover:shadow-md transition-all">
                 
@@ -1379,7 +1387,7 @@ function generateSessionCardsHtml(dateStr) {
                         </div>
                     </div>
 
-                    <div class="bg-gray-50 rounded-md border border-gray-200 p-2 min-w-[120px]">
+                    <div class="bg-gray-50 rounded-md border border-gray-200 p-2 min-w-[130px]">
                         <div class="text-[10px] font-bold text-gray-400 uppercase mb-1 border-b border-gray-200 pb-1 tracking-wider">Est. Requirements</div>
                         <div class="space-y-1">
                             ${hallsBreakdownHtml}
@@ -1388,7 +1396,6 @@ function generateSessionCardsHtml(dateStr) {
                 </div>
                 
                 <div class="grid grid-cols-3 gap-2 text-center divide-x divide-gray-100">
-                    
                     <div class="px-1 flex flex-col h-full">
                         <div class="text-2xl font-bold text-gray-800">${studentCount}</div>
                         <div class="text-[10px] text-gray-400 font-bold uppercase mb-2">Candidates</div>
@@ -1396,12 +1403,10 @@ function generateSessionCardsHtml(dateStr) {
                             ${candidateBreakdownHtml}
                         </div>
                     </div>
-
                     <div class="px-1 flex flex-col justify-start pt-2">
                         <div class="text-2xl font-bold text-gray-800">${courseCount}</div>
                         <div class="text-[10px] text-gray-400 font-bold uppercase">Courses</div>
                     </div>
-
                     <div class="px-1 flex flex-col justify-start pt-2">
                         <div class="text-2xl font-bold text-gray-800">${scribeCount}</div>
                         <div class="text-[10px] text-gray-400 font-bold uppercase">Scribes</div>
@@ -1413,6 +1418,7 @@ function generateSessionCardsHtml(dateStr) {
     
     return sessionsHtml;
 }
+
 
 
     
