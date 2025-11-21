@@ -1434,7 +1434,7 @@ generateReportButton.addEventListener('click', async () => {
                             </div>
                         </div>
                         <div style="border-top: 1px dotted #999; padding-top: 5px; text-align: right;">
-                            <strong>Total:</strong> __________
+                            <strong>Written Booklets Total:</strong> __________
                         </div>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: flex-end;">
