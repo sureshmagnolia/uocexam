@@ -1709,20 +1709,25 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                         }
                     }
 
-                    allPagesHtml += `
-                        <div class="print-page print-page-daywise">
-                            <div class="print-header-group" style="position: relative; margin-bottom: 10px;">
-                                <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
-                                    ${streamName}
-                                </div>
-                                <h1>Seating Details</h1>
-                                <h2>${currentCollegeName} &nbsp;|&nbsp; ${session.Date} &nbsp;|&nbsp; ${session.Time}</h2>
-                            </div>
-                            ${columnHtml}
-                            ${scribeListHtml}
-                            <div style="position: absolute; bottom: 5px; right: 10px; font-size: 9pt;">Page ${totalPagesGenerated}</div>
-                        </div>
-                    `;
+allPagesHtml += `
+    <div class="print-page print-page-daywise">
+        <div class="print-header-group" style="position: relative; margin-bottom: 10px;">
+            
+            <div style="position: absolute; top: 0; left: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
+                Page ${totalPagesGenerated}
+            </div>
+
+            <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
+                ${streamName}
+            </div>
+            
+            <h1>Seating Details</h1>
+            <h2>${currentCollegeName} &nbsp;|&nbsp; ${session.Date} &nbsp;|&nbsp; ${session.Time}</h2>
+        </div>
+        ${columnHtml}
+        ${scribeListHtml}
+    </div>
+`;
                 }
             });
         }
