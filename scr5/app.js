@@ -6749,7 +6749,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
         generateInvigilatorReportButton.textContent = "Generate Invigilator Requirement Summary";
     }
 });
-// --- Event listener for "Generate Room Stickers" (V9: Wider Reg No Column) ---
+// --- Event listener for "Generate Room Stickers" (V10: Dynamic RegNo Width) ---
 const generateStickerButton = document.getElementById('generate-sticker-button');
 
 if (generateStickerButton) {
@@ -6856,12 +6856,12 @@ if (generateStickerButton) {
                         const seatDisplay = s.seatNumber !== undefined ? s.seatNumber : '-';
                         const displayName = getTruncatedName(s.Name, 20);
                         
-                        // *** UPDATED GRID: 25px | 105px | Auto ***
-                        // 105px ensures the Register Number is never cut off
+                        // *** FIXED GRID: 25px | max-content | 1fr ***
+                        // max-content makes the middle column exactly as wide as the RegNo text
                         studentGridHtml += `
-                            <div style="display: grid; grid-template-columns: 25px 105px 1fr; align-items: center; border-bottom: 1px dotted #ccc; padding: ${rowPadding} 0; font-size: ${regFontSize};">
+                            <div style="display: grid; grid-template-columns: 25px max-content 1fr; align-items: center; border-bottom: 1px dotted #ccc; padding: ${rowPadding} 0; font-size: ${regFontSize};">
                                 <div style="text-align: center; font-weight: bold; border-right: 1px solid #ddd;">${seatDisplay}</div>
-                                <div style="text-align: left; font-weight: bold; padding-left: 5px; border-right: 1px solid #ddd; overflow:hidden; white-space:nowrap;">${s['Register Number']}</div>
+                                <div style="text-align: left; font-weight: bold; padding-left: 5px; padding-right: 5px; border-right: 1px solid #ddd; white-space:nowrap;">${s['Register Number']}</div>
                                 <div style="padding-left: 5px; font-size: ${nameFontSize}; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #333;">
                                     ${displayName} ${scribeBadge}
                                 </div>
