@@ -1546,7 +1546,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
         const COLUMNS_PER_PAGE = 2; 
         const STUDENTS_PER_PAGE = STUDENTS_PER_COLUMN * COLUMNS_PER_PAGE; 
 
-        // Helper to build a small table for one column
+   // Helper to build a small table for one column
         function buildColumnTable(studentChunk) {
             let rowsHtml = '';
             let currentCourse = ""; 
@@ -1577,25 +1577,29 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 }
 
                 const roomInfo = currentRoomConfig[roomName] || {};
-                const displayRoom = roomInfo.location ? `${roomName} (${roomInfo.location})` : roomName;
                 
+                // *** UPDATED LOGIC: Show Location only; Fallback to Room Name ***
+                const displayRoom = (roomInfo.location && roomInfo.location.trim() !== "") ? roomInfo.location : roomName;
+                
+                // *** UPDATED ORDER: Location -> Reg No -> Name -> Seat ***
                 rowsHtml += `
                     <tr style="${rowStyle}">
+                        <td style="padding: 1px 4px; font-size:0.85em;">${displayRoom}</td>
                         <td style="padding: 1px 4px;">${student['Register Number']}</td>
                         <td style="padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${student.Name}</td>
-                        <td style="padding: 1px 4px; font-size:0.85em;">${displayRoom}</td>
                         <td style="padding: 1px 4px; text-align: center;">${seatNo}</td>
                     </tr>
                 `;
             });
 
+            // *** UPDATED HEADER ORDER ***
             return `
                 <table class="daywise-report-table" style="width:100%; border-collapse:collapse; font-size:9pt;">
                     <thead>
                         <tr>
+                            <th style="width: 35%;">Location / Room</th>
                             <th style="width: 20%;">Reg No</th>
-                            <th style="width: 30%;">Name</th>
-                            <th style="width: 40%;">Room</th>
+                            <th style="width: 35%;">Name</th>
                             <th style="width: 10%;">Seat</th>
                         </tr>
                     </thead>
@@ -1603,6 +1607,7 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 </table>
             `;
         }
+        
 
         // Main Loop
         for (const streamName of sortedStreamNames) {
