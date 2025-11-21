@@ -6749,8 +6749,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
         generateInvigilatorReportButton.textContent = "Generate Invigilator Requirement Summary";
     }
 });
-
-// --- Event listener for "Generate Room Stickers" (V6: 3-Column Compact & Font Fix) ---
+// --- Event listener for "Generate Room Stickers" (V7: 3-Col, Spacing Fix) ---
 const generateStickerButton = document.getElementById('generate-sticker-button');
 
 if (generateStickerButton) {
@@ -6823,18 +6822,14 @@ if (generateStickerButton) {
 
                 const sortedCourses = Object.keys(studentsByCourse).sort();
                 const numCourses = sortedCourses.length;
-                const totalStudents = session.students.length;
-
-                // --- DYNAMIC LAYOUT (3-Column Force) ---
-                // Default to 3 columns to save vertical space
-                let internalCols = "1fr 1fr 1fr"; 
                 
-                // Adjust font size based on density
+                // --- DYNAMIC LAYOUT ---
+                let internalCols = "1fr 1fr 1fr"; // Force 3 columns
                 let rowPadding = "1px";
-                let regFontSize = "9pt"; // Smaller default
-                let nameFontSize = "8pt"; // Smaller for narrow columns
+                let regFontSize = "9pt"; 
+                let nameFontSize = "8pt";
 
-                // If super crowded (many courses), make it even tighter
+                // Tighter padding if very crowded
                 if (numCourses > 6) {
                     rowPadding = "0px";
                 }
@@ -6851,12 +6846,12 @@ if (generateStickerButton) {
                         const scribeBadge = s.isScribeDisplay ? '<span style="font-size:0.6em; color:white; bg-color:black; padding:0 1px; border-radius:2px; background:black; margin-left:1px;">S</span>' : '';
                         const seatDisplay = s.seatNumber !== undefined ? s.seatNumber : '-';
                         
-                        // Compact 3-Col Layout: Seat | Reg | Name
+                        // *** FIXED: Added margin-left: 6px to Name span for separation ***
                         studentGridHtml += `
                             <div style="display:flex; align-items:center; border-bottom:1px dotted #ccc; padding:${rowPadding} 0; overflow:hidden;">
                                 <span style="font-weight:bold; font-size:${regFontSize}; width:18px; text-align:center; border-right:1px solid #ddd; margin-right:3px; flex-shrink:0;">${seatDisplay}</span>
                                 <span style="font-weight:bold; font-size:${regFontSize}; width:72px; flex-shrink:0;">${s['Register Number']}</span>
-                                <span style="font-size:${nameFontSize}; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#444;">${s.Name} ${scribeBadge}</span>
+                                <span style="font-size:${nameFontSize}; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#444; margin-left: 6px;">${s.Name} ${scribeBadge}</span>
                             </div>
                         `;
                     });
@@ -6965,8 +6960,6 @@ if (generateStickerButton) {
         }
     });
 }
-
-
 // Also update real_disable_all_report_buttons to include the new button ID
 const originalDisableFunc = window.real_disable_all_report_buttons;
 window.real_disable_all_report_buttons = function(disabled) {
