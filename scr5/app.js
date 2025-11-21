@@ -6590,8 +6590,6 @@ function setUnsavedChanges(status) {
     }
 }
 
-// --- END: STUDENT DATA EDIT FUNCTIONALITY ---
-
 
 // *** NEW: Event listener for Invigilator Report ***
 generateInvigilatorReportButton.addEventListener('click', async () => {
@@ -6751,6 +6749,198 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
         generateInvigilatorReportButton.textContent = "Generate Invigilator Requirement Summary";
     }
 });
+
+    // --- Event listener for "Generate Room Stickers" ---
+const generateStickerButton = document.getElementById('generate-sticker-button');
+
+if (generateStickerButton) {
+    generateStickerButton.addEventListener('click', async () => {
+        const sessionKey = reportsSessionSelect.value;
+        if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+
+        generateStickerButton.disabled = true;
+        generateStickerButton.textContent = "Generating Stickers...";
+        reportOutputArea.innerHTML = "";
+        reportControls.classList.add('hidden');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        try {
+            currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+            getRoomCapacitiesFromStorage();
+            loadQPCodes();
+
+            // 1. Get Data
+            const data = getFilteredReportData('room-wise');
+            if (data.length === 0) { alert("No data found."); return; }
+
+            const processed_rows = performOriginalAllocation(data);
+            const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+
+            // 2. Group by Session -> Room
+            const sessions = {};
+            
+            processed_rows.forEach(student => {
+                // Handle Scribe Room Swap
+                let roomName = student['Room No'];
+                let isScribe = false;
+                
+                if (student.isScribe) {
+                    const sessionKeyPipe = `${student.Date} | ${student.Time}`;
+                    const scribeRoom = allScribeAllotments[sessionKeyPipe]?.[student['Register Number']];
+                    if (scribeRoom) {
+                        roomName = scribeRoom;
+                        isScribe = true;
+                    }
+                }
+
+                const key = `${student.Date}_${student.Time}_${roomName}`;
+                if (!sessions[key]) {
+                    sessions[key] = {
+                        Date: student.Date, Time: student.Time, Room: roomName,
+                        students: []
+                    };
+                }
+                sessions[key].students.push({ ...student, isScribeDisplay: isScribe });
+            });
+
+            const sortedKeys = Object.keys(sessions).sort((a, b) => getNumericSortKey(a).localeCompare(getNumericSortKey(b)));
+
+            // 3. Generate HTML for each Sticker
+            const stickers = [];
+
+            sortedKeys.forEach(key => {
+                const session = sessions[key];
+                
+                // Skip "Unallotted" pseudo-room
+                if (session.Room === "Unallotted" || session.Room === "N/A") return;
+
+                const roomInfo = currentRoomConfig[session.Room] || {};
+                const location = (roomInfo.location) ? roomInfo.location : "";
+                
+                // Group students by Course for this room
+                const studentsByCourse = {};
+                session.students.forEach(s => {
+                    if (!studentsByCourse[s.Course]) studentsByCourse[s.Course] = [];
+                    studentsByCourse[s.Course].push(s);
+                });
+
+                // Sort Courses
+                const sortedCourses = Object.keys(studentsByCourse).sort();
+
+                let courseBlocksHtml = '';
+                
+                sortedCourses.forEach(courseName => {
+                    const students = studentsByCourse[courseName];
+                    // Sort students by RegNo
+                    students.sort((a, b) => a['Register Number'].localeCompare(b['Register Number']));
+                    
+                    // Grid of Students (RegNo + Name)
+                    let studentGridHtml = '';
+                    students.forEach(s => {
+                        const scribeBadge = s.isScribeDisplay ? '<span style="font-size:0.7em; color:white; bg-color:black; padding:1px 3px; border-radius:2px; background:black;">SCRIBE</span>' : '';
+                        studentGridHtml += `
+                            <div style="display:flex; justify-content:space-between; border-bottom:1px dotted #ddd; padding:2px 0;">
+                                <span style="font-weight:bold; font-size:11pt;">${s['Register Number']}</span>
+                                <span style="font-size:10pt; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; max-width:160px;">${s.Name} ${scribeBadge}</span>
+                            </div>
+                        `;
+                    });
+
+                    courseBlocksHtml += `
+                        <div style="margin-bottom: 8px; break-inside: avoid;">
+                            <div style="font-weight:bold; font-size:10pt; background:#f0f0f0; padding:2px 4px; border:1px solid #ccc;">
+                                ${courseName} (${students.length})
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; column-gap: 15px; padding: 4px;">
+                                ${studentGridHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                // Build Single Sticker HTML
+                const stickerHtml = `
+                    <div class="exam-sticker" style="border: 3px dashed #444; padding: 15px; height: 135mm; overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; margin-bottom: 0;">
+                        <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px; flex-shrink: 0;">
+                            <h1 style="font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase;">${currentCollegeName}</h1>
+                            <div style="font-size: 12pt; font-weight: bold; margin-top: 5px;">
+                                ${session.Date} &nbsp;|&nbsp; ${session.Time}
+                            </div>
+                            <div style="display:flex; justify-content: space-between; align-items:center; margin-top: 5px; background: #000; color: #fff; padding: 4px 10px;">
+                                <span style="font-size: 11pt;">${location}</span>
+                                <span style="font-size: 18pt; font-weight: bold;">${session.Room}</span>
+                            </div>
+                        </div>
+                        <div style="flex-grow: 1; overflow-y: hidden;">
+                            ${courseBlocksHtml}
+                        </div>
+                        <div style="text-align: center; font-size: 8pt; color: #666; margin-top: 5px; flex-shrink: 0;">
+                            Total Students: ${session.students.length}
+                        </div>
+                    </div>
+                `;
+                stickers.push(stickerHtml);
+            });
+
+            // 4. Batch into Pages (2 per page)
+            let pagesHtml = `
+                <style>
+                    @media print {
+                        .print-page-sticker {
+                            padding: 5mm !important;
+                            height: 297mm !important;
+                            overflow: hidden !important;
+                        }
+                        /* Ensure exactly 2 fit */
+                        .exam-sticker {
+                            height: 140mm !important; /* Half A4 approx */
+                            page-break-inside: avoid !important;
+                        }
+                    }
+                </style>
+            `;
+            
+            for (let i = 0; i < stickers.length; i += 2) {
+                const sticker1 = stickers[i];
+                const sticker2 = stickers[i + 1] || ''; // Handle odd number
+                
+                // Separator line if 2 stickers exist
+                const separator = sticker2 ? `<div style="border-bottom: 1px dotted #ccc; margin: 10px 0;"></div>` : '';
+
+                pagesHtml += `
+                    <div class="print-page print-page-sticker" style="display: flex; flex-direction: column; justify-content: space-between;">
+                        ${sticker1}
+                        ${separator}
+                        ${sticker2}
+                    </div>
+                `;
+            }
+
+            reportOutputArea.innerHTML = pagesHtml;
+            reportOutputArea.style.display = 'block';
+            reportStatus.textContent = `Generated ${Math.ceil(stickers.length / 2)} sticker pages for ${stickers.length} rooms.`;
+            reportControls.classList.remove('hidden');
+            lastGeneratedReportType = "Room_Stickers";
+
+        } catch (e) {
+            console.error(e);
+            alert("Error: " + e.message);
+        } finally {
+            generateStickerButton.disabled = false;
+            generateStickerButton.textContent = "Generate Room Stickers (2 per Page)";
+        }
+    });
+}
+
+// Also update real_disable_all_report_buttons to include the new button ID
+const originalDisableFunc = window.real_disable_all_report_buttons;
+window.real_disable_all_report_buttons = function(disabled) {
+    if(originalDisableFunc) originalDisableFunc(disabled);
+    const btn = document.getElementById('generate-sticker-button');
+    if(btn) btn.disabled = disabled;
+};
+
+    
 // --- NEW: STUDENT SEARCH FUNCTIONALITY ---
 
     let searchSessionStudents = []; 
@@ -6866,7 +7056,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
         }, 250);
     });
 
-    // 3A. Show Single Session Details (Original Function)
+
    // 3A. Show Single Session Details (Updated with Stream & Location)
     function showStudentDetailsModal(regNo, sessionKey) {
         document.getElementById('search-result-single-view').classList.remove('hidden');
