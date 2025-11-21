@@ -1136,16 +1136,14 @@ function renderCalendar() {
     const year = currentCalDate.getFullYear();
     const month = currentCalDate.getMonth();
     
-    // Month Names
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     title.textContent = `${monthNames[month]} ${year}`;
 
     // 2. Calculate Days
-    const firstDayIndex = new Date(year, month, 1).getDay(); // Day of week (0-6)
-    const daysInMonth = new Date(year, month + 1, 0).getDate(); // Total days
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    // 3. Pre-process Exam Data for this Month
-    // Create a map: "DD" -> { am: {students, regHalls, othHalls}, pm: {...} }
+    // 3. Pre-process Data
     const monthData = {};
     
     if (allStudentData && allStudentData.length > 0) {
@@ -1153,13 +1151,14 @@ function renderCalendar() {
         const targetYearStr = String(year);
         
         allStudentData.forEach(s => {
-            // Date format assumed DD.MM.YYYY
             const [d, m, y] = s.Date.split('.');
             if (m === targetMonthStr && y === targetYearStr) {
-                const dayKey = parseInt(d); // remove leading zero
+                const dayKey = parseInt(d); 
                 
                 // Determine Session
-                const isPM = s.Time.toUpperCase().includes("PM") || (s.Time.includes("12:") && !s.Time.includes("AM")); // Simple heuristic
+                // Standard logic: "AM" implies FN, "PM" implies AN
+                const timeStr = s.Time.toUpperCase();
+                const isPM = timeStr.includes("PM") || (timeStr.includes("12:") && !timeStr.includes("AM"));
                 const sessionKey = isPM ? 'pm' : 'am';
                 
                 if (!monthData[dayKey]) monthData[dayKey] = { 
@@ -1180,63 +1179,82 @@ function renderCalendar() {
 
     // Empty cells for previous month
     for (let i = 0; i < firstDayIndex; i++) {
-        html += `<div class="bg-gray-100 min-h-[80px]"></div>`;
+        html += `<div class="bg-gray-50 min-h-[90px] border-r border-b border-gray-100"></div>`;
     }
 
     // Actual Days
     for (let day = 1; day <= daysInMonth; day++) {
         const data = monthData[day];
-        let topClass = "bg-white";
-        let botClass = "bg-white";
-        let tooltipHtml = "";
-        
-        // Today Highlight
         const isToday = (day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear());
-        const dayNumberClass = isToday ? "bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm" : "text-gray-700";
+        
+        // Styling Classes
+        const baseClass = "min-h-[90px] bg-white border-r border-b border-gray-200 flex flex-col relative hover:bg-blue-50 transition group";
+        const dayNumClass = isToday 
+            ? "bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md text-xs" 
+            : "text-gray-700 text-sm";
+
+        // Content Variables
+        let topClass = "bg-transparent";
+        let botClass = "bg-transparent";
+        let topLabel = "";
+        let botLabel = "";
+        let tooltipHtml = "";
+
+        // -- LOGIC: Material Red for Active Sessions --
+        // Using 'bg-[#D32F2F]' which is Material Red 700 for good contrast
+        const activeColor = "bg-[#D32F2F] text-white"; 
 
         if (data) {
-            // Check AM
+            // FN (Morning)
             if (data.am.students > 0) {
-                topClass = "bg-red-500 opacity-90";
+                topClass = activeColor;
+                topLabel = `<span class="absolute top-1 right-1 text-[9px] font-bold opacity-80 tracking-wider">FN</span>`;
+                
                 const regHalls = Math.ceil(data.am.regCount / 30);
                 const othHalls = Math.ceil(data.am.othCount / 30);
                 tooltipHtml += `
-                    <div class='mb-2'>
-                        <strong class='text-red-200'>Morning:</strong><br>
-                        Students: ${data.am.students}<br>
-                        Reg Halls: ${regHalls}<br>
-                        Other Halls: ${othHalls}
+                    <div class='mb-2 pb-2 border-b border-gray-600'>
+                        <strong class='text-red-300 uppercase text-[10px]'>Morning (FN)</strong><br>
+                        <span class='text-white'>${data.am.students} Candidates</span><br>
+                        <span class='text-gray-300 text-[10px]'>Reg: ${regHalls} Halls | Oth: ${othHalls} Halls</span>
                     </div>`;
             }
-            // Check PM
+
+            // AN (Afternoon)
             if (data.pm.students > 0) {
-                botClass = "bg-red-500 opacity-90";
+                botClass = activeColor;
+                botLabel = `<span class="absolute bottom-1 right-1 text-[9px] font-bold opacity-80 tracking-wider">AN</span>`;
+                
                 const regHalls = Math.ceil(data.pm.regCount / 30);
                 const othHalls = Math.ceil(data.pm.othCount / 30);
                 tooltipHtml += `
                     <div>
-                        <strong class='text-red-200'>Afternoon:</strong><br>
-                        Students: ${data.pm.students}<br>
-                        Reg Halls: ${regHalls}<br>
-                        Other Halls: ${othHalls}
+                        <strong class='text-red-300 uppercase text-[10px]'>Afternoon (AN)</strong><br>
+                        <span class='text-white'>${data.pm.students} Candidates</span><br>
+                        <span class='text-gray-300 text-[10px]'>Reg: ${regHalls} Halls | Oth: ${othHalls} Halls</span>
                     </div>`;
             }
         }
 
         // Tooltip Wrapper
         const tooltip = tooltipHtml ? `
-            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-gray-800 text-white text-xs rounded p-2 shadow-lg z-20 hidden group-hover:block pointer-events-none text-center">
+            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-40 bg-gray-800 text-white text-xs rounded p-2 shadow-xl z-50 hidden group-hover:block pointer-events-none text-center border border-gray-700">
                 ${tooltipHtml}
                 <div class="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-800"></div>
             </div>
         ` : "";
 
+        // HTML Construction with Demarcation (Border between halves)
         html += `
-            <div class="group relative bg-white min-h-[80px] flex flex-col border-white hover:bg-blue-50 transition-colors cursor-default">
-                <div class="h-1/2 w-full ${topClass} p-1">
-                    <span class="text-sm font-bold ${dayNumberClass} relative z-10">${day}</span>
+            <div class="${baseClass}">
+                <div class="h-1/2 w-full ${topClass} p-1 border-b-2 border-white relative">
+                    <span class="font-bold ${dayNumClass} relative z-10">${day}</span>
+                    ${topLabel}
                 </div>
-                <div class="h-1/2 w-full ${botClass}"></div>
+                
+                <div class="h-1/2 w-full ${botClass} relative">
+                    ${botLabel}
+                </div>
                 
                 ${tooltip}
             </div>
