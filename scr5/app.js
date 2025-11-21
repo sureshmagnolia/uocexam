@@ -6749,7 +6749,7 @@ generateInvigilatorReportButton.addEventListener('click', async () => {
         generateInvigilatorReportButton.textContent = "Generate Invigilator Requirement Summary";
     }
 });
-// --- Event listener for "Generate Room Stickers" (V7: Name Truncation & 3-Col Fix) ---
+// --- Event listener for "Generate Room Stickers" (V8: Grid Columns & Strict Truncation) ---
 const generateStickerButton = document.getElementById('generate-sticker-button');
 
 if (generateStickerButton) {
@@ -6800,7 +6800,7 @@ if (generateStickerButton) {
             const sortedKeys = Object.keys(sessions).sort((a, b) => getNumericSortKey(a).localeCompare(getNumericSortKey(b)));
 
             // Helper: Truncate Name
-            function getTruncatedName(name, maxLen = 20) {
+            function getTruncatedName(name, maxLen = 18) {
                 if (!name) return "";
                 if (name.length <= maxLen) return name;
                 return name.substring(0, maxLen) + "..";
@@ -6831,14 +6831,16 @@ if (generateStickerButton) {
                 const numCourses = sortedCourses.length;
                 
                 // --- DYNAMIC LAYOUT ---
-                let internalCols = "1fr 1fr 1fr"; // Force 3 columns
+                let internalCols = "1fr 1fr 1fr"; // 3 Columns of students
                 let rowPadding = "1px";
                 let regFontSize = "9pt"; 
-                let nameFontSize = "8pt";
+                let nameFontSize = "8.5pt";
 
                 // Tighter padding if very crowded
                 if (numCourses > 6) {
                     rowPadding = "0px";
+                    regFontSize = "8.5pt";
+                    nameFontSize = "8pt";
                 }
 
                 let courseBlocksHtml = '';
@@ -6852,17 +6854,17 @@ if (generateStickerButton) {
                     students.forEach(s => {
                         const scribeBadge = s.isScribeDisplay ? '<span style="font-size:0.6em; color:white; bg-color:black; padding:0 1px; border-radius:2px; background:black; margin-left:1px;">S</span>' : '';
                         const seatDisplay = s.seatNumber !== undefined ? s.seatNumber : '-';
-                        
-                        // Truncate Name strictly
                         const displayName = getTruncatedName(s.Name, 20);
                         
-                        // Compact 3-Col Layout: Seat | Reg | Name
-                        // Added flex:1 and min-width:0 to Name span to ensure CSS truncation works too
+                        // *** STRICT GRID LAYOUT ***
+                        // Cols: Seat(25px) | Reg(80px) | Name(Auto)
                         studentGridHtml += `
-                            <div style="display:flex; align-items:center; border-bottom:1px dotted #ccc; padding:${rowPadding} 0; overflow:hidden;">
-                                <span style="font-weight:bold; font-size:${regFontSize}; width:18px; text-align:center; border-right:1px solid #ddd; margin-right:3px; flex-shrink:0;">${seatDisplay}</span>
-                                <span style="font-weight:bold; font-size:${regFontSize}; width:72px; flex-shrink:0;">${s['Register Number']}</span>
-                                <span style="font-size:${nameFontSize}; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#444; margin-left: 6px; flex: 1; min-width: 0;">${displayName} ${scribeBadge}</span>
+                            <div style="display: grid; grid-template-columns: 25px 80px 1fr; align-items: center; border-bottom: 1px dotted #ccc; padding: ${rowPadding} 0; font-size: ${regFontSize};">
+                                <div style="text-align: center; font-weight: bold; border-right: 1px solid #ddd;">${seatDisplay}</div>
+                                <div style="text-align: left; font-weight: bold; padding-left: 4px; border-right: 1px solid #ddd; overflow:hidden; white-space:nowrap;">${s['Register Number']}</div>
+                                <div style="padding-left: 4px; font-size: ${nameFontSize}; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #333;">
+                                    ${displayName} ${scribeBadge}
+                                </div>
                             </div>
                         `;
                     });
@@ -6879,9 +6881,9 @@ if (generateStickerButton) {
                     `;
                 });
 
-                // Sticker HTML (Fixed 135mm)
+                // Sticker HTML
                 const stickerHtml = `
-                    <div class="exam-sticker" style="border: 2px dashed #000; padding: 6px 10px; height: 135mm; overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; background: white; width: 100%;">
+                    <div class="exam-sticker" style="border: 2px dashed #000; padding: 6px 8px; height: 135mm; overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; background: white; width: 100%;">
                         
                         <div style="text-align: center; margin-bottom: 3px; flex-shrink: 0; border-bottom: 2px solid #000; padding-bottom: 3px;">
                             <h1 style="font-size: 12pt; font-weight: bold; margin: 0; text-transform: uppercase; line-height: 1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${currentCollegeName}</h1>
