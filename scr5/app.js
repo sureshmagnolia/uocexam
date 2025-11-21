@@ -6557,6 +6557,111 @@ function setUnsavedChanges(status) {
     }
 }
 
+// ==========================================
+// ⚡ BULK COURSE UPDATE LOGIC
+// ==========================================
+
+// 1. Elements
+const bulkUpdateContainer = document.getElementById('bulk-course-update-container');
+const bulkTargetCourseName = document.getElementById('bulk-target-course-name');
+const bulkNewDateInput = document.getElementById('bulk-new-date');
+const bulkNewTimeInput = document.getElementById('bulk-new-time');
+const bulkNewStreamSelect = document.getElementById('bulk-new-stream');
+const btnBulkApply = document.getElementById('btn-bulk-apply-changes');
+
+// 2. Listener to Show/Hide Bulk Section
+// (This runs in addition to your existing course select listener)
+if (editCourseSelect) {
+    editCourseSelect.addEventListener('change', () => {
+        if (editCourseSelect.value) {
+            // Show Bulk Section
+            if(bulkUpdateContainer) bulkUpdateContainer.classList.remove('hidden');
+            if(bulkTargetCourseName) bulkTargetCourseName.textContent = editCourseSelect.value;
+            
+            // Pre-fill with current session data for convenience
+            if (editSessionSelect.value) {
+                const [currDate, currTime] = editSessionSelect.value.split(' | ');
+                if(bulkNewDateInput) bulkNewDateInput.value = currDate;
+                if(bulkNewTimeInput) bulkNewTimeInput.value = currTime;
+            }
+            
+            // Populate Stream Dropdown
+            if (bulkNewStreamSelect) {
+                bulkNewStreamSelect.innerHTML = currentStreamConfig.map(s => 
+                    `<option value="${s}">${s}</option>`
+                ).join('');
+            }
+        } else {
+            if(bulkUpdateContainer) bulkUpdateContainer.classList.add('hidden');
+        }
+    });
+}
+
+// 3. Handle Bulk Update Click
+if (btnBulkApply) {
+    btnBulkApply.addEventListener('click', async () => {
+        const newDate = bulkNewDateInput.value.trim();
+        const newTime = bulkNewTimeInput.value.trim();
+        const newStream = bulkNewStreamSelect.value;
+        const targetCourse = editCourseSelect.value;
+        const [oldDate, oldTime] = editSessionSelect.value.split(' | ');
+
+        if (!newDate || !newTime) {
+            alert("Please enter both a valid Date and Time.");
+            return;
+        }
+
+        // Calculate how many records will be affected
+        // We look at the GLOBAL 'allStudentData', not just the current view
+        const recordsToUpdate = allStudentData.filter(s => 
+            s.Date === oldDate && 
+            s.Time === oldTime && 
+            s.Course === targetCourse
+        );
+
+        if (recordsToUpdate.length === 0) {
+            alert("No records found to update.");
+            return;
+        }
+
+        const confirmMsg = `
+⚠ CONFIRM BULK CHANGE ⚠
+
+Target Course: ${targetCourse}
+Students Affected: ${recordsToUpdate.length}
+
+OLD Schedule: ${oldDate} | ${oldTime}
+NEW Schedule: ${newDate} | ${newTime}
+NEW Stream:   ${newStream}
+
+Are you sure you want to move these students?
+        `;
+
+        if (confirm(confirmMsg)) {
+            // Perform Update
+            let updateCount = 0;
+            
+            allStudentData.forEach(student => {
+                if (student.Date === oldDate && student.Time === oldTime && student.Course === targetCourse) {
+                    student.Date = newDate;
+                    student.Time = newTime;
+                    student.Stream = newStream;
+                    updateCount++;
+                }
+            });
+
+            // Save & Refresh
+            localStorage.setItem(BASE_DATA_KEY, JSON.stringify(allStudentData));
+            
+            alert(`Successfully moved ${updateCount} students.\nThe page will now reload to reflect the new session structure.`);
+            
+            // Sync to cloud if enabled
+            if (typeof syncDataToCloud === 'function') await syncDataToCloud();
+            
+            window.location.reload();
+        }
+    });
+}
 
 // *** NEW: Event listener for Invigilator Report ***
 generateInvigilatorReportButton.addEventListener('click', async () => {
