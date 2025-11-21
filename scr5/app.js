@@ -3713,8 +3713,6 @@ generateQPaperReportButton.addEventListener('click', async () => {
 
 
 // --- Event listener for "Generate QP Distribution Report" (V2: QP-Centric with Stream Demarcation) ---
-const generateQpDistributionReportButton = document.getElementById('generate-qp-distribution-report-button');
-
 if (generateQpDistributionReportButton) {
     generateQpDistributionReportButton.addEventListener('click', async () => {
         const sessionKey = reportsSessionSelect.value; 
