@@ -4835,9 +4835,7 @@ function loadRoomConfig() {
     
     try { config = JSON.parse(savedConfigJson || '{}'); } catch (e) { config = {}; }
     
-    // ... (Keep existing default 30 rooms logic if config is empty) ...
     if (Object.keys(config).length === 0) {
-         // ... (Your existing default logic here) ...
          for (let i = 1; i <= 30; i++) config[`Room ${i}`] = { capacity: 30, location: "" };
          localStorage.setItem(ROOM_CONFIG_KEY, JSON.stringify(config));
     }
@@ -4855,11 +4853,15 @@ function loadRoomConfig() {
     sortedKeys.forEach((roomName, index) => {
         const roomData = config[roomName];
         const isLast = (index === sortedKeys.length - 1);
-        // Pass true for isLocked
-        const rowHtml = createRoomRowHtml(roomName, roomData.capacity, roomData.location, isLast, true);
+        
+        // *** FIX: Handle missing location in legacy data (convert undefined to "") ***
+        // This ensures the validation logic sees it as empty and forces an update.
+        const safeLocation = roomData.location || "";
+
+        const rowHtml = createRoomRowHtml(roomName, roomData.capacity, safeLocation, isLast, true);
         roomConfigContainer.insertAdjacentHTML('beforeend', rowHtml);
     });
-}   
+}
 
 // --- (V28) Add New Room Button (in Settings) ---
 // --- Add New Room Button ---
