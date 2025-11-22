@@ -40,11 +40,12 @@ def find_time_in_text(text):
 def find_course_name(text):
     """
     Scans text for Course Name.
-    INCLUDES FIXES FOR:
-    1. Line Breaks (College remover stops early)
-    2. 'Name:' appearing before course
-    3. 'Exam Name' leakage (Relaxed regex + Garbage removal)
-    4. Spaces in Year format (e.g. / 2019)
+    INCLUDES ALL FIXES:
+    1. Multi-line protection (College remover lookahead)
+    2. "Exam Name" / "Name:" garbage removal
+    3. Space-tolerant Priority Regex (e.g., / 2019)
+    4. Trailing ')' preservation
+    5. Leading Ordinal (Third, First) removal
     """
     # 1. Flatten the text immediately (Fixes line breaks)
     text = str(text).replace('\n', ' ')
@@ -55,28 +56,27 @@ def find_course_name(text):
     pg_match = re.search(r"Paper\s*Details\s*[:\-]\s*(.*?)\s*--\s*\((.*?)\)\s*\/\s*\d{4}", text, flags=re.IGNORECASE)
 
     if pg_match:
-        # Reconstruct as "NAME (CODE)" and return immediately
+        # Reconstruct as "NAME (CODE)"
         course_name = pg_match.group(1).strip()
         course_code = pg_match.group(2).strip()
         candidate = f"{course_name} ({course_code})"
         
-        # Clean up any trailing punctuation
-        candidate = re.sub(r'[\s\-\)\]\.:,]+$', '', candidate).strip()
+        # FIX: Removed ')' and ']' from the cleanup list so we don't delete the closing parenthesis.
+        candidate = re.sub(r'[\s\-\.:,]+$', '', candidate).strip()
 
         if len(candidate) > 3:
             return candidate
 
-    # 3. FALLBACK EXTRACTION: Generic Cleaning (Used for all other file types)
+    # 3. FALLBACK EXTRACTION: Generic Cleaning (Used for Nominal Rolls & others)
     
     patterns_to_remove = [
         r".*?University\s*of\s*Calicut", 
         
-        # --- 🔴 UPDATED UNIVERSAL COLLEGE REMOVER 🔴 ---
-        # Stops deleting if it sees "Course", "Paper", "Slot", "Exam Name" or "Name"
-        # This prevents it from eating the first line of a multi-line course name.
+        # FIX: College Remover now stops at "Course", "Paper", "Name", "Slot", "Exam Name"
+        # This prevents it from deleting the first line of a 2-line course name.
         r"College\s*[:\-].*?(?=\s*(?:Course|Paper|Name|Slot|Session|Exam\s*Name|[A-Z]{2,}\d))", 
         
-        # --- ORDINAL NUMBER REMOVER ---
+        # --- ORDINAL NUMBER REMOVER (Middle of text) ---
         r"\b(First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth|Tenth|Eleventh|Twelfth)\b\s*?(?=\s*[A-Z]{2,}\d)",
         
         # --- GARBAGE REMOVERS ---
@@ -91,7 +91,7 @@ def find_course_name(text):
         r"\bCourse\b",
         
         # FIX: Explicitly remove "Exam Name" and "Name:" labels to prevent leakage
-        r"Exam\s*Name\s*[:\-].*?(?=\s*Paper)", # Aggressively remove Exam Name line if followed by Paper
+        r"Exam\s*Name\s*[:\-].*?(?=\s*Paper)", 
         r"Exam\s*Name\s*[:\-]?",
         r"Name\s*[:\-]?"
     ]
@@ -121,7 +121,10 @@ def find_course_name(text):
         if len(parts) > 0:
             text = parts[0].strip()
 
-    # 6. Final Cleanup (If both priority and fallback cleaning succeeded)
+    # FIX: Final Cleanup - Remove leading Ordinals (e.g., "Third BOT...")
+    text = re.sub(r'^\s*(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth|Tenth|Eleventh|Twelfth)\s+', '', text, flags=re.IGNORECASE)
+
+    # 6. Final check
     return text if len(text) > 3 else "Unknown"
 
 def detect_columns(header_row):
