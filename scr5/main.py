@@ -13,21 +13,23 @@ from datetime import datetime
 # ==========================================
 
 def clean_text(text):
-    """Removes newlines and extra spaces."""
+    """Removes newlines, extra spaces, and broken leading punctuation."""
     if not text: return ""
-    return str(text).replace('\n', ' ').strip()
+    # 1. Collapse whitespace
+    cleaned = re.sub(r'\s+', ' ', str(text).replace('\n', ' ')).strip()
+    # 2. Remove broken start chars (e.g., "] - English" or ") Course")
+    cleaned = re.sub(r'^[\s\-\)\]\.:]+', '', cleaned)
+    return cleaned
 
 def find_date_in_text(text):
     """Scans text for Date patterns (DD.MM.YYYY or DD-MM-YYYY)"""
-    # Regex matches: 24.11.2025 or 24-11-2025 or 24/11/2025
     match = re.search(r'(\d{2}[./-]\d{2}[./-]\d{4})', text)
     if match:
-        # Standardize to DD.MM.YYYY
         return match.group(1).replace('-', '.').replace('/', '.')
     return "Unknown"
 
 def find_time_in_text(text):
-    """Scans text for Time patterns (09:30 AM, 2.00 PM, 02:00PM)"""
+    """Scans text for Time patterns (09:30 AM, 2.00 PM)"""
     text = text.upper().replace('.', ':')
     match = re.search(r'(\d{1,2}:\d{2})\s*(AM|PM)', text)
     if match:
@@ -37,45 +39,53 @@ def find_time_in_text(text):
     return "Unknown"
 
 def find_course_name(text):
-    """Scans text for Course Name patterns."""
-    # 1. Normalize whitespace (collapse multiple spaces/newlines to single space)
+    """
+    Scans text for Course Name patterns with high robustness.
+    """
+    # 1. Normalize whitespace to make regex easier
     clean_page = re.sub(r'\s+', ' ', text.replace('\n', ' ')).strip()
     
-    # 2. Define Stop Markers (Keywords that signal the END of the course name)
-    # Lookahead for: Exam Date, Date of Exam, Slot, Session, Time, Register No, Page
-    stop_markers = r'(?=\s*(?:Exam\s*Date|Date\s*of|Slot|Session|Time|Register|Reg\.|Reg\s*No|Page|$))'
+    # 2. Stop Markers: Keywords that signal the start of metadata (End of Title)
+    stop_markers = r'(?=\s*(?:Exam\s*Date|Date\s*of|Slot|Session|Time|Register|Reg\.|Reg\s*No|Page|Maximum|Marks|$))'
 
-    # Strategy 1: Look for explicit labels (Course, Paper Details, Name of Paper)
-    # Captures everything after the label until a stop marker is found.
-    match = re.search(r'(?:Paper\s*Details|Course(?:\s*Name)?|Name\s*of\s*Paper|Paper)\s*[:\-]?\s*(.*?)' + stop_markers, clean_page, re.IGNORECASE)
-    if match:
-        val = clean_text(match.group(1))
-        if len(val) > 2: return val
-    
-    # Strategy 2: Look for UOC Course Code pattern (e.g., ENG1A02 ...) at start of text
-    # Pattern: 3+ Uppercase letters, 1 Digit, 1 Uppercase Letter, 2+ Digits
-    # Captures the code + following text until a stop marker.
-    match = re.search(r'([A-Z]{3,}\d[A-Z]\d{2,}\s+.*?)' + stop_markers, clean_page)
-    if match:
-        return clean_text(match.group(1))
+    # --- STRATEGY 1: "Syllabus" Suffix (The most reliable UOC pattern) ---
+    # Matches: "BHAG I [Hindi 2025 syllabus]" OR "ENG1A01 - Title [English 2024 syllabus]"
+    # Logic: Find a block of text ending in [ ... Syllabus ]. 
+    # We limit the capture to ~150 chars to avoid grabbing the whole page header.
+    syllabus_match = re.search(r'((?:[A-Z0-9][^\[\]]{0,150})?\[[^\]]*?Syllabus\])' + stop_markers, clean_page, re.IGNORECASE)
+    if syllabus_match:
+        candidate = clean_text(syllabus_match.group(1))
+        # Validation: Must be substantial (>5 chars) and not just a closing bracket
+        if len(candidate) > 5:
+            return candidate
+
+    # --- STRATEGY 2: Explicit Labels ---
+    # Matches: "Course: ENG1A01..." or "Paper Details: ..."
+    label_match = re.search(r'(?:Paper\s*Details|Course(?:\s*Name)?|Name\s*of\s*Paper|Paper)\s*[:\-]?\s*(.*?)' + stop_markers, clean_page, re.IGNORECASE)
+    if label_match:
+        candidate = clean_text(label_match.group(1))
+        if len(candidate) > 3:
+            return candidate
+
+    # --- STRATEGY 3: Standard Course Code Start ---
+    # Matches: "ENG1A02 Functional English..." (No bracket or label)
+    # Pattern: 3+ Letters, Digit, Letter, Digits (e.g. ENG1A01)
+    code_match = re.search(r'([A-Z]{3,}\d[A-Z]\d{2,}.*?)' + stop_markers, clean_page)
+    if code_match:
+        return clean_text(code_match.group(1))
         
     return "Unknown"
 
 def detect_columns(header_row):
-    """
-    Analyzes a header row to find indices for RegNo and Name.
-    Returns: (reg_idx, name_idx)
-    """
+    """Analyzes a header row to find indices for RegNo and Name."""
     reg_idx = -1
     name_idx = -1
     
     row_lower = [str(cell).lower().strip() if cell else "" for cell in header_row]
     
     for i, col in enumerate(row_lower):
-        # Detect Register Number (Reg.No, Register Number, etc.)
         if "reg" in col or "register" in col or "roll" in col:
             reg_idx = i
-        # Detect Name Column (Name, Candidate, etc.)
         elif "name" in col or "candidate" in col or "student" in col:
             name_idx = i
             
@@ -94,8 +104,7 @@ async def process_file(file):
 
         with pdfplumber.open(pdf_file) as pdf:
             
-            # --- 1. Global Header Scan (First Page Only) ---
-            # We scan the first page text to find Date/Time/Course once for the whole file
+            # 1. Global Header Scan (First Page Only)
             first_page_text = ""
             if len(pdf.pages) > 0:
                 first_page_text = pdf.pages[0].extract_text() or ""
@@ -104,16 +113,14 @@ async def process_file(file):
             global_time = find_time_in_text(first_page_text)
             global_course = find_course_name(first_page_text)
 
-            # --- 2. Iterate Pages ---
+            # 2. Iterate Pages
             for page in pdf.pages:
-                
-                # Try "Lattice" (Grid lines) - Works for New Format
+                # Try Grid lines first (New UOC Format)
                 tables = page.extract_tables({
                     "vertical_strategy": "lines", 
                     "horizontal_strategy": "lines"
                 })
-                
-                # Fallback: "Text" (Whitespace) - Works for Old Format if lines are missing
+                # Fallback to Text whitespace (Old UOC Format)
                 if not tables:
                     tables = page.extract_tables({
                         "vertical_strategy": "text", 
@@ -122,40 +129,37 @@ async def process_file(file):
 
                 if not tables: continue
 
-                # --- 3. Iterate Tables ---
+                # 3. Iterate Tables
                 for table in tables:
                     reg_idx, name_idx = -1, -1
                     
-                    # Phase A: Find Headers in this table
+                    # A. Detect Headers
                     for row in table:
                         r_idx, n_idx = detect_columns(row)
                         if r_idx != -1 and n_idx != -1:
                             reg_idx, name_idx = r_idx, n_idx
                             break
                     
-                    # Phase B: Fallback for headless tables (Guesswork based on your file types)
+                    # B. Fallback Detection (If no headers found)
                     if reg_idx == -1: 
-                        # Check typical column counts for your files
                         sample_row = table[0] if table else []
-                        if len(sample_row) >= 5: 
-                            # Let's look for data that LOOKS like a RegNo
+                        if len(sample_row) >= 5:
+                            # Look for RegNo pattern in likely columns
                             for i, row in enumerate(table):
                                 clean = [str(c).strip() if c else "" for c in row]
-                                # RegNo usually starts with letters and ends with numbers, length > 5
+                                # Pattern: VPA... or similar
                                 if len(clean) > 1 and re.search(r'[A-Z]+\d+', clean[1]):
                                     reg_idx = 1; name_idx = 2; break
-                                if len(clean) > 4 and re.search(r'[A-Z]+\d+', clean[4]): 
+                                if len(clean) > 4 and re.search(r'[A-Z]+\d+', clean[4]):
                                     reg_idx = 4; name_idx = 5; break
 
-                    # Phase C: Extraction
+                    # C. Extraction
                     if reg_idx != -1 and name_idx != -1:
                         for row in table:
                             clean_row = [str(cell).strip() if cell else "" for cell in row]
                             
-                            # Safety check length
+                            # Safety: skip empty or header-like rows inside data
                             if len(clean_row) <= max(reg_idx, name_idx): continue
-
-                            # Skip Header Rows (if they repeat)
                             row_str = " ".join(clean_row).lower()
                             if "register" in row_str or "name" in row_str or "reg.no" in row_str:
                                 continue
@@ -163,9 +167,8 @@ async def process_file(file):
                             val_reg = clean_text(clean_row[reg_idx])
                             val_name = clean_text(clean_row[name_idx])
 
-                            # VALIDATION: RegNo must look valid (at least 3 chars)
+                            # Final Data Validation
                             if len(val_reg) < 3: continue
-                            # Name must be valid letters
                             if len(val_name) < 2: continue
 
                             extracted_data.append({
@@ -231,7 +234,6 @@ async def start_extraction(event):
         # --- HANDOFF TO JAVASCRIPT ---
         json_data = json.dumps(all_exam_rows)
         js.window.handlePythonExtraction(json_data)
-        # -----------------------------
 
         status_div.innerText = f"Done! Extracted {len(all_exam_rows)} candidates."
 
