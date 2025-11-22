@@ -40,42 +40,43 @@ def find_time_in_text(text):
 def find_course_name(text):
     """
     Scans text for Course Name.
-    FIX: Uses re.sub ONLY to ensure no text is dropped due to splitting.
+    FIX 3: 
+    - Removes 'University of Calicut' and 'First' prefixes.
+    - STOPS immediately at 'Slot' to remove 'Slot Single Major...'.
     """
     # 1. Flatten the text immediately (Fixes line breaks)
-    # This turns: "Computers & \n Computational" -> "Computers &   Computational"
     text = str(text).replace('\n', ' ')
     text = re.sub(r'\s+', ' ', text).strip()
     
     # 2. Define patterns to DELETE (Replace with empty space)
-    # These are headers that might appear before or *inside* the text stream.
+    # These are headers that appear BEFORE the actual course code.
     patterns_to_remove = [
-        r"College\s*:\s*[\w\s,]*?PALAKKAD", 
+        r".*?University\s*of\s*Calicut", # Eats Malayalam text + University header
         r"Nominal\s*Roll",
         r"Examination\s*[\w\s]*?\d{4}",
-        r"Semester\s*[A-Za-z0-9]+",  # Matches Semester I, Semester FYUG, etc.
+        r"Semester\s*[A-Za-z0-9]+",  
+        r"\bFirst\b", # Removes "First"
         r"Page\s*\d+\s*of\s*\d+",
-        r"Course\s*Code\s*[:\-]?",   # Remove the label "Course Code"
-        r"Paper\s*Details\s*[:\-]?", # Remove the label "Paper Details"
-        r"Name\s*of\s*Course\s*[:\-]?"
+        r"Course\s*Code\s*[:\-]?",   
+        r"Paper\s*Details\s*[:\-]?", 
+        r"Name\s*of\s*Course\s*[:\-]?",
+        r"\bCourse\b" # Removes the word "Course"
     ]
     
     for pattern in patterns_to_remove:
-        # We replace with a single space to prevent words from gluing together
         text = re.sub(pattern, ' ', text, flags=re.IGNORECASE)
 
     # 3. Clean up the start
-    # If the text was "Course Code: CSC101", we removed "Course Code:", leaving " CSC101"
     text = text.strip()
     text = re.sub(r'^[\s\-\)\]\.:,]+', '', text).strip()
 
     # 4. Stop at Metadata (The end of the course name)
-    # We use split here only to chop off the footer/metadata that follows the name.
-    # We take the FIRST part ([0]) because the name comes BEFORE the date/reg no.
+    # Added 'Slot' here so it cuts off "Slot Single Major..."
     stop_markers = [
-        r"Exam\s*Date",
-        r"Date\s*of",
+        r"Slot",  # <--- This cuts off the suffix you don't want
         r"Session",
+        r"Exam\s*Date",
+        r"Date\s*of\s*Exam",
         r"Time\s*:",
         r"\d{2}[./-]\d{2}[./-]\d{4}", # Date pattern
         r"Register\s*No",
