@@ -1097,56 +1097,89 @@
         </div>
     </div>
 
-    <div id="student-search-result-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-    <div class="relative top-10 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+
+<div id="student-search-result-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
         <div class="mt-3">
-            <h3 class="text-lg leading-6 font-medium text-gray-900" id="search-result-name">Student Name</h3>
-            <p class="text-sm text-gray-500" id="search-result-regno">Register Number</p>
+            <h3 class="text-lg leading-6 font-bold text-gray-900 border-b pb-2 mb-4" id="search-result-name">Student Name</h3>
             
-            <div class="mt-4 space-y-3">
-                <div class="detail-item">
-                    <span class="detail-label">Course:</span>
-                    <span class="detail-value" id="search-result-course"></span>
+            <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
+                <div>
+                    <span class="text-gray-500 block">Register Number:</span>
+                    <span class="font-mono font-bold text-gray-800" id="search-result-regno"></span>
                 </div>
-                <div class="detail-item">
-                    <span class="detail-label">QP Code:</span>
-                    <span class="detail-value" id="search-result-qpcode"></span>
+                <div>
+                    <span class="text-gray-500 block">Stream:</span>
+                    <span class="font-bold text-indigo-600" id="search-result-stream"></span>
                 </div>
-                <hr>
-                <div class="detail-item">
-                    <span class="detail-label">Regular Room:</span>
-                    <span class="detail-value" id="search-result-room"></span>
-                </div>
-                <div class="detail-item" id="search-result-room-location-block">
-                    <span class="detail-label">Room Location:</span>
-                    <span class="detail-value" id="search-result-room-location"></span>
-                </div>
-                <div class="detail-item">
-                    <span class="detail-label">Seat Number:</span>
-                    <span class="detail-value" id="search-result-seat"></span>
-                </div>
+            </div>
 
-                <div class="hidden" id="search-result-scribe-block">
-                    <hr>
-                    <div class="detail-item">
-                        <span class="detail-label">Scribe Room:</span>
-                        <span class="detail-value" id="search-result-scribe-room"></span>
+            <div id="search-result-single-view">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Current Session Details</h4>
+                <div class="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div class="detail-item grid grid-cols-3">
+                        <span class="text-sm text-gray-500">Course:</span>
+                        <span class="col-span-2 text-sm font-medium text-gray-800" id="search-result-course"></span>
                     </div>
-                    <div class="detail-item" id="search-result-scribe-location-block">
-                        <span class="detail-label">Scribe Room Location:</span>
-                        <span class="detail-value" id="search-result-scribe-room-location"></span>
+                    <div class="detail-item grid grid-cols-3">
+                        <span class="text-sm text-gray-500">QP Code:</span>
+                        <span class="col-span-2 text-sm font-medium text-gray-800" id="search-result-qpcode"></span>
                     </div>
-                </div>
-                </div>
+                    <hr class="border-gray-200">
+                    <div class="detail-item grid grid-cols-3">
+                        <span class="text-sm text-gray-500">Room:</span>
+                        <span class="col-span-2 text-sm font-bold text-blue-700" id="search-result-room"></span>
+                    </div>
+                    <div class="detail-item grid grid-cols-3" id="search-result-room-location-block">
+                        <span class="text-sm text-gray-500">Location:</span>
+                        <span class="col-span-2 text-sm text-gray-700" id="search-result-room-location"></span>
+                    </div>
+                    <div class="detail-item grid grid-cols-3">
+                        <span class="text-sm text-gray-500">Seat No:</span>
+                        <span class="col-span-2 text-sm font-bold text-gray-800" id="search-result-seat"></span>
+                    </div>
 
-            <div class="mt-6">
-                <button id="modal-close-search-result" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50">
+                    <div class="hidden space-y-2 pt-2 border-t border-orange-200 mt-2" id="search-result-scribe-block">
+                        <div class="detail-item grid grid-cols-3">
+                            <span class="text-sm text-orange-600 font-bold">Scribe Room:</span>
+                            <span class="col-span-2 text-sm font-bold text-orange-800" id="search-result-scribe-room"></span>
+                        </div>
+                        <div class="detail-item grid grid-cols-3" id="search-result-scribe-location-block">
+                            <span class="text-sm text-orange-600">Location:</span>
+                            <span class="col-span-2 text-sm text-orange-800" id="search-result-scribe-room-location"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="search-result-global-view" class="hidden">
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Exam History</h4>
+                <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Course</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="global-search-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-6 text-right">
+                <button id="modal-close-search-result" class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Close
                 </button>
             </div>
         </div>
     </div>
 </div>
+
+        
 
     <div id="report-controls" class="container max-w-2xl mx-auto p-4 bg-gray-100 rounded-lg hidden">
     <span id="report-status" class="text-sm font-medium text-gray-700"></span>
