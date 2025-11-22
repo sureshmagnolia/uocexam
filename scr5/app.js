@@ -8009,7 +8009,7 @@ window.real_disable_all_report_buttons = function(disabled) {
         }
     });
 
-    // 2. Autocomplete for search input (DEBOUNCED)
+// 2. Autocomplete for search input (DEBOUNCED)
     studentSearchInput.addEventListener('input', () => {
         clearTimeout(debounceTimer);
 
@@ -8022,26 +8022,30 @@ window.real_disable_all_report_buttons = function(disabled) {
 
             let sourceArray = [];
             if (searchModeGlobalRadio.checked) {
-                // In Global Mode, search the Unique Student List (prepared earlier)
+                // Global Mode
                 if (allUniqueStudentsForScribeSearch.length === 0) updateUniqueStudentList();
                 sourceArray = allUniqueStudentsForScribeSearch;
             } else {
-                // In Session Mode, search only current session
+                // Session Mode
                 sourceArray = searchSessionStudents;
             }
 
             // Filter
             const matches = sourceArray.filter(s => {
-                 const r = s['Register Number'] || s.regNo; // Handle both formats
+                 const r = s['Register Number'] || s.regNo;
                  const n = s.Name || s.name;
-                 return r.toUpperCase().includes(query) || n.toUpperCase().includes(query);
-            }).slice(0, 15); // Limit results
+                 return (r && r.toUpperCase().includes(query)) || (n && n.toUpperCase().includes(query));
+            }).slice(0, 15); 
 
             if (matches.length > 0) {
                 studentSearchAutocomplete.innerHTML = ''; 
                 matches.forEach(student => {
                     const regNo = student['Register Number'] || student.regNo;
                     const name = student.Name || student.name;
+                    
+                    // *** FIX: DEFINE STREAM HERE ***
+                    const strm = student.Stream || student.stream || "Regular"; 
+                    // *******************************
 
                     const item = document.createElement('div');
                     item.className = 'autocomplete-item';
