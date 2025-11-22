@@ -6211,8 +6211,6 @@ scribeSearchInput.addEventListener('input', () => {
 
 // Select a student from autocomplete
 let selectedScribeStudent = null;
-// Select a student from autocomplete
-let selectedScribeStudent = null;
 function selectScribeStudent(student) {
     selectedScribeStudent = student;
     scribeSearchInput.value = student['Register Number'];
