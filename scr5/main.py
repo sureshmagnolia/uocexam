@@ -40,40 +40,59 @@ def find_time_in_text(text):
 
 def find_course_name(text):
     """
-    Scans text for Course Name patterns with high robustness.
+    Scans text for Course Name patterns, prioritizing the removal of headers.
     """
-    # 1. Normalize whitespace to make regex easier
+    # 1. Normalize whitespace
     clean_page = re.sub(r'\s+', ' ', text.replace('\n', ' ')).strip()
     
-    # 2. Stop Markers: Keywords that signal the start of metadata (End of Title)
+    # Stop Markers (End of title)
     stop_markers = r'(?=\s*(?:Exam\s*Date|Date\s*of|Slot|Session|Time|Register|Reg\.|Reg\s*No|Page|Maximum|Marks|$))'
 
-    # --- STRATEGY 1: "Syllabus" Suffix (The most reliable UOC pattern) ---
-    # Matches: "BHAG I [Hindi 2025 syllabus]" OR "ENG1A01 - Title [English 2024 syllabus]"
-    # Logic: Find a block of text ending in [ ... Syllabus ]. 
-    # We limit the capture to ~150 chars to avoid grabbing the whole page header.
-    syllabus_match = re.search(r'((?:[A-Z0-9][^\[\]]{0,150})?\[[^\]]*?Syllabus\])' + stop_markers, clean_page, re.IGNORECASE)
-    if syllabus_match:
-        candidate = clean_text(syllabus_match.group(1))
-        # Validation: Must be substantial (>5 chars) and not just a closing bracket
-        if len(candidate) > 5:
-            return candidate
-
-    # --- STRATEGY 2: Explicit Labels ---
-    # Matches: "Course: ENG1A01..." or "Paper Details: ..."
-    label_match = re.search(r'(?:Paper\s*Details|Course(?:\s*Name)?|Name\s*of\s*Paper|Paper)\s*[:\-]?\s*(.*?)' + stop_markers, clean_page, re.IGNORECASE)
-    if label_match:
-        candidate = clean_text(label_match.group(1))
-        if len(candidate) > 3:
-            return candidate
-
-    # --- STRATEGY 3: Standard Course Code Start ---
-    # Matches: "ENG1A02 Functional English..." (No bracket or label)
-    # Pattern: 3+ Letters, Digit, Letter, Digits (e.g. ENG1A01)
-    code_match = re.search(r'([A-Z]{3,}\d[A-Z]\d{2,}.*?)' + stop_markers, clean_page)
+    # --- STRATEGY 1: Code-First (Most Reliable) ---
+    # Look for the UOC Code Pattern: 3 Letters + 1 Digit + 2 Letters + Digits... 
+    # Examples: ENG1CJ101, HIN1FA102(1), CHE1MN102
+    # We grab the code AND everything after it until the syllabus tag or stop marker.
+    
+    code_pattern = r'\b([A-Z]{3}\d[A-Z]{2}\d+[^\[]*?\[[^\]]*?Syllabus\])'
+    
+    # Try to find the code pattern
+    code_match = re.search(code_pattern, clean_page, re.IGNORECASE)
     if code_match:
         return clean_text(code_match.group(1))
+
+    # Fallback Code Search (If syllabus tag is missing or malformed)
+    code_match_simple = re.search(r'\b([A-Z]{3}\d[A-Z]{2}\d+.*?)' + stop_markers, clean_page, re.IGNORECASE)
+    if code_match_simple:
+        candidate = clean_text(code_match_simple.group(1))
+        # Basic validation to ensure it's not just a random string
+        if len(candidate) > 6: 
+            return candidate
+
+    # --- STRATEGY 2: Syllabus Anchor (No Code) ---
+    # If we can't find a code, we look for the [... Syllabus] tag and work backwards.
+    # We aggressively strip known "Header Garbage".
+    
+    syllabus_match = re.search(r'(.*?)(\[[^\]]*?Syllabus\])', clean_page, re.IGNORECASE)
+    if syllabus_match:
+        full_text = syllabus_match.group(0) # The whole match ending in syllabus
         
+        # List of garbage prefixes to strip
+        garbage_patterns = [
+            r'.*?College\s*:\s*.*?,?\s*PALAKKAD\s*', # Removes "College : ... PALAKKAD"
+            r'.*?Nominal\s*Roll\s*',
+            r'.*?Examination\s*.*?20\d{2}\s*',       # Removes "Examination November 2025"
+            r'.*?Semester\s*FYUG\s*',
+            r'.*?Course\s*[:-]?\s*',                 # Removes "Course" label
+            r'.*?Paper\s*Details\s*[:-]?\s*'
+        ]
+        
+        cleaned_candidate = full_text
+        for pattern in garbage_patterns:
+            # Remove the garbage if found
+            cleaned_candidate = re.sub(pattern, '', cleaned_candidate, flags=re.IGNORECASE)
+            
+        return clean_text(cleaned_candidate)
+
     return "Unknown"
 
 def detect_columns(header_row):
@@ -115,12 +134,10 @@ async def process_file(file):
 
             # 2. Iterate Pages
             for page in pdf.pages:
-                # Try Grid lines first (New UOC Format)
                 tables = page.extract_tables({
                     "vertical_strategy": "lines", 
                     "horizontal_strategy": "lines"
                 })
-                # Fallback to Text whitespace (Old UOC Format)
                 if not tables:
                     tables = page.extract_tables({
                         "vertical_strategy": "text", 
@@ -140,14 +157,12 @@ async def process_file(file):
                             reg_idx, name_idx = r_idx, n_idx
                             break
                     
-                    # B. Fallback Detection (If no headers found)
+                    # B. Fallback Detection
                     if reg_idx == -1: 
                         sample_row = table[0] if table else []
                         if len(sample_row) >= 5:
-                            # Look for RegNo pattern in likely columns
                             for i, row in enumerate(table):
                                 clean = [str(c).strip() if c else "" for c in row]
-                                # Pattern: VPA... or similar
                                 if len(clean) > 1 and re.search(r'[A-Z]+\d+', clean[1]):
                                     reg_idx = 1; name_idx = 2; break
                                 if len(clean) > 4 and re.search(r'[A-Z]+\d+', clean[4]):
@@ -157,9 +172,8 @@ async def process_file(file):
                     if reg_idx != -1 and name_idx != -1:
                         for row in table:
                             clean_row = [str(cell).strip() if cell else "" for cell in row]
-                            
-                            # Safety: skip empty or header-like rows inside data
                             if len(clean_row) <= max(reg_idx, name_idx): continue
+
                             row_str = " ".join(clean_row).lower()
                             if "register" in row_str or "name" in row_str or "reg.no" in row_str:
                                 continue
@@ -167,7 +181,6 @@ async def process_file(file):
                             val_reg = clean_text(clean_row[reg_idx])
                             val_name = clean_text(clean_row[name_idx])
 
-                            # Final Data Validation
                             if len(val_reg) < 3: continue
                             if len(val_name) < 2: continue
 
