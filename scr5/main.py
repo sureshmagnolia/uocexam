@@ -22,6 +22,7 @@ def clean_text(text):
 
 def find_date_in_text(text):
     """Scans text for Date patterns (DD.MM.YYYY or DD-MM-YYYY)"""
+    # The date is explicitly provided in the Exam Date field in this file type [cite: 3]
     match = re.search(r'(\d{2}[./-]\d{2}[./-]\d{4})', text)
     if match:
         return match.group(1).replace('-', '.').replace('/', '.')
@@ -29,6 +30,7 @@ def find_date_in_text(text):
 
 def find_time_in_text(text):
     """Scans text for Time patterns (09:30 AM, 2.00 PM)"""
+    # The time is explicitly provided in the Exam Date field in this file type [cite: 3]
     text = text.upper().replace('.', ':')
     match = re.search(r'(\d{1,2}:\d{2})\s*(AM|PM)', text)
     if match:
@@ -40,22 +42,42 @@ def find_time_in_text(text):
 def find_course_name(text):
     """
     Scans text for Course Name.
-    FIX 5 (Universal College Fix): 
-    - Uses regex lookahead to remove ANY College name until the Course Code starts.
-    - Handles line breaks, University headers, and Slot suffix.
+    FIX 7 (PG Paper Details): 
+    - Specific logic to extract text following "Paper Details:" and clean the trailing year/parentheses.
     """
     # 1. Flatten the text immediately (Fixes line breaks)
     text = str(text).replace('\n', ' ')
     text = re.sub(r'\s+', ' ', text).strip()
     
-    # 2. Define patterns to DELETE (Replace with empty space)
+    # 2. Extract using a strong anchor (Paper Details: or Course)
+    # This targets the format: Paper Details: COURSE NAME (CODE)/YEAR
+    
+    # Try to find 'Paper Details' and everything after it
+    match = re.search(r"Paper\s*Details\s*[:\-](.*?)(?=\s*(?:Exam\s*Date|Date\s*of|Reg\.|Reg\s*No|Page|$))", text, flags=re.IGNORECASE)
+    
+    if match:
+        candidate = match.group(1).strip()
+        # Clean up the common suffixes: /YYYY, --(CODE), unnecessary spaces
+        candidate = re.sub(r'[\s\-\(\[]*--[\s\-\)]*', ' ', candidate, flags=re.IGNORECASE).strip()
+        candidate = re.sub(r'(\/[A-Z\d]{4})$', '', candidate).strip() # Removes /2020
+        candidate = re.sub(r'(\/[A-Z\d]{4})$', '', candidate).strip() # Removes /2020 again if duplicated
+
+        # Clean excess punctuation/spaces at ends
+        candidate = re.sub(r'[\s\-\)\]\.:,]+$', '', candidate).strip()
+        candidate = re.sub(r'^\s*[\s\-\)\]\.:,]+', '', candidate).strip()
+
+        if len(candidate) > 3:
+            return candidate
+
+    # 3. Fallback to generic cleaning (for non-Paper Details format)
+    
     patterns_to_remove = [
         r".*?University\s*of\s*Calicut", 
         
         # --- UNIVERSAL COLLEGE REMOVER ---
-        # Matches "College :" followed by anything, 
-        # but STOPS before a Course Code (e.g., BOT1..., CSC1..., MAL1...)
         r"College\s*[:\-].*?(?=\s*[A-Z]{2,}\d)", 
+        
+        r"\b(First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth|Tenth|Eleventh|Twelfth)\b\s*?(?=\s*[A-Z]{2,}\d)",
         
         r"Nominal\s*Roll",
         r"Examination\s*[\w\s]*?\d{4}",
@@ -69,14 +91,13 @@ def find_course_name(text):
     ]
     
     for pattern in patterns_to_remove:
-        # We replace with a single space to safely separate words
         text = re.sub(pattern, ' ', text, flags=re.IGNORECASE)
 
-    # 3. Clean up the start
+    # 4. Clean up the start
     text = text.strip()
     text = re.sub(r'^[\s\-\)\]\.:,]+', '', text).strip()
 
-    # 4. Stop at Metadata (The end of the course name)
+    # 5. Stop at Metadata (The end of the course name)
     stop_markers = [
         r"Slot",  # Cuts off "Slot Single Major"
         r"Session",
@@ -94,7 +115,7 @@ def find_course_name(text):
         if len(parts) > 0:
             text = parts[0].strip()
 
-    # 5. Final Cleanup
+    # 6. Final Cleanup (If step 2 failed)
     return text if len(text) > 3 else "Unknown"
 
 def detect_columns(header_row):
