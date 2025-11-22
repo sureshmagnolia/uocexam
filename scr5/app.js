@@ -290,89 +290,138 @@ async function createNewCollege(user) {
 
 // DOWNLOAD
 
-// 5. CLOUD DOWNLOAD FUNCTION (Fixed Status Update)
-function syncDataFromCloud(collegeId) {
-    updateSyncStatus("Connecting...", "neutral");
-    const { db, doc, onSnapshot, collection, getDocs, query, orderBy } = window.firebase;
+// 4. CLOUD UPLOAD FUNCTION (Universal Smart Merge)
+async function syncDataToCloud() {
+    if (!currentUser || !currentCollegeId) return;
+    if (isSyncing) return;
     
-    // Listener 1: Main Settings (Real-time)
-    const mainRef = doc(db, "colleges", collegeId);
+    isSyncing = true;
+    updateSyncStatus("Saving...", "neutral");
+
+    const { db, doc, writeBatch, getDoc } = window.firebase; 
     
-    const unsubMain = onSnapshot(mainRef, async (docSnap) => {
-        if (docSnap.exists()) {
-            const mainData = docSnap.data();
-            currentCollegeData = mainData; 
+    try {
+        const batch = writeBatch(db);
+        const mainRef = doc(db, "colleges", currentCollegeId);
 
-            // Check Admin Permissions
-            if (currentCollegeData.admins && currentUser && currentCollegeData.admins.includes(currentUser.email)) {
-                if(adminBtn) adminBtn.classList.remove('hidden');
-            } else {
-                if(adminBtn) adminBtn.classList.add('hidden');
-            }
-
-            // === LOOP PREVENTION CHECK ===
-            const localTime = localStorage.getItem('lastUpdated');
-            if (localTime && mainData.lastUpdated && localTime === mainData.lastUpdated) {
-                // Data is up to date!
-                console.log("☁️ Data is up to date.");
-                updateSyncStatus("Synced", "success"); // <--- THIS WAS MISSING!
-                return; 
-            }
-            // ==============================
-
-            console.log("☁️ New cloud data detected. Downloading...");
-            
-            // 1. Save Main Keys
-            // *** FIX: Added 'examStreamsConfig' here too ***
-            ['examRoomConfig', 'examStreamsConfig', 'examCollegeName', 'examQPCodes', 'examScribeList', 'examScribeAllotment', 'examAbsenteeList', 'lastUpdated'].forEach(key => {
-                if (mainData[key]) localStorage.setItem(key, mainData[key]);
-            });
-
-            // 2. FETCH CHUNKS (Download and Stitch)
-            try {
-                const dataColRef = collection(db, "colleges", collegeId, "data");
-                // Get all chunks sorted by index
-                const q = query(dataColRef, orderBy("index")); 
-                const querySnapshot = await getDocs(q);
-                
-                let fullPayload = "";
-                querySnapshot.forEach((doc) => {
-                    if (doc.id.startsWith("chunk_")) {
-                        fullPayload += doc.data().payload;
-                    }
-                });
-
-                if (fullPayload) {
-                    const bulkData = JSON.parse(fullPayload);
-                    console.log("☁️ Bulk data stitched and parsed.");
-                    ['examBaseData', 'examRoomAllotment'].forEach(key => {
-                        if (bulkData[key]) localStorage.setItem(key, bulkData[key]);
-                    });
-                }
-            } catch (err) {
-                console.error("Bulk fetch error:", err);
-            }
-
-            // 3. Refresh UI
-            updateSyncStatus("Synced", "success");
-            console.log("Refreshing UI...");
-            loadInitialData();
-            // Refresh Allotment View if open
-            if (!viewRoomAllotment.classList.contains('hidden') && allotmentSessionSelect.value) {
-                 allotmentSessionSelect.dispatchEvent(new Event('change'));
-            }
-
-        } else {
-            updateSyncStatus("No Data", "neutral");
-            // If no data exists in cloud, load local data
-            loadInitialData();
+        // --- STEP 1: Fetch Current Cloud State ---
+        // We fetch the cloud state to compare against local defaults
+        const cloudSnap = await getDoc(mainRef);
+        let cloudData = {};
+        
+        if (cloudSnap.exists()) {
+            cloudData = cloudSnap.data();
         }
-    }, (error) => {
-        console.error("Sync Error:", error);
-        updateSyncStatus("Net Error", "error");
-        // Even on error, load local data so the app works offline
-        loadInitialData();
-    });
+
+        // --- STEP 2: Smart Merge Helpers ---
+        
+        // Helper: Returns true if 'val' appears to be "Default" or "Empty"
+        const isEmptyOrDefault = (key, val) => {
+            if (!val) return true;
+            if (key === 'examCollegeName') return val === "University of Calicut";
+            if (key === 'examStreamsConfig') return val.includes('["Regular"]');
+            // Room Config heuristic: Default is ~30 rooms (~1.5KB). Custom is usually larger or specific.
+            if (key === 'examRoomConfig') return val.length < 2000 && val.includes("Room 30"); 
+            if (key === 'examScribeList') return val === '[]';
+            if (key === 'examQPCodes') return val === '{}';
+            if (key === 'examAbsenteeList') return val === '{}';
+            // Treat empty allotment objects as empty
+            if (key === 'examRoomAllotment' || key === 'examScribeAllotment') return val === '{}' || val.length < 5; 
+            return false;
+        };
+
+        // Helper: Pick the "Robuster" value (Cloud vs Local)
+        const pickRobusterValue = (key, localVal, cloudVal) => {
+            // 1. If no local value, take cloud
+            if (!localVal) return cloudVal || null;
+            // 2. If no cloud value, take local
+            if (!cloudVal) return localVal;
+            
+            // 3. If Local is "Empty/Default" AND Cloud is "Robust", KEEP CLOUD
+            if (isEmptyOrDefault(key, localVal) && !isEmptyOrDefault(key, cloudVal)) {
+                console.log(`🛡️ Preserving Cloud Value for [${key}]`);
+                // CRITICAL: Update LocalStorage immediately so the UI reflects the preserved data
+                localStorage.setItem(key, cloudVal);
+                return cloudVal;
+            }
+            
+            // 4. Otherwise (Local is custom/new), Use Local
+            return localVal;
+        };
+
+        // --- STEP 3: Prepare Main Data ---
+        
+        const timestamp = new Date().toISOString();
+        localStorage.setItem('lastUpdated', timestamp); // Mark local as latest
+
+        // List of all keys stored in the Main Document
+        const settingsKeys = [
+            'examCollegeName', 
+            'examStreamsConfig', 
+            'examRoomConfig', 
+            'examQPCodes', 
+            'examScribeList', 
+            'examScribeAllotment', 
+            'examAbsenteeList'
+        ];
+
+        const finalMainData = { lastUpdated: timestamp };
+
+        // Merge each key using the smart helper
+        settingsKeys.forEach(key => {
+            const localVal = localStorage.getItem(key);
+            const cloudVal = cloudData[key];
+            const bestVal = pickRobusterValue(key, localVal, cloudVal);
+            if (bestVal) finalMainData[key] = bestVal;
+        });
+
+        // --- STEP 4: Prepare Bulk Data (Students) ---
+        // Note: 'examBaseData' (Students) is always taken from Local on save, 
+        // because you likely just loaded a new file.
+        const localBaseData = localStorage.getItem('examBaseData');
+        let localAllotment = localStorage.getItem('examRoomAllotment');
+        
+        const bulkDataObj = {};
+        if (localBaseData) bulkDataObj['examBaseData'] = localBaseData;
+        
+        // Only upload allotment if it exists locally. 
+        // (Note: If you uploaded new students, you usually want a fresh allotment anyway).
+        if (localAllotment && localAllotment !== '{}') {
+            bulkDataObj['examRoomAllotment'] = localAllotment;
+        }
+        
+        // Convert large data to string and chunk it
+        const bulkString = JSON.stringify(bulkDataObj);
+        const chunks = chunkString(bulkString, 800000); 
+
+        // --- STEP 5: Commit to Firebase ---
+        
+        batch.update(mainRef, finalMainData);
+
+        chunks.forEach((chunkStr, index) => {
+            const chunkRef = doc(db, "colleges", currentCollegeId, "data", `chunk_${index}`);
+            batch.set(chunkRef, { payload: chunkStr, index: index, totalChunks: chunks.length });
+        });
+        
+        await batch.commit();
+        
+        console.log(`Data synced! Preserved robust cloud settings.`);
+        updateSyncStatus("Saved", "success");
+        
+        // Refresh UI in case we pulled down preserved cloud settings
+        loadInitialData(); 
+
+    } catch (e) {
+        console.error("Sync Up Error:", e);
+        if (e.code === 'not-found') {
+             try {
+                 await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId), { lastUpdated: new Date().toISOString() });
+             } catch (retryErr) {}
+        }
+        updateSyncStatus("Save Fail", "error");
+    } finally {
+        isSyncing = false;
+    }
 }
 
 // 4. CLOUD UPLOAD FUNCTION (Chunked Strategy)
