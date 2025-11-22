@@ -363,6 +363,7 @@ async function syncDataToCloud() {
             'examScribeList', 
             'examScribeAllotment', 
             'examAbsenteeList'
+            'examSessionNames' // <--- ADD THIS NEW KEY
         ];
 
         const finalMainData = { lastUpdated: timestamp };
@@ -831,6 +832,128 @@ if (toggleButton && sidebar) {
     });
 }
 // --- END: Sidebar Toggle Logic ---
+
+// [In app.js - Add with other Globals]
+const EXAM_NAMES_KEY = 'examSessionNames';
+let currentExamNames = {}; // Stores { "Date|Time|Stream": "Exam Name" }
+
+// Helper to get Exam Name for a specific session/stream
+function getExamName(date, time, stream) {
+    const key = `${date}|${time}|${stream}`;
+    return currentExamNames[key] || "";
+}
+
+// Helper to render the settings grid in Home Tab
+function renderExamNameSettings() {
+    const container = document.getElementById('exam-names-grid');
+    const section = document.getElementById('exam-names-section');
+    if (!container || !section) return;
+
+    if (!allStudentData || allStudentData.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    section.classList.remove('hidden');
+    container.innerHTML = '';
+
+    // 1. Find Unique Combinations
+    const combos = new Set();
+    allStudentData.forEach(s => {
+        const strm = s.Stream || "Regular";
+        combos.add(`${s.Date}|${s.Time}|${strm}`);
+    });
+
+    // 2. Sort Chronologically
+    const sortedCombos = Array.from(combos).sort((a, b) => {
+        const [d1, t1, s1] = a.split('|');
+        const [d2, t2, s2] = b.split('|');
+        
+        // Date Sort
+        const dateA = d1.split('.').reverse().join('');
+        const dateB = d2.split('.').reverse().join('');
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        
+        // Time Sort
+        if (t1 !== t2) return t1.localeCompare(t2);
+        
+        // Stream Sort
+        return s1.localeCompare(s2);
+    });
+
+    // 3. Load Saved Names
+    currentExamNames = JSON.parse(localStorage.getItem(EXAM_NAMES_KEY) || '{}');
+
+    // 4. Generate UI
+    sortedCombos.forEach(key => {
+        const [date, time, stream] = key.split('|');
+        const savedName = currentExamNames[key] || "";
+        
+        // Determine Session (FN/AN)
+        const isPM = time.toUpperCase().includes("PM") && !time.startsWith("12"); // Simple heuristic
+        const sessionLabel = isPM ? "AN" : "FN";
+
+        const card = document.createElement('div');
+        card.className = "bg-white p-3 rounded-lg border border-gray-200 shadow-sm";
+        
+        const isLocked = savedName.length > 0;
+        const inputClass = isLocked ? "bg-gray-50 text-gray-500" : "bg-white border-gray-300 text-gray-900";
+        const btnText = isLocked ? "Edit" : "Save";
+        const btnClass = isLocked ? "text-blue-600 hover:text-blue-800" : "text-green-600 hover:text-green-800";
+
+        card.innerHTML = `
+            <div class="text-xs font-bold text-gray-500 uppercase mb-1 flex justify-between">
+                <span>${date} (${sessionLabel})</span>
+                <span class="bg-gray-100 px-1 rounded">${stream}</span>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" 
+                       class="exam-name-input block w-full p-1 border rounded text-sm ${inputClass}" 
+                       value="${savedName}" 
+                       placeholder="Exam Name (e.g. S1)" 
+                       maxlength="15" 
+                       ${isLocked ? 'disabled' : ''}
+                       data-key="${key}">
+                <button class="text-xs font-bold ${btnClass} w-10 shrink-0 action-btn">
+                    ${btnText}
+                </button>
+            </div>
+        `;
+
+        // Event Listener for Save/Edit
+        const input = card.querySelector('input');
+        const btn = card.querySelector('button');
+
+        btn.onclick = () => {
+            if (input.disabled) {
+                // Unlock (Edit Mode)
+                input.disabled = false;
+                input.classList.remove('bg-gray-50', 'text-gray-500');
+                input.classList.add('bg-white', 'border-gray-300', 'text-gray-900');
+                input.focus();
+                btn.textContent = "Save";
+                btn.className = "text-xs font-bold text-green-600 hover:text-green-800 w-10 shrink-0";
+            } else {
+                // Save Mode
+                const val = input.value.trim();
+                currentExamNames[key] = val;
+                localStorage.setItem(EXAM_NAMES_KEY, JSON.stringify(currentExamNames));
+                
+                // Lock UI
+                input.disabled = true;
+                input.classList.add('bg-gray-50', 'text-gray-500');
+                input.classList.remove('bg-white', 'border-gray-300', 'text-gray-900');
+                btn.textContent = "Edit";
+                btn.className = "text-xs font-bold text-blue-600 hover:text-blue-800 w-10 shrink-0";
+                
+                if (typeof syncDataToCloud === 'function') syncDataToCloud();
+            }
+        };
+
+        container.appendChild(card);
+    });
+}
+    
 // *** NEW: Universal Base64 key generator ***
 function getBase64CourseKey(courseName) {
     try {
@@ -1681,6 +1804,10 @@ generateReportButton.addEventListener('click', async () => {
             const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
             const pageStream = session.students.length > 0 ? (session.students[0].Stream || "Regular") : "Regular";
 
+            // --- NEW: Get Exam Name ---
+            const examName = getExamName(session.Date, session.Time, pageStream);
+            const examNameHtml = examName ? `<h2 style="font-size:14pt; font-weight:bold; margin:2px 0;">${examName}</h2>` : "";
+
             // --- 1. Footer Content ---
             let courseSummaryRows = '';
             const uniqueQPCodesInRoom = new Set();
@@ -1688,7 +1815,6 @@ generateReportButton.addEventListener('click', async () => {
             for (const [comboKey, count] of Object.entries(session.courseCounts)) {
                 const [cName, cStream] = comboKey.split('|');
                 
-                // *** USE NEW KEY HELPER ***
                 const courseKey = getQpKey(cName, cStream); 
                 const qpCode = sessionQPCodes[courseKey];
                 const qpDisplay = qpCode || "N/A";
@@ -1697,8 +1823,6 @@ generateReportButton.addEventListener('click', async () => {
                 else uniqueQPCodesInRoom.add(cName.substring(0, 10)); 
                 
                 const smartName = getSmartCourseName(cName);
-                // Optional: Add stream tag if mixed? 
-                // const streamTag = (cStream !== pageStream) ? ` (${cStream})` : "";
 
                 courseSummaryRows += `
                     <tr>
@@ -1780,7 +1904,6 @@ generateReportButton.addEventListener('click', async () => {
                     if (regLen > 12) regFontSize = "10pt";
                     else if (regLen > 10) regFontSize = "11pt";
 
-                    // *** USE NEW KEY HELPER HERE TOO ***
                     const courseKey = getQpKey(student.Course, student.Stream);
                     const qpCode = sessionQPCodes[courseKey] || "";
                     const qpCodePrefix = qpCode ? `(${qpCode}) ` : ""; 
@@ -1809,7 +1932,6 @@ generateReportButton.addEventListener('click', async () => {
                 return rowsHtml;
             }
 
-            // Helper for bold QP in course cell
             function displayCourseCell(qp, fullCourse, isDitto) {
                 if (isDitto) {
                    return `<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight:bold; margin-right:6px;">${qp}</span> "</div>`;
@@ -1818,7 +1940,6 @@ generateReportButton.addEventListener('click', async () => {
                 return `<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-weight:bold; margin-right:6px;">${qp}</span> <span style="font-size:0.85em;">${smart}</span></div>`;
             }
             
-            // Render Pages
             const studentsPage1 = session.students.sort((a, b) => a.seatNumber - b.seatNumber).slice(0, 20);
             const studentsPage2 = session.students.slice(20); 
 
@@ -1833,6 +1954,7 @@ generateReportButton.addEventListener('click', async () => {
                                 Page ${pageNum}
                             </div>
                             <h1>${currentCollegeName}</h1> 
+                            ${examNameHtml}
                             <h2>${serialNo} &nbsp;|&nbsp; ${session.Date} &nbsp;|&nbsp; ${session.Time}</h2>
                             ${locationHtml} 
                         </div>`;
@@ -1861,7 +1983,6 @@ generateReportButton.addEventListener('click', async () => {
                     </thead>
                     <tbody>`;
 
-            // Page 1
             previousCourseName = ""; previousRegNoPrefix = ""; 
             const tableRowsPage1 = generateTableRows(studentsPage1);
             allPagesHtml += `
@@ -1876,7 +1997,6 @@ generateReportButton.addEventListener('click', async () => {
             `;
             totalPagesGenerated++;
 
-            // Page 2
             previousCourseName = ""; previousRegNoPrefix = ""; 
             const tableRowsPage2 = generateTableRows(studentsPage2);
             let page2TableContent = studentsPage2.length > 0 ? `${tableHeader}${tableRowsPage2}</tbody></table>` : `<div style="padding: 10px; text-align: center; font-style: italic; border-bottom: 1px solid #ccc;">(End of Student List)</div>`;
@@ -2078,56 +2198,62 @@ generateDaywiseReportButton.addEventListener('click', async () => {
             const sortedSessionKeys = Object.keys(daySessions).sort();
 
             sortedSessionKeys.forEach(key => {
-                const session = daySessions[key];
+            const session = daySessions[key];
+            
+            // --- NEW: Get Exam Name ---
+            // We assume the stream is consistent for this batch (streamName variable from outer loop)
+            const examName = getExamName(session.Date, session.Time, streamName);
+            const examNameHtml = examName ? `<h2 style="font-size:13pt; font-weight:bold; margin:2px 0; text-transform:uppercase;">${examName}</h2>` : "";
+
+            session.students.sort((a, b) => {
+                if (a.Course !== b.Course) return a.Course.localeCompare(b.Course);
+                return a['Register Number'].localeCompare(b['Register Number']);
+            });
+            
+            for (let i = 0; i < session.students.length; i += STUDENTS_PER_PAGE) {
+                const pageStudents = session.students.slice(i, i + STUDENTS_PER_PAGE);
+                totalPagesGenerated++;
                 
-                session.students.sort((a, b) => {
-                    if (a.Course !== b.Course) return a.Course.localeCompare(b.Course);
-                    return a['Register Number'].localeCompare(b['Register Number']);
-                });
+                const col1Students = pageStudents.slice(0, STUDENTS_PER_COLUMN);
+                const col2Students = pageStudents.slice(STUDENTS_PER_COLUMN); 
                 
-                for (let i = 0; i < session.students.length; i += STUDENTS_PER_PAGE) {
-                    const pageStudents = session.students.slice(i, i + STUDENTS_PER_PAGE);
-                    totalPagesGenerated++;
-                    
-                    const col1Students = pageStudents.slice(0, STUDENTS_PER_COLUMN);
-                    const col2Students = pageStudents.slice(STUDENTS_PER_COLUMN); 
-                    
-                    let columnHtml = '';
-                    if (col2Students.length === 0) {
-                        columnHtml = `<div class="column" style="width:100%">${buildColumnTable(col1Students)}</div>`;
-                    } else {
-                        columnHtml = `
-                            <div class="column-container" style="display:flex; gap:15px;">
-                                <div class="column" style="flex:1">${buildColumnTable(col1Students)}</div>
-                                <div class="column" style="flex:1">${buildColumnTable(col2Students)}</div>
-                            </div>
-                        `;
-                    }
-                    
-                    // Add Student Page
-                    allPagesHtml += `
-                        <div class="print-page print-page-daywise">
-                            <div class="print-header-group" style="position: relative; margin-bottom: 10px;">
-                                <div style="position: absolute; top: 0; left: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
-                                    Page ${totalPagesGenerated}
-                                </div>
-                                <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
-                                    ${streamName}
-                                </div>
-                                <h1>Seating Details</h1>
-                                <h2>${currentCollegeName} &nbsp;|&nbsp; ${session.Date} &nbsp;|&nbsp; ${session.Time}</h2>
-                            </div>
-                            ${columnHtml}
+                let columnHtml = '';
+                if (col2Students.length === 0) {
+                    columnHtml = `<div class="column" style="width:100%">${buildColumnTable(col1Students)}</div>`;
+                } else {
+                    columnHtml = `
+                        <div class="column-container" style="display:flex; gap:15px;">
+                            <div class="column" style="flex:1">${buildColumnTable(col1Students)}</div>
+                            <div class="column" style="flex:1">${buildColumnTable(col2Students)}</div>
                         </div>
                     `;
                 }
+                
+                // Add Student Page with Exam Name
+                allPagesHtml += `
+                    <div class="print-page print-page-daywise">
+                        <div class="print-header-group" style="position: relative; margin-bottom: 10px;">
+                            <div style="position: absolute; top: 0; left: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
+                                Page ${totalPagesGenerated}
+                            </div>
+                            <div style="position: absolute; top: 0; right: 0; font-weight: bold; font-size: 11pt; border: 1px solid #000; padding: 2px 6px;">
+                                ${streamName}
+                            </div>
+                            <h1>${currentCollegeName}</h1>
+                            ${examNameHtml} <h2>Seating Details</h2>
+                            <h3>${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
+                        </div>
+                        ${columnHtml}
+                    </div>
+                `;
+            }
 
-                // Generate Separate Scribe Page (If scribes exist in this session)
-                const sessionScribes = session.students.filter(s => s.isScribe);
-                if (sessionScribes.length > 0 && typeof renderScribeSummaryPage === 'function') {
-                    allPagesHtml += renderScribeSummaryPage(sessionScribes, streamName, session, allScribeAllotments);
-                }
-            });
+            // Generate Separate Scribe Page
+            const sessionScribes = session.students.filter(s => s.isScribe);
+            if (sessionScribes.length > 0 && typeof renderScribeSummaryPage === 'function') {
+                allPagesHtml += renderScribeSummaryPage(sessionScribes, streamName, session, allScribeAllotments);
+            }
+        });
         }
 
         reportOutputArea.innerHTML = allPagesHtml;
@@ -4231,7 +4357,11 @@ if (generateAbsenteeReportButton) {
                 totalPages++;
                 const data = qpStreamGroups[key];
                 
-                // Dynamic Font Size Logic (for dense pages)
+                // --- NEW: Get Exam Name ---
+                const examName = getExamName(date, time, data.stream); // date/time come from outer scope
+                const examNameHtml = examName ? `<div style="font-size:14pt; font-weight:bold; margin-top:5px; text-transform:uppercase;">${examName}</div>` : "";
+
+                // Dynamic Font Size Logic
                 let dynamicFontSize = '12pt';
                 let dynamicLineHeight = '1.5';
                 if (data.grandTotal > 150) { dynamicFontSize = '9pt'; dynamicLineHeight = '1.3'; }
@@ -4243,8 +4373,8 @@ if (generateAbsenteeReportButton) {
                 
                 for (const courseName of sortedCourses) {
                     const courseData = data.courses[courseName];
-                    const presentListHtml = formatRegNoList(courseData.present); // Uses existing helper
-                    const absentListHtml = formatRegNoList(courseData.absent);   // Uses existing helper
+                    const presentListHtml = formatRegNoList(courseData.present); 
+                    const absentListHtml = formatRegNoList(courseData.absent);   
                     
                     tableRowsHtml += `
                         <tr style="background-color: #f3f4f6;">
@@ -4288,7 +4418,7 @@ if (generateAbsenteeReportButton) {
                                 Stream: ${data.stream}
                             </div>
                             <h1>${currentCollegeName}</h1>
-                            <h2>Statement of Answer Scripts</h2>
+                            ${examNameHtml} <h2>Statement of Answer Scripts</h2>
                             <h3>${date} &nbsp;|&nbsp; ${time}</h3>
                             <div style="margin-top: 10px; font-weight: bold; font-size: 14pt; text-align: center;">
                                 QP Code: <span style="background: #eee; padding: 2px 8px; border: 1px solid #999;">${data.qpCode}</span>
@@ -4414,6 +4544,12 @@ generateScribeReportButton.addEventListener('click', async () => {
             const streamsInSession = new Set(session.students.map(s => s.Stream));
             const streamLabel = streamsInSession.size === 1 ? Array.from(streamsInSession)[0] : "Combined";
             
+            // --- NEW: Get Exam Name ---
+            // If Combined, we might miss specific names, but we try with the first available stream or fallback
+            const lookupStream = (streamLabel !== "Combined") ? streamLabel : "Regular";
+            const examName = getExamName(session.Date, session.Time, lookupStream);
+            const examNameHtml = examName ? `<h2 style="font-size:13pt; font-weight:bold; margin:2px 0; text-transform:uppercase;">${examName}</h2>` : "";
+
             let tableRowsHtml = '';
             session.students.forEach((student, index) => {
                 tableRowsHtml += `
@@ -4436,7 +4572,7 @@ generateScribeReportButton.addEventListener('click', async () => {
                             Stream: ${streamLabel}
                         </div>
                         <h1>${currentCollegeName}</h1>
-                        <h2>Scribe Assistance Report</h2>
+                        ${examNameHtml} <h2>Scribe Assistance Report</h2>
                         <h3>${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
                     </div>
                     <table class="scribe-report-table">
@@ -5750,6 +5886,7 @@ function loadInitialData() {
                 populate_room_allotment_session_dropdown();
                 loadGlobalScribeList();
                 updateDashboard();
+                renderExamNameSettings();
 
                 console.log(`Successfully loaded ${savedData.length} records.`);
                 document.getElementById("status-log").innerHTML = `<p class="mb-1 text-green-700">&gt; Data loaded from memory.</p>`;
