@@ -805,14 +805,12 @@ function getNumericSortKey(key) {
     return `${parts[0]}_${parts[1]}_${String(roomNumber).padStart(4, '0')}`;
 }
 
-// --- (V28) Helper function to create a new room row HTML (with location) ---
-// --- Helper function to create a new room row HTML (with Edit/Lock) ---
+// --- Helper function to create a new room row HTML (with Capacity Tags) ---
 function createRoomRowHtml(roomName, capacity, location, isLast = false, isLocked = true) {
-    // If locked, inputs are disabled
     const disabledAttr = isLocked ? 'disabled' : '';
     const bgClass = isLocked ? 'bg-gray-50 text-gray-500' : 'bg-white';
 
-    // Edit Button Icon
+    // Edit Button
     const editBtnHtml = `
         <button class="edit-room-btn text-blue-600 hover:text-blue-800 p-1" title="Edit Row">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
@@ -821,17 +819,29 @@ function createRoomRowHtml(roomName, capacity, location, isLast = false, isLocke
         </button>
     `;
 
-    // Remove Button (Only for last row)
     const removeButtonHtml = isLast ? 
         `<button class="remove-room-button ml-2 text-sm text-red-600 hover:text-red-800 font-medium">&times; Remove</button>` : 
-        `<div class="w-[70px]"></div>`; // Placeholder
+        `<div class="w-[70px]"></div>`;
+
+    // --- NEW: Capacity Tag Logic ---
+    let capBadge = "";
+    const capNum = parseInt(capacity) || 0;
+    if (capNum > 30) {
+        capBadge = `<span class="ml-2 text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200" title="Above Standard">▲ ${capNum}</span>`;
+    } else if (capNum < 30) {
+        capBadge = `<span class="ml-2 text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200" title="Below Standard">▼ ${capNum}</span>`;
+    }
+    // -------------------------------
     
     return `
         <div class="room-row flex items-center gap-2 p-2 border-b border-gray-200" data-room-name="${roomName}">
             <label class="room-name-label font-medium text-gray-700 w-24 shrink-0">${roomName}:</label>
             
-            <input type="number" class="room-capacity-input block w-20 p-2 border border-gray-300 rounded-md shadow-sm text-sm ${bgClass}" 
-                   value="${capacity}" min="1" placeholder="30" ${disabledAttr}>
+            <div class="flex items-center">
+                <input type="number" class="room-capacity-input block w-20 p-2 border border-gray-300 rounded-md shadow-sm text-sm ${bgClass}" 
+                       value="${capacity}" min="1" placeholder="30" ${disabledAttr}>
+                ${capBadge}
+            </div>
             
             <input type="text" class="room-location-input block flex-grow p-2 border border-gray-300 rounded-md shadow-sm text-sm ${bgClass}" 
                    value="${location}" placeholder="e.g., Commerce Block" ${disabledAttr}>
@@ -5851,8 +5861,7 @@ sessionStudentRecords.forEach(s => {
     }
 }
 
-// Render the list of allotted rooms (WITH SERIAL NUMBER)
-// Render the list of allotted rooms (WITH STREAM TAGS & SERIALS)
+// Render the list of allotted rooms (WITH CAPACITY TAGS)
 function renderAllottedRooms() {
     allottedRoomsList.innerHTML = '';
     const roomSerialMap = getRoomSerialMap(currentSessionKey);
@@ -5862,7 +5871,6 @@ function renderAllottedRooms() {
         return;
     }
     
-    // Sort by Stream (Regular first), then Serial Number
     currentSessionAllotment.sort((a, b) => {
         const s1 = a.stream || "Regular";
         const s2 = b.stream || "Regular";
@@ -5870,7 +5878,6 @@ function renderAllottedRooms() {
         const idx2 = currentStreamConfig.indexOf(s2);
         if (idx1 !== idx2) return idx1 - idx2;
         
-        // Numeric Sort by Room Name if streams are same
         const numA = parseInt(a.roomName.replace(/\D/g, ''), 10) || 0;
         const numB = parseInt(b.roomName.replace(/\D/g, ''), 10) || 0;
         return numA - numB;
@@ -5884,10 +5891,19 @@ function renderAllottedRooms() {
         const location = (roomInfo && roomInfo.location) ? ` <span class="text-gray-400 text-xs font-normal">(${roomInfo.location})</span>` : '';
         const serialNo = roomSerialMap[room.roomName] || '-';
         
-        // Stream Badge Color
         const streamName = room.stream || "Regular";
-        let badgeColor = "bg-blue-100 text-blue-800"; // Default Regular
-        if (streamName !== "Regular") badgeColor = "bg-purple-100 text-purple-800"; // Distance/Others
+        let badgeColor = "bg-blue-100 text-blue-800"; 
+        if (streamName !== "Regular") badgeColor = "bg-purple-100 text-purple-800";
+
+        // --- NEW: Capacity Tag Logic ---
+        let capBadge = "";
+        const capNum = parseInt(room.capacity) || 30;
+        if (capNum > 30) {
+            capBadge = `<span class="ml-1 text-[9px] font-bold text-red-700 bg-red-50 px-1 rounded border border-red-200">▲${capNum}</span>`;
+        } else if (capNum < 30) {
+            capBadge = `<span class="ml-1 text-[9px] font-bold text-blue-700 bg-blue-50 px-1 rounded border border-blue-200">▼${capNum}</span>`;
+        }
+        // -------------------------------
 
         roomDiv.innerHTML = `
             <div class="flex justify-between items-center">
@@ -5899,12 +5915,12 @@ function renderAllottedRooms() {
                         <h4 class="font-bold text-gray-800 text-base">
                             ${room.roomName} ${location}
                         </h4>
-                        <div class="flex gap-2 mt-1">
+                        <div class="flex gap-2 mt-1 items-center">
                             <span class="text-xs px-2 py-0.5 rounded-full font-medium ${badgeColor}">
                                 ${streamName}
                             </span>
-                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                ${room.students.length} / ${room.capacity} Students
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex items-center">
+                                ${room.students.length} / ${room.capacity} Students ${capBadge}
                             </span>
                         </div>
                     </div>
@@ -5930,48 +5946,40 @@ window.deleteRoom = function(index) {
     }
 };
 
-// Show room selection modal (Updated with Smart Default)
+// Show room selection modal (Updated with Capacity Tags)
 function showRoomSelectionModal() {
     getRoomCapacitiesFromStorage();
     roomSelectionList.innerHTML = '';
 
-    // --- SMART DEFAULT CALCULATION ---
-    // 1. Calculate remaining students per stream
+    // 1. Smart Default Stream Logic (Existing)
     const [date, time] = currentSessionKey.split(' | ');
     const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
-    const scribeRegNos = new Set((JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]')).map(s => s.regNo));
     
-    // Count Needed vs Allotted
     const stats = {};
     currentStreamConfig.forEach(s => stats[s] = { needed: 0, allotted: 0 });
     if(!stats["Regular"]) stats["Regular"] = { needed: 0, allotted: 0 };
 
-// Count Needed
-sessionStudents.forEach(s => {
-    // Removed scribe exclusion check
-    const strm = s.Stream || "Regular";
-    if (!stats[strm]) stats[strm] = { needed: 0, allotted: 0 };
-    stats[strm].needed++;
-});
-    // Count Allotted
+    sessionStudents.forEach(s => {
+        const strm = s.Stream || "Regular";
+        if (!stats[strm]) stats[strm] = { needed: 0, allotted: 0 };
+        stats[strm].needed++;
+    });
+
     currentSessionAllotment.forEach(room => {
         const roomStream = room.stream || "Regular";
         if (!stats[roomStream]) stats[roomStream] = { needed: 0, allotted: 0 };
         stats[roomStream].allotted += room.students.length;
     });
 
-    // Find first stream that is NOT finished
-    let suggestedStream = currentStreamConfig[0]; // Default to first
+    let suggestedStream = currentStreamConfig[0];
     for (const stream of currentStreamConfig) {
         const s = stats[stream];
         if (s && (s.needed - s.allotted) > 0) {
             suggestedStream = stream;
-            break; // Found one with students remaining
+            break;
         }
     }
-    // --------------------------------
 
-    // 2. Create Stream Selector UI (Using suggestedStream)
     const streamSelectHtml = `
         <div class="mb-4 bg-gray-50 p-3 rounded border border-gray-200">
             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Fill Room with Stream:</label>
@@ -5982,10 +5990,8 @@ sessionStudents.forEach(s => {
     `;
     roomSelectionList.insertAdjacentHTML('beforeend', streamSelectHtml);
 
-    // ... rest of the function (Room List) remains the same ...
-    // 3. List Rooms
+    // 2. List Rooms
     const allottedRoomNames = currentSessionAllotment.map(r => r.roomName);
-    // ... (keep the existing sorting/looping logic here) ...
     
     const sortedRoomNames = Object.keys(currentRoomConfig).sort((a, b) => {
         const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
@@ -5998,12 +6004,26 @@ sessionStudents.forEach(s => {
         const location = room.location ? ` (${room.location})` : '';
         const isAllotted = allottedRoomNames.includes(roomName);
         
+        // --- NEW: Capacity Tag Logic ---
+        let capBadge = "";
+        const capNum = parseInt(room.capacity) || 30;
+        if (capNum > 30) {
+            capBadge = `<span class="ml-2 text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200">▲ ${capNum}</span>`;
+        } else if (capNum < 30) {
+            capBadge = `<span class="ml-2 text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">▼ ${capNum}</span>`;
+        }
+        // -------------------------------
+        
         const roomOption = document.createElement('div');
         roomOption.className = `p-3 border border-gray-300 rounded-md cursor-pointer hover:bg-blue-50 mb-2 ${isAllotted ? 'opacity-50 cursor-not-allowed' : ''}`;
+        
         roomOption.innerHTML = `
-            <div class="font-medium text-gray-800">${roomName}${location}</div>
-            <div class="text-sm text-gray-600">Capacity: ${room.capacity}</div>
-            ${isAllotted ? '<div class="text-xs text-red-600 mt-1">Already allotted</div>' : ''}
+            <div class="flex justify-between items-center">
+                <div class="font-medium text-gray-800">${roomName}${location}</div>
+                ${capBadge}
+            </div>
+            <div class="text-sm text-gray-600 mt-1">Standard Capacity: ${room.capacity}</div>
+            ${isAllotted ? '<div class="text-xs text-red-600 mt-1 font-bold">Already allotted</div>' : ''}
         `;
         
         if (!isAllotted) {
