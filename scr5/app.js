@@ -8886,39 +8886,41 @@ const backupSettingsBtn = document.getElementById('backup-settings-btn');
 const restoreSettingsBtn = document.getElementById('restore-settings-btn');
 const restoreSettingsInput = document.getElementById('restore-settings-input');
 
-// 1. NUKE IT ALL (Reset Student Data)
+// 1. NUKE IT ALL (Smart Choice + Funny Alerts)
 if (nukeBtn) {
     nukeBtn.addEventListener('click', async () => {
         // Level 1: Initial Warning
-        if (!confirm("⚠ WARNING: DESTRUCTIVE ACTION ⚠\n\nYou are about to wipe data from this Browser AND the Cloud.\n\nProceed?")) {
+        if (!confirm("⚠ NUCLEAR LAUNCH DETECTED ⚠\n\nYou are initiating a destructive sequence that affects both Local and Cloud storage.\n\nAre you sure you want to proceed?")) {
             return;
         }
 
         // Level 2: Choice Selection
         const choice = prompt(
-            "☢️ SELECT DESTRUCTION LEVEL ☢️\n\n" +
-            "Type 'DATA' to wipe Student Data, Allotments & QP Codes (Keeps Settings)\n" +
-            "Type 'FULL' to wipe EVERYTHING (Factory Reset)\n\n" +
-            "Type your choice below:"
+            "☢️ SELECT PAYLOAD YIELD ☢️\n\n" +
+            "Type 'DATA' for Tactical Strike (Wipes Students, Keeps Settings)\n" +
+            "Type 'FULL' for Total Annihilation (Factory Reset)\n\n" +
+            "Enter payload type below:"
         );
 
         if (!choice) return;
         const mode = choice.trim().toUpperCase();
 
         if (mode !== 'DATA' && mode !== 'FULL') {
-            alert("Action Aborted: Invalid choice typed.");
+            alert("🚫 LAUNCH ABORTED 🚫\n\nInvalid payload type selected.\nSystem returning to safe mode.");
             return;
         }
 
         // Level 3: Final Confirmation Code
-        const confirmCode = prompt(`Type 'DELETE' to confirm ${mode} reset:`);
+        const confirmCode = prompt(`⚠ FINAL SECURITY CHECK ⚠\n\nTo authorize this ${mode} reset, type 'DELETE' in the box below:`);
+        
         if (confirmCode !== 'DELETE') {
-            alert("Action Aborted: Incorrect confirmation code.");
+            // *** THE FUNNY ABORT MESSAGE ***
+            alert("🚫 ACCESS DENIED 🚫\n\nIncorrect launch code entered.\nThe nuclear payload has been disarmed.\n\n(Phew, that was close!)");
             return;
         }
 
         // --- EXECUTION ---
-        nukeBtn.textContent = "💥 NUKING...";
+        nukeBtn.textContent = "🚀 MISSILES FIRED...";
         nukeBtn.disabled = true;
 
         try {
@@ -8926,86 +8928,70 @@ if (nukeBtn) {
             
             if (mode === 'DATA') {
                 // -----------------------------------------
-                // OPTION A: DATA ONLY (Keep Settings)
+                // OPTION A: TACTICAL STRIKE (Data Only)
                 // -----------------------------------------
                 
                 // 1. Clear Local Data Keys
                 const keysToRemove = [
-                    BASE_DATA_KEY,       // Students
-                    ROOM_ALLOTMENT_KEY,  // Room Allotment
-                    SCRIBE_ALLOTMENT_KEY,// Scribe Allotment
-                    ABSENTEE_LIST_KEY,   // Absentees
-                    QP_CODE_LIST_KEY,    // QP Codes
-                    'examBaseData'       // Legacy/Direct key
+                    BASE_DATA_KEY, ROOM_ALLOTMENT_KEY, SCRIBE_ALLOTMENT_KEY,
+                    ABSENTEE_LIST_KEY, QP_CODE_LIST_KEY, 'examBaseData'
                 ];
                 keysToRemove.forEach(key => localStorage.removeItem(key));
                 
-                // 2. Force Wipe Cloud Data (Bypassing Safe Sync)
+                // 2. Force Wipe Cloud Data
                 if (currentCollegeId) {
                     const batch = writeBatch(db);
                     const mainRef = doc(db, "colleges", currentCollegeId);
                     
-                    // Explicitly set data fields to empty/null
                     batch.update(mainRef, {
                         examQPCodes: "{}",
                         examScribeAllotment: "{}",
                         examAbsenteeList: "{}",
                         lastUpdated: new Date().toISOString()
-                        // We don't touch examRoomConfig, examCollegeName, examStreamsConfig, examScribeList
                     });
 
-                    // Wipe the 'data' subcollection (Chunks)
                     const dataColRef = collection(db, "colleges", currentCollegeId, "data");
                     const chunkSnaps = await getDocs(dataColRef);
-                    chunkSnaps.forEach(chunk => {
-                        batch.delete(chunk.ref);
-                    });
+                    chunkSnaps.forEach(chunk => batch.delete(chunk.ref));
 
                     await batch.commit();
                 }
                 
-                alert("💥 DATA WIPED 💥\n\nStudent data, allotments, and QP codes are gone.\nSettings (Rooms, Streams, College Name) were PRESERVED.");
+                alert("💥 TACTICAL STRIKE SUCCESSFUL 💥\n\nStudent data has been vaporized.\nInfrastructure (Settings) remains intact.");
 
             } else if (mode === 'FULL') {
                 // -----------------------------------------
-                // OPTION B: FULL FACTORY RESET
+                // OPTION B: TOTAL ANNIHILATION (Full Reset)
                 // -----------------------------------------
                 
-                // 1. Clear ALL Local Storage
                 localStorage.clear();
                 
-                // 2. Force Factory Reset on Cloud
                 if (currentCollegeId) {
-                    // We use setDoc to OVERWRITE the document, killing all fields
-                    // We only keep the essential admin array so you don't get locked out
                     const mainRef = doc(db, "colleges", currentCollegeId);
                     
+                    // Overwrite with barebones data
                     await setDoc(mainRef, {
                         admins: [currentUser.email],
-                        allowedUsers: [currentUser.email], // Restore access
+                        allowedUsers: [currentUser.email], 
                         lastUpdated: new Date().toISOString(),
-                        examCollegeName: "University of Calicut" // Reset to default
+                        examCollegeName: "University of Calicut" 
                     });
 
-                    // Wipe the 'data' subcollection (Chunks)
                     const batch = writeBatch(db);
                     const dataColRef = collection(db, "colleges", currentCollegeId, "data");
                     const chunkSnaps = await getDocs(dataColRef);
-                    chunkSnaps.forEach(chunk => {
-                        batch.delete(chunk.ref);
-                    });
+                    chunkSnaps.forEach(chunk => batch.delete(chunk.ref));
                     await batch.commit();
                 }
 
-                alert("💥 FACTORY RESET COMPLETE 💥\n\nThe application is now brand new.");
+                alert("💥 KABOOM! 💥\n\nTotal annihilation complete.\nThe system is now a blank slate.");
             }
 
-            // Reload to clear memory
             window.location.reload();
 
         } catch (e) {
             console.error("Nuke failed:", e);
-            alert("Nuke failed due to an error: " + e.message);
+            alert("⚠️ LAUNCH FAILURE ⚠️\n\nAn error occurred during the sequence: " + e.message);
             nukeBtn.textContent = "☢️ NUKE IT ALL";
             nukeBtn.disabled = false;
         }
