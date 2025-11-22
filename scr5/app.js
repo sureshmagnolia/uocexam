@@ -362,7 +362,7 @@ async function syncDataToCloud() {
             'examQPCodes', 
             'examScribeList', 
             'examScribeAllotment', 
-            'examAbsenteeList'
+            'examAbsenteeList',
             'examSessionNames' // <--- ADD THIS NEW KEY
         ];
 
