@@ -8329,7 +8329,7 @@ async function findMyCollege(user) {
         });
     }
 
-// --- Helper: Parse CSV String to JSON (Corrected) ---
+// --- Helper: Parse CSV String to JSON (Smart Stream Detection) ---
     function parseCsvRaw(csvText, streamName = "Regular") {
         const lines = csvText.trim().split('\n');
         const headersLine = lines.shift().trim();
@@ -8340,6 +8340,8 @@ async function findMyCollege(user) {
         const courseIndex = headers.indexOf('Course');
         const regNumIndex = headers.indexOf('Register Number');
         const nameIndex = headers.indexOf('Name');
+        // 1. Check if CSV has a Stream column
+        const streamIndex = headers.indexOf('Stream'); 
 
         if (regNumIndex === -1 || nameIndex === -1 || courseIndex === -1) {
             throw new Error("Missing required headers (Register Number, Name, Course)");
@@ -8347,22 +8349,34 @@ async function findMyCollege(user) {
 
         const parsedData = [];
         
-        // This loop is required for 'continue' to work
         for (const line of lines) {
-            if (!line.trim()) continue; // Skips empty lines
+            if (!line.trim()) continue; 
             
             // Regex for quoted CSV fields
             const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
             const values = line.split(regex).map(val => val.trim().replace(/^"|"$/g, ''));
             
             if (values.length === headers.length) {
+                
+                // 2. Determine Stream Priority
+                // Priority: CSV Value > Dropdown Selection > Default "Regular"
+                let rowStream = streamName; // Start with dropdown selection
+                
+                if (streamIndex !== -1) {
+                    const csvValue = values[streamIndex];
+                    // Only override if the CSV actually has text in that cell
+                    if (csvValue && csvValue.trim() !== "") {
+                        rowStream = csvValue.trim();
+                    }
+                }
+
                 parsedData.push({
                     'Date': values[dateIndex],
                     'Time': values[timeIndex],
                     'Course': values[courseIndex], 
                     'Register Number': values[regNumIndex],
                     'Name': values[nameIndex],
-                    'Stream': streamName 
+                    'Stream': rowStream // Use the smart stream
                 });
             }
         }
