@@ -1426,7 +1426,7 @@ function initCalendar() {
     }
 }
 
-// --- Calendar Render Logic (V4: Big Circles) ---
+// --- Calendar Render Logic (V5: Big Circles + Fixed Tooltip Colors) ---
 function renderCalendar() {
     const grid = document.getElementById('calendar-days-grid');
     const title = document.getElementById('cal-month-display');
@@ -1518,11 +1518,12 @@ function renderCalendar() {
                 let details = `Reg: ${regHalls} | Oth: ${othHalls}`;
                 if (data.am.scribeCount > 0) details += ` | Scribe: ${Math.ceil(data.am.scribeCount / 5)}`;
 
+                // *** FIX: Updated Text Colors for White Background ***
                 tooltipHtml += `
-                    <div class='mb-2 pb-2 border-b border-gray-600'>
-                        <strong class='text-red-300 uppercase text-[10px]'>Morning (FN)</strong><br>
-                        <span class='text-white'>${data.am.students} Students</span><br>
-                        <span class='text-gray-300 text-[10px]'>${details}</span>
+                    <div class='mb-2 pb-2 border-b border-gray-200'>
+                        <strong class='text-red-600 uppercase text-[10px]'>Morning (FN)</strong><br>
+                        <span class='text-gray-900 font-bold'>${data.am.students} Students</span><br>
+                        <span class='text-gray-500 text-[10px]'>${details}</span>
                     </div>`;
             }
 
@@ -1535,16 +1536,16 @@ function renderCalendar() {
                 let details = `Reg: ${regHalls} | Oth: ${othHalls}`;
                 if (data.pm.scribeCount > 0) details += ` | Scribe: ${Math.ceil(data.pm.scribeCount / 5)}`;
 
+                // *** FIX: Updated Text Colors for White Background ***
                 tooltipHtml += `
                     <div>
-                        <strong class='text-red-300 uppercase text-[10px]'>Afternoon (AN)</strong><br>
-                        <span class='text-white'>${data.pm.students} Students</span><br>
-                        <span class='text-gray-300 text-[10px]'>${details}</span>
+                        <strong class='text-red-600 uppercase text-[10px]'>Afternoon (AN)</strong><br>
+                        <span class='text-gray-900 font-bold'>${data.pm.students} Students</span><br>
+                        <span class='text-gray-500 text-[10px]'>${details}</span>
                     </div>`;
             }
         }
 
-        // Red/White Tooltip Theme
         const tooltip = tooltipHtml ? `
             <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 bg-white text-gray-800 text-xs rounded-lg p-2 shadow-xl z-50 hidden group-hover:block pointer-events-none text-center border border-red-200 ring-1 ring-red-100">
                 ${tooltipHtml}
@@ -1552,7 +1553,6 @@ function renderCalendar() {
             </div>
         ` : "";
 
-        // *** SIZE UPDATE HERE: w-20 h-20 (80px) and text-3xl ***
         let finalCircleClass = `w-20 h-20 text-3xl rounded-full flex items-center justify-center relative font-bold ${todayClass || circleClass}`;
 
         html += `
