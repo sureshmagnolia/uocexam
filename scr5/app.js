@@ -7352,10 +7352,17 @@ if (editCourseSelect) {
 // 3. Handle "Unlock/Lock" Toggle Click
 if (bulkEditModeBtn) {
     bulkEditModeBtn.addEventListener('click', () => {
-        // Check current state (if date input is disabled, we are currently Locked)
         const isLocked = bulkNewDateInput.disabled;
 
-        const inputsToToggle = [bulkNewCourseInput, bulkNewDateInput, bulkNewTimeInput, bulkNewStreamSelect, btnBulkApply];
+        // Add deleteCourseBtn to the list of inputs to toggle
+        const inputsToToggle = [
+            bulkNewCourseInput, 
+            bulkNewDateInput, 
+            bulkNewTimeInput, 
+            bulkNewStreamSelect, 
+            btnBulkApply,
+            document.getElementById('delete-course-btn') // <--- ADD THIS
+        ];
 
         if (isLocked) {
             // --- ACTION: UNLOCK ---
@@ -7365,7 +7372,8 @@ if (bulkEditModeBtn) {
             inputsToToggle.forEach(el => {
                 if(el) {
                     el.disabled = false;
-                    el.classList.remove('bg-gray-50');
+                    // Remove gray background (Unlocking)
+                    el.classList.remove('bg-gray-50', 'text-gray-400'); 
                 }
             });
             
@@ -7385,7 +7393,9 @@ if (bulkEditModeBtn) {
             inputsToToggle.forEach(el => {
                 if(el) {
                     el.disabled = true;
-                    el.classList.add('bg-gray-50');
+                    // Add gray background (Locking)
+                    el.classList.add('bg-gray-50'); 
+                    if(el.id === 'delete-course-btn') el.classList.add('text-gray-400'); // Dim text
                 }
             });
 
@@ -7399,6 +7409,7 @@ if (bulkEditModeBtn) {
         }
     });
 }
+
 
 // 4. Handle Bulk Apply Click
 // [In app.js]
