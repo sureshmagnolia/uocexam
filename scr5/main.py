@@ -40,30 +40,36 @@ def find_time_in_text(text):
 def find_course_name(text):
     """
     Scans text for Course Name.
-    FIX 3: 
-    - Removes 'University of Calicut' and 'First' prefixes.
-    - STOPS immediately at 'Slot' to remove 'Slot Single Major...'.
+    FIX 5 (Universal College Fix): 
+    - Uses regex lookahead to remove ANY College name until the Course Code starts.
+    - Handles line breaks, University headers, and Slot suffix.
     """
     # 1. Flatten the text immediately (Fixes line breaks)
     text = str(text).replace('\n', ' ')
     text = re.sub(r'\s+', ' ', text).strip()
     
     # 2. Define patterns to DELETE (Replace with empty space)
-    # These are headers that appear BEFORE the actual course code.
     patterns_to_remove = [
-        r".*?University\s*of\s*Calicut", # Eats Malayalam text + University header
+        r".*?University\s*of\s*Calicut", 
+        
+        # --- UNIVERSAL COLLEGE REMOVER ---
+        # Matches "College :" followed by anything, 
+        # but STOPS before a Course Code (e.g., BOT1..., CSC1..., MAL1...)
+        r"College\s*[:\-].*?(?=\s*[A-Z]{2,}\d)", 
+        
         r"Nominal\s*Roll",
         r"Examination\s*[\w\s]*?\d{4}",
-        r"Semester\s*[A-Za-z0-9]+",  
-        r"\bFirst\b", # Removes "First"
+        r"Semester\s*[A-Za-z0-9]+",      
+        r"\bFirst\b",                     
         r"Page\s*\d+\s*of\s*\d+",
         r"Course\s*Code\s*[:\-]?",   
         r"Paper\s*Details\s*[:\-]?", 
         r"Name\s*of\s*Course\s*[:\-]?",
-        r"\bCourse\b" # Removes the word "Course"
+        r"\bCourse\b"
     ]
     
     for pattern in patterns_to_remove:
+        # We replace with a single space to safely separate words
         text = re.sub(pattern, ' ', text, flags=re.IGNORECASE)
 
     # 3. Clean up the start
@@ -71,21 +77,19 @@ def find_course_name(text):
     text = re.sub(r'^[\s\-\)\]\.:,]+', '', text).strip()
 
     # 4. Stop at Metadata (The end of the course name)
-    # Added 'Slot' here so it cuts off "Slot Single Major..."
     stop_markers = [
-        r"Slot",  # <--- This cuts off the suffix you don't want
+        r"Slot",  # Cuts off "Slot Single Major"
         r"Session",
         r"Exam\s*Date",
         r"Date\s*of\s*Exam",
         r"Time\s*:",
-        r"\d{2}[./-]\d{2}[./-]\d{4}", # Date pattern
+        r"\d{2}[./-]\d{2}[./-]\d{4}",
         r"Register\s*No",
         r"Reg\.\s*No",
         r"Maximum\s*Marks"
     ]
     
     for marker in stop_markers:
-        # Split on the marker and keep the left side (the name)
         parts = re.split(marker, text, flags=re.IGNORECASE)
         if len(parts) > 0:
             text = parts[0].strip()
