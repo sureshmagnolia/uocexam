@@ -9510,8 +9510,7 @@ if (triggerFullRestore) {
     });
 }
     
-// --- Run on initial page load ---
-// --- V65: Initial Data Load on Startup (With Funny Loader) ---
+// --- V65: Initial Data Load on Startup (Robust Version) ---
 function loadInitialData() {
     // 1. Funny Message Logic
     const messages = [
@@ -9527,7 +9526,6 @@ function loadInitialData() {
     const msgElement = document.getElementById('loader-message');
     let msgIndex = 0;
     
-    // Cycle messages every 800ms
     const msgInterval = setInterval(() => {
         if(msgElement) {
             msgIndex = (msgIndex + 1) % messages.length;
@@ -9535,54 +9533,66 @@ function loadInitialData() {
         }
     }, 800);
 
-    // 2. Load configurations
-    loadRoomConfig(); 
-    loadStreamConfig(); 
-    initCalendar();
+    // --- SAFETY BLOCK START ---
+    try {
+        console.log("Starting App Initialization...");
 
-    // 3. Check for base student data persistence
-    const savedDataJson = localStorage.getItem(BASE_DATA_KEY);
-    if (savedDataJson) {
-        try {
-            const savedData = JSON.parse(savedDataJson);
-            if (savedData && savedData.length > 0) {
-                jsonDataStore.innerHTML = JSON.stringify(savedData);
-                
-                // Enable UI
-                disable_absentee_tab(false);
-                disable_qpcode_tab(false);
-                disable_room_allotment_tab(false);
-                disable_scribe_settings_tab(false);
-                disable_edit_data_tab(false);
-                disable_all_report_buttons(false); 
-                
-                populate_session_dropdown();
-                populate_qp_code_session_dropdown();
-                populate_room_allotment_session_dropdown();
-                loadGlobalScribeList();
-                updateDashboard();
-                renderExamNameSettings();
+        // 2. Load configurations
+        if (typeof loadRoomConfig === 'function') loadRoomConfig(); 
+        if (typeof loadStreamConfig === 'function') loadStreamConfig(); 
+        if (typeof initCalendar === 'function') initCalendar();
 
-                console.log(`Successfully loaded ${savedData.length} records.`);
-                document.getElementById("status-log").innerHTML = `<p class="mb-1 text-green-700">&gt; Data loaded from memory.</p>`;
+        // 3. Check for base student data persistence
+        const savedDataJson = localStorage.getItem(BASE_DATA_KEY);
+        if (savedDataJson) {
+            try {
+                const savedData = JSON.parse(savedDataJson);
+                if (savedData && savedData.length > 0) {
+                    jsonDataStore.innerHTML = JSON.stringify(savedData);
+                    
+                    // Enable UI
+                    if(typeof disable_absentee_tab === 'function') disable_absentee_tab(false);
+                    if(typeof disable_qpcode_tab === 'function') disable_qpcode_tab(false);
+                    if(typeof disable_room_allotment_tab === 'function') disable_room_allotment_tab(false);
+                    if(typeof disable_scribe_settings_tab === 'function') disable_scribe_settings_tab(false);
+                    if(typeof disable_edit_data_tab === 'function') disable_edit_data_tab(false);
+                    if(typeof disable_all_report_buttons === 'function') disable_all_report_buttons(false); 
+                    
+                    if(typeof populate_session_dropdown === 'function') populate_session_dropdown();
+                    if(typeof populate_qp_code_session_dropdown === 'function') populate_qp_code_session_dropdown();
+                    if(typeof populate_room_allotment_session_dropdown === 'function') populate_room_allotment_session_dropdown();
+                    if(typeof loadGlobalScribeList === 'function') loadGlobalScribeList();
+                    if(typeof updateDashboard === 'function') updateDashboard();
+                    if(typeof renderExamNameSettings === 'function') renderExamNameSettings();
+
+                    console.log(`Successfully loaded ${savedData.length} records.`);
+                    const statusLog = document.getElementById("status-log");
+                    if(statusLog) statusLog.innerHTML = `<p class="mb-1 text-green-700">&gt; Data loaded from memory.</p>`;
+                }
+            } catch(e) {
+                console.error("Failed to parse saved student data:", e);
+                // Don't block app load for bad data
             }
-        } catch(e) {
-            console.error("Failed to load saved data", e);
         }
+    } catch (criticalError) {
+        console.error("CRITICAL APP STARTUP ERROR:", criticalError);
+        alert("⚠️ App loaded with errors: " + criticalError.message + "\n\nCheck the console (F12) for details.");
+    } finally {
+        // 4. FORCE DISMISS LOADER (Always runs, even on error)
+        setTimeout(() => {
+            clearInterval(msgInterval); 
+            const loader = document.getElementById('initial-app-loader');
+            if (loader) {
+                loader.style.opacity = '0'; 
+                setTimeout(() => {
+                    loader.remove(); 
+                }, 500); 
+            }
+        }, 1500); 
     }
-
-    // 4. DISMISS LOADER (Smooth Fade Out)
-    setTimeout(() => {
-        clearInterval(msgInterval); // Stop cycling messages
-        const loader = document.getElementById('initial-app-loader');
-        if (loader) {
-            loader.style.opacity = '0'; // Fade out
-            setTimeout(() => {
-                loader.remove(); // Remove from DOM
-            }, 500); // Wait for fade transition
-        }
-    }, 1500); // Keep visible for at least 1.5s so users see the cool animation
+    // --- SAFETY BLOCK END ---
 }
+
 
     // --- NEW: Restore Last Active Tab ---
     function restoreActiveTab() {
