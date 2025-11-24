@@ -378,13 +378,17 @@ function syncDataFromCloud(collegeId) {
             if (localTime && mainData.lastUpdated) {
                 if (localTime === mainData.lastUpdated) {
                     updateSyncStatus("Synced", "success");
-                    finalizeAppLoad(); // <-- CHANGE 1
+                    // FIX: Load data first, then dismiss loader
+                    loadInitialData(); 
+                    if (typeof finalizeAppLoad === 'function') finalizeAppLoad(); 
                     return; 
                 }
                 if (localTime > mainData.lastUpdated) {
                     console.log("⚠️ Local data is newer than cloud. Skipping auto-download to prevent overwrite.");
                     updateSyncStatus("Unsaved Changes", "neutral"); 
-                    finalizeAppLoad(); // <-- CHANGE 2
+                    // FIX: Load data first, then dismiss loader
+                    loadInitialData(); 
+                    if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
                     return;
                 }
             }
@@ -426,21 +430,28 @@ function syncDataFromCloud(collegeId) {
 
             // 3. Refresh UI
             updateSyncStatus("Synced", "success");
-            finalizeAppLoad(); // <-- CHANGE 3 (Replaces loadInitialData())
+            
+            // FIX: Load the downloaded data into the app memory
+            loadInitialData();
             
             // Refresh Allotment View if open
             if (typeof viewRoomAllotment !== 'undefined' && !viewRoomAllotment.classList.contains('hidden') && allotmentSessionSelect.value) {
                  allotmentSessionSelect.dispatchEvent(new Event('change'));
             }
+            
+            // Finally, dismiss the loading screen
+            if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
 
         } else {
             updateSyncStatus("No Cloud Data", "neutral");
-            finalizeAppLoad(); // <-- CHANGE 5 (Replaces loadInitialData())
+            loadInitialData(); // Load whatever local data we have
+            if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
         }
     }, (error) => {
         console.error("Sync Error:", error);
         updateSyncStatus("Net Error", "error");
-        finalizeAppLoad(); // <-- CHANGE 4 (Replaces loadInitialData())
+        loadInitialData(); // Load whatever local data we have
+        if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
     });
 }
 
