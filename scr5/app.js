@@ -750,7 +750,6 @@ const ROOM_ALLOTMENT_KEY = 'examRoomAllotment';
 // *** NEW SCRIBE KEYS ***
 const SCRIBE_LIST_KEY = 'examScribeList';
 const SCRIBE_ALLOTMENT_KEY = 'examScribeAllotment';
-const EXAM_RULES_KEY = 'examRulesConfig'; // <--- Ensure this is defined
 // ***********************
 // *** NEW: All keys for backup/restore ***
 const ALL_DATA_KEYS = [
