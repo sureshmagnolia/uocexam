@@ -5736,6 +5736,36 @@ for (const student of allStudentData) {
 }
 // --- END: New helper function ---
 
+// --- ABSENTEE MANAGEMENT LOGIC (Updated: Lock, Count, Confirm) ---
+
+let isAbsenteeListLocked = true; // Default locked state
+
+// 1. Toggle Lock Button Logic
+const toggleAbsenteeLockBtn = document.getElementById('toggle-absentee-lock-btn');
+if (toggleAbsenteeLockBtn) {
+    toggleAbsenteeLockBtn.addEventListener('click', () => {
+        isAbsenteeListLocked = !isAbsenteeListLocked;
+        
+        if (isAbsenteeListLocked) {
+            toggleAbsenteeLockBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <span>List Locked</span>
+            `;
+            toggleAbsenteeLockBtn.className = "text-xs flex items-center gap-1 bg-gray-100 text-gray-600 border border-gray-300 px-3 py-1 rounded hover:bg-gray-200 transition shadow-sm";
+        } else {
+            toggleAbsenteeLockBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <span>Unlocked</span>
+            `;
+            toggleAbsenteeLockBtn.className = "text-xs flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded hover:bg-red-100 transition shadow-sm";
+        }
+        renderAbsenteeList(); // Re-render to update button states
+    });
+}
 
 addAbsenteeButton.addEventListener('click', () => {
     if (!selectedStudent) return;
@@ -5754,7 +5784,7 @@ addAbsenteeButton.addEventListener('click', () => {
     saveAbsenteeList(sessionKey);
     renderAbsenteeList();
     clearSearch();
-    syncDataToCloud(); // <--- ADD THIS
+    syncDataToCloud();
 });
 
 function loadAbsenteeList(sessionKey) {
@@ -5770,8 +5800,16 @@ function saveAbsenteeList(sessionKey) {
 }
 
 function renderAbsenteeList() {
-    getRoomCapacitiesFromStorage(); // <-- ADD THIS LINE
+    getRoomCapacitiesFromStorage();
     const sessionKey = sessionSelect.value;
+    const [date, time] = sessionKey.split(' | ');
+    
+    // 1. Update Count Badge
+    const countBadge = document.getElementById('absentee-count-badge');
+    if (countBadge) {
+        countBadge.textContent = currentAbsenteeList.length;
+    }
+
     currentAbsenteeListDiv.innerHTML = "";
     
     if (currentAbsenteeList.length === 0) {
@@ -5779,18 +5817,22 @@ function renderAbsenteeList() {
         return;
     }
 
-    // V81 FIX: Allocate rooms for the entire session first to get correct room numbers
-    const [date, time] = sessionKey.split(' | ');
+    // Allocate rooms for correct display
     const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
     const allocatedSessionData = performOriginalAllocation(sessionStudents);
-    // 1. Update Map to include Stream
+    
     const allocatedMap = allocatedSessionData.reduce((map, s) => {
-        map[s['Register Number']] = { room: s['Room No'], isScribe: s.isScribe, stream: s.Stream }; // Added Stream
+        map[s['Register Number']] = { 
+            room: s['Room No'], 
+            isScribe: s.isScribe, 
+            stream: s.Stream,
+            name: s.Name // Capture name for deletion confirmation
+        };
         return map;
     }, {});
 
     currentAbsenteeList.forEach(regNo => {
-        const roomData = allocatedMap[regNo] || { room: 'N/A', isScribe: false, stream: 'Regular' };
+        const roomData = allocatedMap[regNo] || { room: 'N/A', isScribe: false, stream: 'Regular', name: 'Unknown' };
         const room = roomData.room;
         const roomInfo = currentRoomConfig[room];
         const location = (roomInfo && roomInfo.location) ? `(${roomInfo.location})` : "";
@@ -5799,31 +5841,49 @@ function renderAbsenteeList() {
         
         const strm = roomData.stream || "Regular";
 
+        // 2. Determine Button State based on Lock
+        const btnDisabled = isAbsenteeListLocked ? 'disabled' : '';
+        const btnClass = isAbsenteeListLocked 
+            ? 'text-gray-300 cursor-not-allowed' 
+            : 'text-red-600 hover:text-red-800 cursor-pointer';
+
         const item = document.createElement('div');
         item.className = 'flex justify-between items-center p-2 bg-white border border-gray-200 rounded';
         
-        // 2. Updated Item HTML with Stream Badge
         item.innerHTML = `
             <div class="flex items-center gap-2">
                 <span class="font-medium">${regNo}</span>
+                <span class="text-xs text-gray-600 hidden sm:inline">(${roomData.name})</span>
                 <span class="text-[10px] uppercase font-bold text-purple-700 bg-purple-50 px-1.5 rounded border border-purple-100">${strm}</span>
             </div>
             <div class="flex items-center gap-3">
                 <span class="text-sm text-gray-500">${roomDisplay}</span>
-                <button class="text-xs text-red-600 hover:text-red-800 font-medium">&times; Remove</button>
+                <button class="text-xs font-medium ${btnClass}" ${btnDisabled}>&times; Remove</button>
             </div>
         `;
-        item.querySelector('button').onclick = () => removeAbsentee(regNo);
+        
+        // 3. Attach Delete Event with Name
+        if (!isAbsenteeListLocked) {
+            item.querySelector('button').onclick = () => removeAbsentee(regNo, roomData.name);
+        }
+        
         currentAbsenteeListDiv.appendChild(item);
     });
 }
 
-function removeAbsentee(regNo) {
-    currentAbsenteeList = currentAbsenteeList.filter(r => r !== regNo);
-    saveAbsenteeList(sessionSelect.value);
-    renderAbsenteeList();
-    syncDataToCloud(); // <--- ADD THIS
+function removeAbsentee(regNo, name) {
+    if (isAbsenteeListLocked) return; // Extra safety
+    
+    const confirmMsg = `Are you sure you want to remove ${name || regNo} from the Absentee List?`;
+    
+    if (confirm(confirmMsg)) {
+        currentAbsenteeList = currentAbsenteeList.filter(r => r !== regNo);
+        saveAbsenteeList(sessionSelect.value);
+        renderAbsenteeList();
+        syncDataToCloud();
+    }
 }
+
 // --- (V89) NEW QP CODE LOGIC (DIFFERENT STRATEGY) ---
 
 // V89: Loads the *entire* QP code map from localStorage into the global var
