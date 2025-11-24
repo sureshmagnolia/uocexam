@@ -2412,9 +2412,10 @@ generateDaywiseReportButton.addEventListener('click', async () => {
             
             processedRows.forEach(row => {
                 if (row.isCourseHeader) {
+                    // FIX: Border Black
                     rowsHtml += `
                         <tr>
-                            <td colspan="4" style="background-color: #eee; font-weight: bold; padding: 2px 4px; border: 1px solid #999; font-size: 0.8em;">
+                            <td colspan="4" style="background-color: #eee; font-weight: bold; padding: 2px 4px; border: 1px solid #000; font-size: 0.8em;">
                                 ${row.courseName}
                             </td>
                         </tr>`;
@@ -2425,18 +2426,19 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                 if (!row.skipLocation) {
                     const rowspanAttr = row.span > 1 ? `rowspan="${row.span}"` : '';
                     const valign = row.span > 1 ? 'vertical-align: middle;' : 'vertical-align: top;';
-                    // Reduced font size for Location to handle long text better
-                    rowsHtml += `<td ${rowspanAttr} style="padding: 2px 3px; font-size:0.8em; background-color: #fff; ${valign} line-height: 1.1;">${row.displayRoom}</td>`;
+                    // FIX: Border Black
+                    rowsHtml += `<td ${rowspanAttr} style="padding: 2px 3px; font-size:0.8em; background-color: #fff; ${valign} line-height: 1.1; border: 1px solid #000;">${row.displayRoom}</td>`;
                 }
 
+                // FIX: Border Black added to all cells below
                 rowsHtml += `
-                        <td style="padding: 1px 4px; font-weight: 600; font-size: 0.9em;">${row.student['Register Number']}</td>
+                        <td style="padding: 1px 4px; font-weight: 600; font-size: 0.9em; border: 1px solid #000;">${row.student['Register Number']}</td>
                         
-                        <td style="padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0;">
+                        <td style="padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; border: 1px solid #000;">
                             ${row.student.Name}
                         </td>
                         
-                        <td style="padding: 1px 4px; text-align: center; font-weight: bold;">${row.seatNo}</td>
+                        <td style="padding: 1px 4px; text-align: center; font-weight: bold; border: 1px solid #000;">${row.seatNo}</td>
                     </tr>
                 `;
             });
@@ -2447,10 +2449,10 @@ generateDaywiseReportButton.addEventListener('click', async () => {
                         <col style="width: 22%;"> <col style="width: 30%;"> <col style="width: 38%;"> <col style="width: 10%;"> </colgroup>
                     <thead>
                         <tr>
-                            <th>Location</th>
-                            <th>Reg No</th>
-                            <th>Name</th>
-                            <th>Seat</th>
+                            <th style="border: 1px solid #000;">Location</th>
+                            <th style="border: 1px solid #000;">Reg No</th>
+                            <th style="border: 1px solid #000;">Name</th>
+                            <th style="border: 1px solid #000;">Seat</th>
                         </tr>
                     </thead>
                     <tbody>${rowsHtml}</tbody>
