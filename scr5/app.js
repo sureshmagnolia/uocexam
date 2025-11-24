@@ -1491,7 +1491,7 @@ function initCalendar() {
     }
 }
 
-// --- Calendar Render Logic (Optimized: Slices for FN/AN) ---
+// --- Calendar Render Logic (Optimized: Slices + Blue Center for Today) ---
 function renderCalendar() {
     const grid = document.getElementById('calendar-days-grid');
     const title = document.getElementById('cal-month-display');
@@ -1557,66 +1557,59 @@ function renderCalendar() {
         // Default Circle Style (Gray Text, Transparent)
         let circleClass = "w-20 h-20 text-3xl rounded-full flex flex-col items-center justify-center relative font-bold text-gray-700 bg-transparent border border-transparent overflow-hidden";
         let circleStyle = "";
-        let innerContent = `<span class="z-10">${day}</span>`;
         let tooltipHtml = "";
 
+        // --- 1. DATE NUMBER STYLING ---
+        // If Today: Blue Circle with White Text in the Center
+        // If Not Today: Standard Text
+        let dateNumberHtml = `<span class="z-10">${day}</span>`;
+        
         if (isToday) {
-            circleClass = "w-20 h-20 text-3xl rounded-full flex flex-col items-center justify-center relative font-bold bg-blue-600 text-white shadow-md overflow-hidden";
+            dateNumberHtml = `<span class="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 text-white shadow-md z-20 text-2xl">${day}</span>`;
+            // Note: We remove the default blue bg from circleClass below if data exists, 
+            // relying on this inner span for the "Today" indicator.
         }
 
+        // --- 2. CIRCLE BACKGROUND LOGIC ---
         if (data) {
             const hasFN = data.am.students > 0;
             const hasAN = data.pm.students > 0;
             
             if (hasFN || hasAN) {
-                // Base Active Color (Light Red)
+                // Base Active Color (Light Red background for the container)
                 circleClass = "w-20 h-20 text-3xl rounded-full flex flex-col items-center justify-center relative font-bold text-red-900 border border-red-200 overflow-hidden shadow-sm";
                 
-                // Gradient Colors
+                // Gradient Colors for Slices
                 const cLight = "#fee2e2"; // bg-red-100
                 const cDark = "#fca5a5";  // bg-red-300 (Darker slice)
 
-                // Slice Logic
+                // Logic: Slices are background gradients
                 if (hasFN && hasAN) {
-                    // Both: Top Dark, Middle Light, Bottom Dark
                     circleStyle = `background: linear-gradient(to bottom, ${cDark} 0%, ${cDark} 35%, ${cLight} 35%, ${cLight} 65%, ${cDark} 65%, ${cDark} 100%);`;
-                    innerContent = `
+                    // Combine Slices + Centered Date Number
+                    dateNumberHtml = `
                         <span class="absolute top-1 text-[9px] text-red-900 font-extrabold leading-none opacity-80">FN</span>
-                        <span class="z-10">${day}</span>
+                        ${dateNumberHtml}
                         <span class="absolute bottom-1 text-[9px] text-red-900 font-extrabold leading-none opacity-80">AN</span>
                     `;
                 } else if (hasFN) {
-                    // FN Only: Top Dark, Rest Light
                     circleStyle = `background: linear-gradient(to bottom, ${cDark} 0%, ${cDark} 35%, ${cLight} 35%, ${cLight} 100%);`;
-                    innerContent = `
+                    dateNumberHtml = `
                         <span class="absolute top-1 text-[9px] text-red-900 font-extrabold leading-none opacity-80">FN</span>
-                        <span class="z-10 mt-1">${day}</span>
+                        ${dateNumberHtml}
                     `;
                 } else if (hasAN) {
-                    // AN Only: Bottom Dark, Rest Light
                     circleStyle = `background: linear-gradient(to bottom, ${cLight} 0%, ${cLight} 65%, ${cDark} 65%, ${cDark} 100%);`;
-                    innerContent = `
-                        <span class="z-10 mb-1">${day}</span>
+                    dateNumberHtml = `
+                        ${dateNumberHtml}
                         <span class="absolute bottom-1 text-[9px] text-red-900 font-extrabold leading-none opacity-80">AN</span>
                     `;
                 } else {
-                    // Fallback (shouldn't happen if hasFN || hasAN)
                     circleStyle = `background-color: ${cLight};`;
-                }
-                
-                // Overwrite if Today (Keep today blue, but maybe show small indicator dots? 
-                // User preference usually prioritizes "Today" highlight over Exam highlight, 
-                // but let's keep the Exam Slice logic dominant for layout, just change colors to Blue/DarkBlue if desired.
-                // For now, we adhere to user request: "Dates with Exam is turning Light Red".
-                // If it is TODAY and has EXAM, we usually let the "Today" blue win, or mix them.
-                // Current code lets Blue win fully (in 'isToday' block above).
-                // Let's allow Exam Slices to override Today color but add a blue border to indicate "Today".
-                if (isToday) {
-                     circleClass += " ring-4 ring-blue-400 ring-opacity-50";
                 }
             }
 
-            // Tooltip Generation (Same as before)
+            // Tooltip Generation
             if (hasFN) {
                 const regHalls = Math.ceil(data.am.regCount / 30);
                 const othHalls = Math.ceil(data.am.othCount / 30);
@@ -1641,6 +1634,10 @@ function renderCalendar() {
                         <span class='text-gray-500 text-[10px]'>${details}</span>
                     </div>`;
             }
+        } else if (isToday) {
+            // Today BUT No Exam: Simple Blue Circle
+            circleClass = "w-20 h-20 text-3xl rounded-full flex flex-col items-center justify-center relative font-bold bg-blue-600 text-white shadow-md overflow-hidden";
+            dateNumberHtml = `<span class="z-10">${day}</span>`;
         }
 
         const tooltip = tooltipHtml ? `
@@ -1653,7 +1650,7 @@ function renderCalendar() {
         html += `
             <div class="${baseClass}">
                 <div class="${circleClass}" style="${circleStyle}">
-                    ${innerContent}
+                    ${dateNumberHtml}
                 </div>
                 ${tooltip}
             </div>
