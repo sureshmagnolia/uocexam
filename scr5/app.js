@@ -7223,7 +7223,9 @@ modalSaveBtn.addEventListener('click', () => {
         const ampm = hours >= 12 ? 'PM' : 'AM';
         hours = hours % 12;
         hours = hours ? hours : 12; 
-        return `${hours}:${min} ${ampm}`;
+        // FIX: Force 2 digits (09 instead of 9)
+        const paddedHours = String(hours).padStart(2, '0');
+        return `${paddedHours}:${min} ${ampm}`;
     };
 
     // 3. MERGE LOGIC (The Fix)
@@ -7518,8 +7520,10 @@ if (btnBulkApply) {
             let hours = parseInt(h);
             const ampm = hours >= 12 ? 'PM' : 'AM';
             hours = hours % 12;
-            hours = hours ? hours : 12; 
-            newTime = `${hours}:${min} ${ampm}`;
+            hours = hours ? hours : 12;
+            // FIX: Force 2 digits
+            const paddedHours = String(hours).padStart(2, '0');
+            newTime = `${paddedHours}:${min} ${ampm}`;
         }
         // ----------------------------------
 
