@@ -1447,17 +1447,18 @@ function initCalendar() {
     const prevBtn = document.getElementById('cal-prev-btn');
     const nextBtn = document.getElementById('cal-next-btn');
     
+    // FIX: Use .onclick to prevent stacking multiple listeners
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
+        prevBtn.onclick = () => {
             currentCalDate.setMonth(currentCalDate.getMonth() - 1);
             renderCalendar();
-        });
+        };
     }
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
+        nextBtn.onclick = () => {
             currentCalDate.setMonth(currentCalDate.getMonth() + 1);
             renderCalendar();
-        });
+        };
     }
 }
 
