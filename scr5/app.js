@@ -8997,145 +8997,144 @@ function convertToCSV(objArray) {
     return str;
 }
 
-  // --- Helper: Load Data into App & Cloud ---
-    function loadStudentData(dataArray) {
-        // 1. Update Global Var
-        allStudentData = dataArray;
+ // --- Helper: Load Data into App & Cloud ---
+function loadStudentData(dataArray) {
+    // 1. Update Global Var
+    allStudentData = dataArray;
+    
+    // 2. Update Data Stores
+    const jsonStr = JSON.stringify(dataArray);
+    jsonDataStore.innerHTML = jsonStr;
+    localStorage.setItem(BASE_DATA_KEY, jsonStr);
+
+    // 3. Update UI
+    updateUniqueStudentList();
+    populate_session_dropdown();
+    populate_qp_code_session_dropdown();
+    populate_room_allotment_session_dropdown();
+    updateDashboard(); 
+    
+    // 4. ENABLE ALL TABS AND BUTTONS
+    disable_absentee_tab(false);
+    disable_qpcode_tab(false);
+    disable_room_allotment_tab(false);
+    disable_scribe_settings_tab(false);
+    disable_edit_data_tab(false);
+
+    // Enable Report Buttons
+    const reportBtns = [
+        'generate-report-button',
+        'generate-daywise-report-button',
+        'generate-qpaper-report-button',
+        'generate-qp-distribution-report-button',
+        'generate-scribe-report-button',
+        'generate-scribe-proforma-button',
+        'generate-invigilator-report-button',
+        'generate-absentee-report-button'
+    ];
+    
+    reportBtns.forEach(id => {
+        const btn = document.getElementById(id);
+        if(btn) btn.disabled = false;
+    });
+
+    // 5. Sync
+    if (typeof syncDataToCloud === 'function') syncDataToCloud();
+
+    // 6. Feedback
+    if (mainCsvStatus) {
+        mainCsvStatus.textContent = `Success! Loaded ${allStudentData.length} records.`;
+        mainCsvStatus.className = "text-sm font-medium text-green-600";
+    }
+    
+    // [REMOVED] Step 7. CSV Download Logic
+    // This prevents the "Option 2" button from being overwritten with total data.
+} 
+
+
+// ==========================================
+// 🐍 PYTHON INTEGRATION (Connects PDF to Merge Logic)
+// ==========================================
+
+window.handlePythonExtraction = function(jsonString) {
+    console.log("Received data from Python...");
+    
+    const pdfStreamSelect = document.getElementById('pdf-stream-select');
+    const selectedStream = pdfStreamSelect ? (pdfStreamSelect.value || "Regular") : "Regular";
+
+    try {
+        let parsedData = JSON.parse(jsonString);
         
-        // 2. Update Data Stores
-        const jsonStr = JSON.stringify(dataArray);
-        jsonDataStore.innerHTML = jsonStr;
-        localStorage.setItem(BASE_DATA_KEY, jsonStr);
+        // INJECT STREAM TAG INTO PYTHON DATA
+        parsedData = parsedData.map(item => ({
+            ...item,
+            Stream: selectedStream
+        }));
 
-        // 3. Update UI
-        updateUniqueStudentList();
-        populate_session_dropdown();
-        populate_qp_code_session_dropdown();
-        populate_room_allotment_session_dropdown();
-        updateDashboard(); 
-        
-        // 4. ENABLE ALL TABS AND BUTTONS
-        disable_absentee_tab(false);
-        disable_qpcode_tab(false);
-        disable_room_allotment_tab(false);
-        disable_scribe_settings_tab(false);
-        disable_edit_data_tab(false);
-
-        // *** FIX: Enable the NEW 1-Col and 2-Col Buttons ***
-    // *** FIX: Enable the SINGLE button ID ***
-        const reportBtns = [
-            'generate-report-button',
-            'generate-daywise-report-button', // <--- Updated to match HTML
-            'generate-qpaper-report-button',
-            'generate-qp-distribution-report-button',
-            'generate-scribe-report-button',
-            'generate-scribe-proforma-button',
-            'generate-invigilator-report-button',
-            'generate-absentee-report-button'
-        ];
-        
-        reportBtns.forEach(id => {
-            const btn = document.getElementById(id);
-            if(btn) btn.disabled = false;
-        });
-
-        // 5. Sync
-        if (typeof syncDataToCloud === 'function') syncDataToCloud();
-
-        // 6. Feedback
-        if (mainCsvStatus) {
-            // FIX: Use allStudentData.length to show the ACTUAL count after deduplication
-            mainCsvStatus.textContent = `Success! Loaded ${allStudentData.length} records.`;
-            mainCsvStatus.className = "text-sm font-medium text-green-600";
+        if (parsedData.length === 0) {
+            alert("Extraction completed, but no student data was found.");
+            return;
         }
-        
-        // 7. CSV Download
+
+        // --- NEW: Generate Download Button for JUST this extraction ---
         const downloadContainer = document.getElementById('csv-download-container');
         if (downloadContainer) {
-            const csvContent = convertToCSV(dataArray);
+            // convertToCSV is your existing helper
+            const csvContent = convertToCSV(parsedData); 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             
             downloadContainer.innerHTML = `
-                <a href="${url}" download="Extracted_Student_Data.csv" 
+                <a href="${url}" download="New_Extracted_Data_${new Date().getTime()}.csv" 
                    class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                   Download Data as CSV
+                   Download Extracted Data Only (${parsedData.length} rows)
                 </a>
             `;
         }
-    } 
+        // -------------------------------------------------------------
 
+        // 1. Assign to temp variable
+        tempNewData = parsedData;
 
-// ==========================================
-    // 🐍 PYTHON INTEGRATION (Connects PDF to Merge Logic)
-    // ==========================================
-
-    window.handlePythonExtraction = function(jsonString) {
-        console.log("Received data from Python...");
-        
-        // Get the stream from the dropdown (or default to "Regular" if empty)
-        const pdfStreamSelect = document.getElementById('pdf-stream-select');
-        const selectedStream = pdfStreamSelect ? (pdfStreamSelect.value || "Regular") : "Regular";
-
-        try {
-            // *** FIX: Changed 'const' to 'let' so we can modify it ***
-            let parsedData = JSON.parse(jsonString);
+        // 2. Check against existing data
+        if (!allStudentData || allStudentData.length === 0) {
+            loadStudentData(tempNewData);
+            alert(`Success! Extracted ${tempNewData.length} records from PDF for stream: ${selectedStream}`);
+        } else {
+            const existingKeys = new Set(allStudentData.map(getRecordKey));
             
-            // INJECT STREAM TAG INTO PYTHON DATA
-            parsedData = parsedData.map(item => ({
-                ...item,
-                Stream: selectedStream
-            }));
+            tempUniqueData = tempNewData.filter(s => {
+                return !existingKeys.has(getRecordKey(s));
+            });
 
-            if (parsedData.length === 0) {
-                alert("Extraction completed, but no student data was found.");
-                return;
-            }
-
-            // 1. Assign to temp variable
-            tempNewData = parsedData;
-
-            // 2. Check against existing data
-            if (!allStudentData || allStudentData.length === 0) {
-                loadStudentData(tempNewData);
-                alert(`Success! Extracted ${tempNewData.length} records from PDF for stream: ${selectedStream}`);
+            // 3. Show Options Modal
+            conflictExistingCount.textContent = allStudentData.length;
+            conflictTotalNew.textContent = tempNewData.length;
+            conflictUniqueCount.textContent = tempUniqueData.length;
+            
+            if (tempUniqueData.length === 0) {
+                btnMerge.innerHTML = "No New Records (All Duplicates)";
+                btnMerge.disabled = true;
+                btnMerge.classList.add('opacity-50', 'cursor-not-allowed');
+                btnMerge.classList.remove('bg-green-600', 'hover:bg-green-700');
+                btnMerge.classList.add('bg-gray-400');
             } else {
-                // Create Set of keys from EXISTING data
-                const existingKeys = new Set(allStudentData.map(getRecordKey));
-                
-                // Filter NEW data
-                tempUniqueData = tempNewData.filter(s => {
-                    return !existingKeys.has(getRecordKey(s));
-                });
-
-                // 3. Show Options Modal
-                conflictExistingCount.textContent = allStudentData.length;
-                conflictTotalNew.textContent = tempNewData.length;
-                conflictUniqueCount.textContent = tempUniqueData.length;
-                
-                if (tempUniqueData.length === 0) {
-                    btnMerge.innerHTML = "No New Records (All Duplicates)";
-                    btnMerge.disabled = true;
-                    btnMerge.classList.add('opacity-50', 'cursor-not-allowed');
-                    btnMerge.classList.remove('bg-green-600', 'hover:bg-green-700');
-                    btnMerge.classList.add('bg-gray-400');
-                } else {
-                    btnMerge.innerHTML = `✅ Add <strong>${tempUniqueData.length}</strong> New Records (Merge)`;
-                    btnMerge.disabled = false;
-                    btnMerge.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
-                    btnMerge.classList.add('bg-green-600', 'hover:bg-green-700');
-                }
-
-                const conflictModal = document.getElementById('csv-conflict-modal');
-                conflictModal.classList.remove('hidden');
+                btnMerge.innerHTML = `✅ Add <strong>${tempUniqueData.length}</strong> New Records (Merge)`;
+                btnMerge.disabled = false;
+                btnMerge.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
+                btnMerge.classList.add('bg-green-600', 'hover:bg-green-700');
             }
 
-        } catch(e) {
-            console.error("Error processing Python data:", e);
-            alert("An error occurred while processing the extracted data.");
+            const conflictModal = document.getElementById('csv-conflict-modal');
+            conflictModal.classList.remove('hidden');
         }
-    };
+
+    } catch(e) {
+        console.error("Error processing Python data:", e);
+        alert("An error occurred while processing the extracted data.");
+    }
+};
 
 // ==========================================
     // 🌊 STREAM MANAGEMENT LOGIC (Chunk 1)
