@@ -259,6 +259,21 @@ let currentUser = null;
 let currentCollegeId = null; // The shared document ID
 let currentCollegeData = null; // Holds the full data including permissions
 let isSyncing = false;
+let cloudSyncUnsubscribe = null; // [NEW] To track the active listener
+
+// [NEW] Network Connectivity Listeners
+window.addEventListener('online', () => {
+    updateSyncStatus("Back Online", "success");
+    // If we are logged in and have a college ID, reconnect the live sync
+    if (currentUser && currentCollegeId) {
+        console.log("🌐 Network restored. Re-initializing cloud sync...");
+        syncDataFromCloud(currentCollegeId);
+    }
+});
+
+window.addEventListener('offline', () => {
+    updateSyncStatus("No Connection", "error");
+});
 
 // --- 1. AUTHENTICATION ---
 
@@ -353,14 +368,30 @@ async function createNewCollege(user) {
 // ☁️ CLOUD SYNC FUNCTIONS (Fixed & Updated)
 // ==========================================
 
-// 5. CLOUD DOWNLOAD FUNCTION (Fixed Status Update & Timestamp Check)
+// 5. CLOUD DOWNLOAD FUNCTION (Network Aware)
 function syncDataFromCloud(collegeId) {
+    // 1. Cleanup previous listener if exists (prevents duplicates on reconnect)
+    if (cloudSyncUnsubscribe) {
+        cloudSyncUnsubscribe();
+        cloudSyncUnsubscribe = null;
+    }
+
+    // 2. Offline Check
+    if (!navigator.onLine) {
+        console.log("⚠️ Offline Mode. Loading local data.");
+        updateSyncStatus("Offline Mode", "error");
+        loadInitialData();
+        if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
+        return;
+    }
+
     updateSyncStatus("Connecting...", "neutral");
     const { db, doc, onSnapshot, collection, getDocs, query, orderBy } = window.firebase;
     
     const mainRef = doc(db, "colleges", collegeId);
     
-    const unsubMain = onSnapshot(mainRef, async (docSnap) => {
+    // 3. Assign listener to global variable
+    cloudSyncUnsubscribe = onSnapshot(mainRef, async (docSnap) => {
         if (docSnap.exists()) {
             const mainData = docSnap.data();
             currentCollegeData = mainData; 
@@ -372,21 +403,19 @@ function syncDataFromCloud(collegeId) {
                 if(adminBtn) adminBtn.classList.add('hidden');
             }
 
-            // === TIMESTAMP CHECK (PREVENT OVERWRITE OF NEW LOCAL DATA) ===
+            // === TIMESTAMP CHECK ===
             const localTime = localStorage.getItem('lastUpdated');
             
             if (localTime && mainData.lastUpdated) {
                 if (localTime === mainData.lastUpdated) {
                     updateSyncStatus("Synced", "success");
-                    // FIX: Load data first, then dismiss loader
                     loadInitialData(); 
                     if (typeof finalizeAppLoad === 'function') finalizeAppLoad(); 
                     return; 
                 }
                 if (localTime > mainData.lastUpdated) {
-                    console.log("⚠️ Local data is newer than cloud. Skipping auto-download to prevent overwrite.");
+                    console.log("⚠️ Local data is newer than cloud.");
                     updateSyncStatus("Unsaved Changes", "neutral"); 
-                    // FIX: Load data first, then dismiss loader
                     loadInitialData(); 
                     if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
                     return;
@@ -419,7 +448,6 @@ function syncDataFromCloud(collegeId) {
 
                 if (fullPayload) {
                     const bulkData = JSON.parse(fullPayload);
-                    console.log("☁️ Bulk data stitched and parsed.");
                     ['examBaseData', 'examRoomAllotment'].forEach(key => {
                         if (bulkData[key]) localStorage.setItem(key, bulkData[key]);
                     });
@@ -430,35 +458,38 @@ function syncDataFromCloud(collegeId) {
 
             // 3. Refresh UI
             updateSyncStatus("Synced", "success");
-            
-            // FIX: Load the downloaded data into the app memory
             loadInitialData();
             
-            // Refresh Allotment View if open
             if (typeof viewRoomAllotment !== 'undefined' && !viewRoomAllotment.classList.contains('hidden') && allotmentSessionSelect.value) {
                  allotmentSessionSelect.dispatchEvent(new Event('change'));
             }
             
-            // Finally, dismiss the loading screen
             if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
 
         } else {
             updateSyncStatus("No Cloud Data", "neutral");
-            loadInitialData(); // Load whatever local data we have
+            loadInitialData(); 
             if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
         }
     }, (error) => {
         console.error("Sync Error:", error);
-        updateSyncStatus("Net Error", "error");
-        loadInitialData(); // Load whatever local data we have
+        // Handle offline/permission errors gracefully
+        updateSyncStatus("Offline / Error", "error");
+        loadInitialData(); 
         if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
     });
 }
-
-// 4. CLOUD UPLOAD FUNCTION (Universal Smart Merge - Fixed)
+// 4. CLOUD UPLOAD FUNCTION (Network Aware)
 async function syncDataToCloud() {
     if (!currentUser || !currentCollegeId) return;
     if (isSyncing) return;
+    
+    // [NEW] Offline Check
+    if (!navigator.onLine) {
+        updateSyncStatus("Offline - Saved Locally", "error");
+        console.log("⚠️ Offline. Data saved to LocalStorage only.");
+        return;
+    }
     
     isSyncing = true;
     updateSyncStatus("Saving...", "neutral");
@@ -491,26 +522,19 @@ async function syncDataToCloud() {
         };
 
         const pickRobusterValue = (key, localVal, cloudVal) => {
-            // 1. If no local value, take cloud AND SAVE LOCALLY
             if (!localVal) {
                 if (cloudVal) {
-                    console.log(`🛡️ Restoring Cloud Value for [${key}] (Local was missing)`);
-                    localStorage.setItem(key, cloudVal); // <--- FIX ADDED HERE
+                    localStorage.setItem(key, cloudVal); 
                     return cloudVal;
                 }
                 return null;
             }
-            // 2. If no cloud value, take local
             if (!cloudVal) return localVal;
             
-            // 3. If Local is "Empty/Default" AND Cloud is "Robust", KEEP CLOUD
             if (isEmptyOrDefault(key, localVal) && !isEmptyOrDefault(key, cloudVal)) {
-                console.log(`🛡️ Preserving Cloud Value for [${key}]`);
-                localStorage.setItem(key, cloudVal); // Update Local immediately
+                localStorage.setItem(key, cloudVal); 
                 return cloudVal;
             }
-            
-            // 4. Otherwise (Local is custom/new), Use Local
             return localVal;
         };
 
@@ -538,14 +562,13 @@ async function syncDataToCloud() {
             if (bestVal) finalMainData[key] = bestVal;
         });
 
-        // --- STEP 4: Prepare Bulk Data (Students) ---
+        // --- STEP 4: Prepare Bulk Data ---
         const localBaseData = localStorage.getItem('examBaseData');
         let localAllotment = localStorage.getItem('examRoomAllotment');
         
         const bulkDataObj = {};
         if (localBaseData) bulkDataObj['examBaseData'] = localBaseData;
         
-        // Only upload allotment if it exists locally
         if (localAllotment && localAllotment !== '{}') {
             bulkDataObj['examRoomAllotment'] = localAllotment;
         }
@@ -563,7 +586,7 @@ async function syncDataToCloud() {
         
         await batch.commit();
         
-        console.log(`Data synced! Preserved robust cloud settings.`);
+        console.log(`Data synced!`);
         updateSyncStatus("Saved", "success");
         loadInitialData(); 
 
@@ -574,11 +597,17 @@ async function syncDataToCloud() {
                  await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId), { lastUpdated: new Date().toISOString() });
              } catch (retryErr) {}
         }
-        updateSyncStatus("Save Fail", "error");
+        // Check if error is network related
+        if (e.code === 'unavailable' || !navigator.onLine) {
+             updateSyncStatus("Offline - Saved Locally", "error");
+        } else {
+             updateSyncStatus("Save Fail", "error");
+        }
     } finally {
         isSyncing = false;
     }
 }
+
 // --- 3. ADMIN / TEAM MANAGEMENT LOGIC ---
 
 adminBtn.addEventListener('click', () => {
