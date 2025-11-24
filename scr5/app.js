@@ -1936,7 +1936,7 @@ function checkManualAllotment(sessionKey) {
     return true;
 }
 
-// --- 1. Event listener for the "Generate Room-wise Report" button (V9: Stream-Aware QP Codes) ---
+// --- 1. Event listener for the "Generate Room-wise Report" button (V10: Scribe Adjustments) ---
 generateReportButton.addEventListener('click', async () => {
     const sessionKey = reportsSessionSelect.value; 
     if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
@@ -1977,7 +1977,6 @@ generateReportButton.addEventListener('click', async () => {
         lastGeneratedReportType = "Roomwise_Seating_Report";
 
         const sessions = {};
-        // Re-load codes to be safe
         loadQPCodes(); 
 
         final_student_list_for_report.forEach(student => {
@@ -1985,16 +1984,24 @@ generateReportButton.addEventListener('click', async () => {
             if (!sessions[key]) {
                 sessions[key] = {
                     Date: student.Date, Time: student.Time, Room: student['Room No'],
-                    students: [], courseCounts: {} // Note: simple count logic might need update if splitting streams in summary
+                    students: [], courseCounts: {} 
                 };
             }
             sessions[key].students.push(student);
             
-            // Count unique QP-Course combos
-            // We append stream to key to ensure "English (Reg)" and "English (Dist)" are counted separately in summary
+            // Count unique QP-Course combos (Separating Scribes)
             const stream = student.Stream || "Regular";
             const uniqueCourseKey = `${student.Course}|${stream}`;
-            sessions[key].courseCounts[uniqueCourseKey] = (sessions[key].courseCounts[uniqueCourseKey] || 0) + 1;
+            
+            if (!sessions[key].courseCounts[uniqueCourseKey]) {
+                sessions[key].courseCounts[uniqueCourseKey] = { total: 0, scribe: 0 };
+            }
+            sessions[key].courseCounts[uniqueCourseKey].total++;
+            
+            // Check if this specific student is a scribe (marked as placeholder in this list)
+            if (student.isPlaceholder) {
+                sessions[key].courseCounts[uniqueCourseKey].scribe++;
+            }
         });
 
         let allPagesHtml = `
@@ -2009,10 +2016,7 @@ generateReportButton.addEventListener('click', async () => {
         `;
         
         let totalPagesGenerated = 0;
-       const sortedSessionKeys = Object.keys(sessions).sort((a, b) => {
-            // Extract Date, Time, Room from the key "Date_Time_Room"
-            // Note: Room might contain underscores, so be careful with split
-            // Safe strategy: Split by first 2 underscores for Date_Time, rest is Room
+        const sortedSessionKeys = Object.keys(sessions).sort((a, b) => {
             const partsA = a.split('_');
             const partsB = b.split('_');
             
@@ -2022,14 +2026,12 @@ generateReportButton.addEventListener('click', async () => {
             const dateB = partsB[0]; const timeB = partsB[1];
             const roomB = partsB.slice(2).join('_');
 
-            // 1. Compare Date & Time (Chronologically)
             const sessionA = `${dateA} | ${timeA}`;
             const sessionB = `${dateB} | ${timeB}`;
             const timeDiff = compareSessionStrings(sessionA, sessionB);
             if (timeDiff !== 0) return timeDiff;
 
-            // 2. Compare Room Serial Number
-            const serialMap = getRoomSerialMap(sessionA); // Compute map for this session
+            const serialMap = getRoomSerialMap(sessionA);
             const serialA = serialMap[roomA] || 999999;
             const serialB = serialMap[roomB] || 999999;
 
@@ -2056,15 +2058,16 @@ generateReportButton.addEventListener('click', async () => {
             const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
             const pageStream = session.students.length > 0 ? (session.students[0].Stream || "Regular") : "Regular";
 
-            // --- NEW: Get Exam Name ---
             const examName = getExamName(session.Date, session.Time, pageStream);
             const examNameHtml = examName ? `<h2 style="font-size:14pt; font-weight:bold; margin:2px 0;">${examName}</h2>` : "";
 
-            // --- 1. Footer Content ---
+            // --- 1. Footer Content (Modified for Scribe Reductions) ---
             let courseSummaryRows = '';
             const uniqueQPCodesInRoom = new Set();
+            let sessionAdjustedTotal = 0;
             
-            for (const [comboKey, count] of Object.entries(session.courseCounts)) {
+            // Iterate through the stats object we built earlier
+            for (const [comboKey, stats] of Object.entries(session.courseCounts)) {
                 const [cName, cStream] = comboKey.split('|');
                 
                 const courseKey = getQpKey(cName, cStream); 
@@ -2074,15 +2077,35 @@ generateReportButton.addEventListener('click', async () => {
                 if (qpCode) uniqueQPCodesInRoom.add(qpCode);
                 else uniqueQPCodesInRoom.add(cName.substring(0, 10)); 
                 
-                const smartName = getSmartCourseName(cName);
+                let smartName = getSmartCourseName(cName);
+                
+                // MATHS: Total Candidates - Scribes = Booklets Needed
+                const totalCount = stats.total;
+                const scribeCount = stats.scribe;
+                const adjustedCount = totalCount - scribeCount;
+                
+                // Add Scribe Note to Name
+                if (scribeCount > 0) {
+                    smartName += ` <b>(${scribeCount} Scribes)</b>`;
+                }
+                
+                sessionAdjustedTotal += adjustedCount;
 
                 courseSummaryRows += `
                     <tr>
                         <td style="border: 1px solid #ccc; padding: 1px 3px; font-weight:bold; width: 15%; text-align:left;">${qpDisplay}</td>
                         <td style="border: 1px solid #ccc; padding: 1px 3px; width: 75%; font-size: 8.5pt;">${smartName}</td>
-                        <td style="border: 1px solid #ccc; padding: 1px 3px; text-align: center; font-weight: bold; width: 10%;">${count}</td>
+                        <td style="border: 1px solid #ccc; padding: 1px 3px; text-align: center; font-weight: bold; width: 10%;">${adjustedCount}</td>
                     </tr>`;
             }
+            
+            // Add Total Row
+            courseSummaryRows += `
+                <tr style="background-color: #f9fafb;">
+                    <td colspan="2" style="border: 1px solid #ccc; padding: 1px 3px; text-align: right; font-weight: bold;">Total (Excl. Scribes):</td>
+                    <td style="border: 1px solid #ccc; padding: 1px 3px; text-align: center; font-weight: bold;">${sessionAdjustedTotal}</td>
+                </tr>
+            `;
 
             let writtenScriptsHtml = '';
             uniqueQPCodesInRoom.forEach(code => {
