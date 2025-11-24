@@ -1730,7 +1730,8 @@ function formatDateToCSV(dateObj) {
     return `${dd}.${mm}.${yyyy}`;
 }
 
-// --- Helper: Generate HTML Cards for a Date (V3: Scribe Separation) ---
+
+// --- Helper: Generate HTML Cards for a Date (V4: Explicit Requirements & Totals) ---
 function generateSessionCardsHtml(dateStr) {
     const studentsForDate = allStudentData.filter(s => s.Date === dateStr);
     if (studentsForDate.length === 0) return null;
@@ -1741,7 +1742,6 @@ function generateSessionCardsHtml(dateStr) {
         sessions[s.Time].push(s);
     });
 
-    // Ensure we have the latest scribe list
     if (globalScribeList.length === 0) {
         const stored = localStorage.getItem(SCRIBE_LIST_KEY);
         if (stored) globalScribeList = JSON.parse(stored);
@@ -1764,7 +1764,6 @@ function generateSessionCardsHtml(dateStr) {
             if (scribeRegNos.has(s['Register Number'])) {
                 scribeCount++;
             } else {
-                // Only count non-scribes for Stream Halls
                 const strm = s.Stream || "Regular";
                 streamCounts[strm] = (streamCounts[strm] || 0) + 1;
             }
@@ -1773,6 +1772,7 @@ function generateSessionCardsHtml(dateStr) {
         // 2. Build Breakdown HTML
         let candidateBreakdownHtml = '';
         let hallsBreakdownHtml = '';
+        let totalReqCount = 0; // Track Total Rooms/Invigilators
         
         const sortedStreams = Object.keys(streamCounts).sort((a, b) => {
             if (a === "Regular") return -1;
@@ -1789,24 +1789,36 @@ function generateSessionCardsHtml(dateStr) {
                     <strong class="text-gray-800">${count}</strong>
                 </div>`;
             
-            // Halls (1 per 30)
-            const halls = Math.ceil(count / 30);
+            // Requirements (1 per 30)
+            const req = Math.ceil(count / 30);
+            totalReqCount += req;
+            
             hallsBreakdownHtml += `
                 <div class="flex justify-between items-center text-[11px] text-gray-600 gap-3">
                     <span>${strm}:</span> 
-                    <strong class="text-indigo-700 bg-indigo-50 px-1.5 rounded">${halls} Halls</strong>
+                    <strong class="text-indigo-700 bg-indigo-50 px-1.5 rounded" title="Rooms & Invigilators">${req}</strong>
                 </div>`;
         });
 
-        // Scribe Halls (1 per 5)
+        // Scribe Requirements (1 per 5)
         if (scribeCount > 0) {
-            const scribeHalls = Math.ceil(scribeCount / 5);
+            const scribeReq = Math.ceil(scribeCount / 5);
+            totalReqCount += scribeReq;
+            
             hallsBreakdownHtml += `
-                <div class="flex justify-between items-center text-[11px] text-gray-600 gap-3 border-t border-gray-100 pt-1 mt-1">
+                <div class="flex justify-between items-center text-[11px] text-gray-600 gap-3 pt-1">
                     <span class="text-orange-600 font-bold">Scribe:</span> 
-                    <strong class="text-orange-700 bg-orange-50 px-1.5 rounded">${scribeHalls} Halls</strong>
+                    <strong class="text-orange-700 bg-orange-50 px-1.5 rounded" title="Rooms & Invigilators">${scribeReq}</strong>
                 </div>`;
         }
+
+        // TOTAL ROW
+        hallsBreakdownHtml += `
+            <div class="flex justify-between items-center text-[11px] font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1">
+                <span>Total:</span> 
+                <span class="bg-gray-200 px-1.5 rounded text-gray-800">${totalReqCount}</span>
+            </div>
+        `;
 
         // 3. Construct Card
         sessionsHtml += `
@@ -1825,8 +1837,10 @@ function generateSessionCardsHtml(dateStr) {
                         </div>
                     </div>
 
-                    <div class="bg-gray-50 rounded-md border border-gray-200 p-2 min-w-[130px]">
-                        <div class="text-[10px] font-bold text-gray-400 uppercase mb-1 border-b border-gray-200 pb-1 tracking-wider">Est. Requirements</div>
+                    <div class="bg-gray-50 rounded-md border border-gray-200 p-2 min-w-[140px]">
+                        <div class="text-[9px] font-bold text-gray-500 uppercase mb-1 border-b border-gray-200 pb-1 tracking-wider text-center">
+                            Est. Rooms / Invigs
+                        </div>
                         <div class="space-y-1">
                             ${hallsBreakdownHtml}
                         </div>
@@ -1856,7 +1870,6 @@ function generateSessionCardsHtml(dateStr) {
     
     return sessionsHtml;
 }
-
 
 
     
