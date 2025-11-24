@@ -244,6 +244,7 @@ const ROOM_ALLOTMENT_KEY = 'examRoomAllotment';
 // *** MOVED HERE TO FIX ERROR ***
 const EXAM_RULES_KEY = 'examRulesConfig'; 
 let currentExamRules = []; 
+let isExamRulesLocked = true; // <--- ADD THIS NEW VARIABLE    
 // ******************************
     
 // *** NEW SCRIBE KEYS ***
@@ -1089,7 +1090,7 @@ function getExamName(date, time, stream) {
     return ""; // No match found
 }
 
-// --- UI: Render the Scheduler Interface ---
+// --- UI: Render the Scheduler Interface (Updated with Lock) ---
 function renderExamNameSettings() {
     const container = document.getElementById('exam-names-grid');
     const section = document.getElementById('exam-names-section');
@@ -1100,21 +1101,27 @@ function renderExamNameSettings() {
 
     if (!container || !section) return;
 
-    // Always show section now
     section.classList.remove('hidden');
     container.innerHTML = '';
 
     // --- 1. ADD NEW ENTRY FORM ---
-    // Ensure currentStreamConfig is loaded, default to Regular if missing
     const streams = (typeof currentStreamConfig !== 'undefined') ? currentStreamConfig : ["Regular"];
     const streamOptions = streams.map(s => `<option value="${s}">${s}</option>`).join('');
     
     const formHtml = `
         <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm mb-6">
-            <h3 class="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-600"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
-                Schedule New Exam
-            </h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-600"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
+                    Schedule New Exam
+                </h3>
+                <button id="toggle-exam-rules-lock" class="text-xs flex items-center gap-1 px-3 py-1 rounded transition shadow-sm ${isExamRulesLocked ? 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200' : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="${isExamRulesLocked ? 'M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25 2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z' : 'M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z'}" />
+                    </svg>
+                    <span>${isExamRulesLocked ? 'List Locked' : 'Unlocked'}</span>
+                </button>
+            </div>
             
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                 <div class="md:col-span-4">
@@ -1164,16 +1171,21 @@ function renderExamNameSettings() {
     // --- 2. LIST EXISTING RULES (Database View) ---
     let listHtml = '';
     if (currentExamRules.length > 0) {
-        // Sort by Start Date
         const sortedRules = [...currentExamRules].sort((a, b) => {
             return new Date(a.startDate) - new Date(b.startDate);
         });
 
         let rows = '';
-        sortedRules.forEach((rule, idx) => {
-            // Format Dates for display (YYYY-MM-DD -> DD/MM)
+        sortedRules.forEach((rule) => {
             const fmt = (d) => d.split('-').reverse().slice(0, 2).join('/');
             
+            // CHECK LOCK STATE FOR DELETE BUTTON
+            const btnState = isExamRulesLocked 
+                ? 'disabled opacity-30 cursor-not-allowed text-gray-400' 
+                : 'text-red-500 hover:text-red-700 cursor-pointer';
+            
+            const onclickAction = isExamRulesLocked ? '' : `onclick="deleteExamRule('${rule.id}')"`;
+
             rows += `
                 <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
                     <td class="px-4 py-3 text-sm font-bold text-gray-800">${rule.examName}</td>
@@ -1186,7 +1198,7 @@ function renderExamNameSettings() {
                         ${fmt(rule.endDate)} <span class="text-xs font-bold text-indigo-600">${rule.endSession}</span>
                     </td>
                     <td class="px-4 py-3 text-right">
-                        <button class="text-red-500 hover:text-red-700 p-1" onclick="deleteExamRule('${rule.id}')" title="Delete">
+                        <button class="p-1 ${btnState}" ${onclickAction} title="${isExamRulesLocked ? 'Unlock list to delete' : 'Delete'}">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                         </button>
                     </td>
@@ -1215,7 +1227,16 @@ function renderExamNameSettings() {
 
     container.innerHTML = formHtml + listHtml;
 
-    // --- ATTACH LISTENER TO ADD BUTTON ---
+    // --- ATTACH LOCK LISTENER ---
+    const lockBtn = document.getElementById('toggle-exam-rules-lock');
+    if(lockBtn) {
+        lockBtn.addEventListener('click', () => {
+            isExamRulesLocked = !isExamRulesLocked;
+            renderExamNameSettings(); // Re-render UI to reflect new state
+        });
+    }
+
+    // --- ATTACH ADD BUTTON LISTENER ---
     const addBtn = document.getElementById('add-rule-btn');
     if(addBtn) {
         addBtn.addEventListener('click', () => {
@@ -1238,7 +1259,7 @@ function renderExamNameSettings() {
 
             // Create Rule Object
             const newRule = {
-                id: Date.now().toString(), // Simple Unique ID
+                id: Date.now().toString(),
                 examName: name,
                 stream: stream,
                 startDate: sDate,
@@ -1250,7 +1271,7 @@ function renderExamNameSettings() {
             currentExamRules.push(newRule);
             localStorage.setItem(EXAM_RULES_KEY, JSON.stringify(currentExamRules));
             
-            renderExamNameSettings(); // Refresh UI
+            renderExamNameSettings();
             if (typeof syncDataToCloud === 'function') syncDataToCloud();
         });
     }
