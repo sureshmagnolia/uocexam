@@ -529,7 +529,7 @@ function syncDataFromCloud(collegeId) {
             ].forEach(key => {
                 if (mainData[key]) localStorage.setItem(key, mainData[key]);
             });
-
+            updateHeaderCollegeName(); // <--- ADD THIS LINE HERE
             // 2. FETCH CHUNKS
             try {
                 const dataColRef = collection(db, "colleges", collegeId, "data");
@@ -10217,12 +10217,10 @@ if (triggerFullRestore) {
 }
     
 // --- V65: Initial Data Load on Startup (Clean Version) ---
-
-// --- V65: Initial Data Load on Startup (Clean Version) ---
 function loadInitialData() {
     try {
         console.log("Loading Local Data...");
-
+        updateHeaderCollegeName(); // <--- ADD THIS LINE HERE
         // 1. Load configurations (ALWAYS RUN THESE)
         if (typeof loadRoomConfig === 'function') loadRoomConfig(); 
         if (typeof loadStreamConfig === 'function') loadStreamConfig(); 
