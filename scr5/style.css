@@ -924,3 +924,10 @@ tr.scribe-row-highlight td.signature-col {
     word-wrap: break-word;
 }
 /* --- END OF  Search Result Modal Styles --- */
+/* Mobile Table Wrapper */
+.table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto; /* Allows horizontal scrolling */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iPhone */
+}
