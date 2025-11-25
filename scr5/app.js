@@ -10568,7 +10568,7 @@ function loadInitialData() {
         });
     }
 
-    // 4. Render Function (Updated with Supervision Breakdown)
+    // 4. Render Function (Updated with Senior Supdt Display)
     function renderBillHTML(bill, container) {
         const rows = bill.details.map(d => `
             <tr class="border-b hover:bg-gray-50">
@@ -10625,14 +10625,22 @@ function loadInitialData() {
                     
                     <div class="bg-gray-50 p-3 rounded border border-gray-200">
                         <div class="font-bold text-gray-700 border-b border-gray-300 mb-2 pb-1">1. Supervision Charges</div>
+                        
                         <div class="flex justify-between mb-1">
                             <span>Chief Supdt (${bill.supervision_breakdown.chief.count} sessions @ ${bill.supervision_breakdown.chief.rate}):</span>
                             <span class="font-mono font-bold">₹${bill.supervision_breakdown.chief.total}</span>
                         </div>
+                        
+                        <div class="flex justify-between mb-1">
+                            <span>Senior Supdt (${bill.supervision_breakdown.senior.count} sessions @ ${bill.supervision_breakdown.senior.rate}):</span>
+                            <span class="font-mono font-bold">₹${bill.supervision_breakdown.senior.total}</span>
+                        </div>
+
                         <div class="flex justify-between mb-1">
                             <span>Office Supdt (${bill.supervision_breakdown.office.count} sessions @ ${bill.supervision_breakdown.office.rate}):</span>
                             <span class="font-mono font-bold">₹${bill.supervision_breakdown.office.total}</span>
                         </div>
+
                         <div class="flex justify-between border-t border-gray-300 pt-1 mt-1 font-bold text-blue-800">
                             <span>Total Supervision:</span>
                             <span class="font-mono">₹${bill.supervision}</span>
