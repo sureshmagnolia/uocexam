@@ -407,6 +407,10 @@ if (window.firebase && window.firebase.auth) {
             userInfoDiv.classList.add('hidden');
             adminBtn.classList.add('hidden'); // Hide admin button
 
+            // --- FIX: Load Local Data even if not logged in ---
+            loadInitialData(); 
+            // -------------------------------------------------
+
             // CRITICAL: Finalize if user is not authenticated
             finalizeAppLoad(); 
         }
