@@ -663,7 +663,29 @@ async function syncDataToCloud() {
         }
         
         const bulkString = JSON.stringify(bulkDataObj);
-        const chunks = chunkString(bulkString, 800000); 
+
+        // 🛑 LIMIT CHECK LOGIC STARTS HERE 🛑
+        // 1. Calculate Size (in Bytes)
+        const payloadSize = new Blob([bulkString]).size;
+        const payloadSizeMB = (payloadSize / (1024 * 1024)).toFixed(2);
+
+        // 2. Get Limit from Cloud Data (Default to 15MB if not set)
+        // 'storageLimitBytes' is the field Super Admin will set
+        const limitBytes = currentCollegeData.storageLimitBytes || (15 * 1024 * 1024); 
+        const limitMB = (limitBytes / (1024 * 1024)).toFixed(2);
+
+        console.log(`Data Size: ${payloadSizeMB} MB / Limit: ${limitMB} MB`);
+
+        if (payloadSize > limitBytes) {
+            alert(`⚠️ STORAGE LIMIT EXCEEDED ⚠️\n\nYour data size (${payloadSizeMB} MB) exceeds the allowed limit (${limitMB} MB) for your college.\n\nAction Required:\n1. Go to 'Danger Zone' or 'Settings'.\n2. Delete old student data or clear Absentees/Room Allotments.\n3. Try syncing again.`);
+            
+            updateSyncStatus("Over Limit", "error");
+            isSyncing = false;
+            return; // <--- STOP THE UPLOAD
+        }
+        // 🛑 LIMIT CHECK ENDS 🛑
+
+        const chunks = chunkString(bulkString, 800000);
 
         // --- STEP 5: Commit ---
         batch.update(mainRef, finalMainData);
