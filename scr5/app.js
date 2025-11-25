@@ -9154,6 +9154,7 @@ if(superAdminBtn) {
     superAdminBtn.addEventListener('click', () => {
         superAdminModal.classList.remove('hidden');
         loadWhitelist();
+        loadAllCollegesForAdmin(); // <--- ADD THIS LINE
     });
 }
 
@@ -9200,6 +9201,42 @@ async function loadWhitelist() {
     }
 }
 
+// --- NEW: Fetch All Colleges for Dropdown ---
+async function loadAllCollegesForAdmin() {
+    const selectEl = document.getElementById('admin-college-select');
+    if (!selectEl) return;
+
+    selectEl.innerHTML = '<option>Loading...</option>';
+    const { db, collection, getDocs } = window.firebase;
+
+    try {
+        const colRef = collection(db, "colleges");
+        const snap = await getDocs(colRef);
+
+        if (snap.empty) {
+            selectEl.innerHTML = '<option value="">No colleges found</option>';
+            return;
+        }
+
+        selectEl.innerHTML = '<option value="">-- Select a College --</option>';
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            const name = data.examCollegeName || "Unnamed College";
+            const id = doc.id;
+            
+            // Show Name + ID for clarity
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = `${name} (${id})`;
+            selectEl.appendChild(opt);
+        });
+
+    } catch (e) {
+        console.error("Error fetching colleges:", e);
+        selectEl.innerHTML = '<option>Error loading list</option>';
+    }
+}
 // 4. ADD TO WHITELIST
 if(addWhitelistBtn) {
     addWhitelistBtn.addEventListener('click', async () => {
@@ -9239,17 +9276,18 @@ window.removeFromWhitelist = async function(email) {
         alert("Error: " + e.message);
     }
 };
-// 6. SET STORAGE LIMIT (SUPER ADMIN)
+// 6. SET STORAGE LIMIT (SUPER ADMIN) - UPDATED
 const setLimitBtn = document.getElementById('set-limit-btn');
-const adminCollegeIdInput = document.getElementById('admin-college-id');
+const adminCollegeSelect = document.getElementById('admin-college-select'); // <--- UPDATED ID
 const adminStorageLimitInput = document.getElementById('admin-storage-limit');
 
 if(setLimitBtn) {
     setLimitBtn.addEventListener('click', async () => {
-        const targetCollegeId = adminCollegeIdInput.value.trim();
+        // <--- UPDATED: Get value from Select, not Input
+        const targetCollegeId = adminCollegeSelect.value; 
         const limitMB = parseFloat(adminStorageLimitInput.value);
 
-        if (!targetCollegeId) return alert("Please enter a College ID.");
+        if (!targetCollegeId) return alert("Please select a College from the list.");
         if (!limitMB || limitMB <= 0) return alert("Please enter a valid MB limit.");
 
         const bytes = Math.floor(limitMB * 1024 * 1024);
@@ -9260,17 +9298,18 @@ if(setLimitBtn) {
         try {
             const collegeRef = doc(db, "colleges", targetCollegeId);
             
-            // Update the specific field
             await updateDoc(collegeRef, {
                 storageLimitBytes: bytes
             });
 
-            alert(`✅ Success! Limit for college '${targetCollegeId}' set to ${limitMB} MB.`);
-            adminCollegeIdInput.value = '';
+            // Get selected text for nicer alert
+            const selectedText = adminCollegeSelect.options[adminCollegeSelect.selectedIndex].text;
+            alert(`✅ Success! Limit for '${selectedText}' set to ${limitMB} MB.`);
+            
             adminStorageLimitInput.value = '';
         } catch (e) {
             console.error(e);
-            alert("Failed to update limit. Check College ID.");
+            alert("Failed to update limit. " + e.message);
         } finally {
             setLimitBtn.textContent = "Set Limit";
         }
