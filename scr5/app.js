@@ -10436,119 +10436,208 @@ function loadInitialData() {
 }
 
 // ==========================================
-    // 💰 REMUNERATION LOGIC
+    // 💰 REMUNERATION LOGIC (UPDATED)
     // ==========================================
 
     // 1. Navigation Listener
     if (navRemuneration) {
         navRemuneration.addEventListener('click', () => {
             showView(viewRemuneration, navRemuneration);
-            // Initialize the separate module (from remuneration.js)
             if (typeof initRemunerationModule === 'function') {
                 initRemunerationModule();
             }
         });
     }
 
-    // 2. Auto-Calculate Button Logic
-    if (btnAutoCalcBill) {
-        btnAutoCalcBill.addEventListener('click', () => {
-            // Check if data exists
-            if (!allStudentData || allStudentData.length === 0) {
-                alert("No student data loaded. Please load data in the 'Data' tab first.");
-                return;
-            }
-
-            // Group Data by Session (Regular Stream Only)
-            const sessionCounts = {};
-            allStudentData.forEach(s => {
-                const strm = s.Stream || "Regular";
-                if (strm === "Regular") {
-                    const key = `${s.Date} | ${s.Time}`;
-                    sessionCounts[key] = (sessionCounts[key] || 0) + 1;
-                }
-            });
-
-            const sessionArray = Object.keys(sessionCounts).map(key => ({
-                sessionKey: key,
-                studentCount: sessionCounts[key]
-            }));
-
-            if (sessionArray.length === 0) {
-                alert("No 'Regular' stream students found in the loaded data.");
-                return;
-            }
-
-            // Call the Engine in remuneration.js
-            if (typeof calculateRegularRemuneration === 'function') {
-                const bill = calculateRegularRemuneration(sessionArray);
-                renderBillTable(bill);
+    // 2. Handle Grouping Mode Change (Show/Hide Dates)
+    const billModeSelect = document.getElementById('bill-mode-select');
+    const billDateRange = document.getElementById('bill-date-range');
+    
+    if (billModeSelect) {
+        billModeSelect.addEventListener('change', () => {
+            if (billModeSelect.value === 'period') {
+                billDateRange.classList.remove('hidden');
+                billDateRange.classList.add('grid'); // Maintain grid layout
             } else {
-                alert("Error: Remuneration module not loaded. Check if remuneration.js is linked.");
+                billDateRange.classList.add('hidden');
+                billDateRange.classList.remove('grid');
             }
         });
     }
 
-    // 3. Helper to Render the Bill Table
-    function renderBillTable(bill) {
-        const output = document.getElementById('remuneration-output');
-        if (!output) return;
-        
-        output.classList.remove('hidden');
-        
+    // 3. Generate Bill Button
+    const btnGenerateBill = document.getElementById('btn-generate-bill');
+    
+    if (btnGenerateBill) {
+        btnGenerateBill.addEventListener('click', () => {
+            if (!allStudentData || allStudentData.length === 0) {
+                alert("No student data loaded.");
+                return;
+            }
+
+            // Inputs
+            const stream = document.getElementById('bill-stream-select').value;
+            const mode = document.getElementById('bill-mode-select').value;
+            
+            // A. Filter Data by Stream
+            const filteredData = allStudentData.filter(s => {
+                const sStream = s.Stream || "Regular";
+                // If user selects "Regular", match "Regular" or undefined.
+                // If "Other", match anything NOT Regular.
+                if (stream === "Regular") return sStream === "Regular";
+                return sStream !== "Regular";
+            });
+
+            if (filteredData.length === 0) {
+                alert(`No students found for stream: ${stream}`);
+                return;
+            }
+
+            // B. Prepare Groups
+            const billGroups = {}; 
+            // Structure: { "Exam Name": [sessions...] }
+
+            filteredData.forEach(s => {
+                const sessionKey = `${s.Date} | ${s.Time}`;
+                let groupKey = "General Bill";
+
+                // Grouping Logic
+                if (mode === 'exam') {
+                    // Use the existing helper to find Exam Name
+                    groupKey = getExamName(s.Date, s.Time, s.Stream) || "Unknown Exam";
+                } else {
+                    // Period Mode Check
+                    const sDate = new Date(s.Date.split('.').reverse().join('-'));
+                    const startDate = document.getElementById('bill-start-date').valueAsDate;
+                    const endDate = document.getElementById('bill-end-date').valueAsDate;
+                    
+                    if (startDate && sDate < startDate) return; // Skip
+                    if (endDate && sDate > endDate) return; // Skip
+                    
+                    // One big group for Period
+                    groupKey = `Period Bill (${document.getElementById('bill-start-date').value} to ${document.getElementById('bill-end-date').value})`;
+                }
+
+                if (!billGroups[groupKey]) billGroups[groupKey] = {};
+                // Count students per session within this group
+                if (!billGroups[groupKey][sessionKey]) {
+                    billGroups[groupKey][sessionKey] = { date: s.Date, time: s.Time, count: 0 };
+                }
+                billGroups[groupKey][sessionKey].count++;
+            });
+
+            // C. Process Each Group -> Calculate Bill
+            const outputContainer = document.getElementById('remuneration-output');
+            outputContainer.innerHTML = '';
+            outputContainer.classList.remove('hidden');
+
+            const groupKeys = Object.keys(billGroups).sort();
+            
+            if (groupKeys.length === 0) {
+                outputContainer.innerHTML = '<p class="text-red-500">No data found in the selected date range.</p>';
+                return;
+            }
+
+            groupKeys.forEach(title => {
+                // Convert session map to array for the calculator
+                const sessionMap = billGroups[title];
+                const sessionArray = Object.values(sessionMap).map(obj => ({
+                    date: obj.date,
+                    time: obj.time,
+                    studentCount: obj.count
+                })).sort((a,b) => {
+                    // Sort Chronologically
+                    const d1 = a.date.split('.').reverse().join('');
+                    const d2 = b.date.split('.').reverse().join('');
+                    return d1.localeCompare(d2) || a.time.localeCompare(b.time);
+                });
+
+                // CALL ENGINE
+                const bill = generateBillForSessions(title, sessionArray, stream);
+                
+                // Render
+                renderBillHTML(bill, outputContainer);
+            });
+        });
+    }
+
+    // 4. Render Function (HTML Generation)
+    function renderBillHTML(bill, container) {
         const rows = bill.details.map(d => `
             <tr class="border-b hover:bg-gray-50">
-                <td class="p-2 font-medium">${d.session}</td>
-                <td class="p-2 text-center">${d.students}</td>
-                <td class="p-2 text-center">
-                    <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">${d.invig_count}</span> 
-                    <span class="text-gray-500 text-xs ml-1">(₹${d.invig_cost})</span>
+                <td class="p-2 border">${d.date} <br><span class="text-xs text-gray-500">${d.time}</span></td>
+                <td class="p-2 border text-center font-bold">${d.students}</td>
+                <td class="p-2 border text-center text-xs">
+                    ${d.invig_count} Invig<br>
+                    <span class="font-mono font-bold">₹${d.invig_cost}</span>
                 </td>
-                <td class="p-2 text-right">₹${d.clerk_cost}</td>
-                <td class="p-2 text-right">₹${d.sweeper_cost}</td>
+                <td class="p-2 border text-center text-xs">
+                    <span class="font-mono font-bold">₹${d.clerk_cost}</span>
+                </td>
+                <td class="p-2 border text-center text-xs">
+                    <span class="font-mono font-bold">₹${d.sweeper_cost}</span>
+                </td>
+                <td class="p-2 border text-center text-xs bg-gray-50">
+                    <span class="font-mono font-bold">₹${d.supervision_cost}</span>
+                </td>
             </tr>
         `).join('');
 
-        output.innerHTML = `
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-800 uppercase tracking-wide">Estimated Bill Summary</h3>
-                <button onclick="window.print()" class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded border border-gray-300">Print Page</button>
-            </div>
+        const html = `
+            <div class="bg-white border-2 border-gray-800 p-6 print-page mb-8">
+                <div class="text-center border-b-2 border-black pb-4 mb-4">
+                    <h2 class="text-xl font-bold uppercase">${currentCollegeName}</h2>
+                    <h3 class="text-lg font-semibold">Remuneration Bill: ${bill.title}</h3>
+                    <p class="text-sm text-gray-600">Stream: ${bill.stream} | Generated on ${new Date().toLocaleDateString()}</p>
+                </div>
 
-            <div class="overflow-x-auto border rounded-lg mb-6">
-                <table class="w-full text-sm border-collapse">
-                    <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <table class="w-full border-collapse border border-black text-sm mb-4">
+                    <thead class="bg-gray-100">
                         <tr>
-                            <th class="p-2 text-left">Session</th>
-                            <th class="p-2 text-center">Candidates</th>
-                            <th class="p-2 text-center">Invigilators</th>
-                            <th class="p-2 text-right">Clerk</th>
-                            <th class="p-2 text-right">Sweeper</th>
+                            <th class="p-2 border border-black">Date/Session</th>
+                            <th class="p-2 border border-black">Students</th>
+                            <th class="p-2 border border-black">Invigilation</th>
+                            <th class="p-2 border border-black">Clerk</th>
+                            <th class="p-2 border border-black">Sweeper</th>
+                            <th class="p-2 border border-black">Supervision</th>
                         </tr>
                     </thead>
-                    <tbody class="text-gray-700">${rows}</tbody>
-                    <tfoot class="bg-gray-50 font-bold text-gray-800">
+                    <tbody>${rows}</tbody>
+                    <tfoot class="bg-gray-100 font-bold">
                         <tr>
-                            <td colspan="4" class="p-2 text-right">Duty Staff Subtotal:</td>
-                            <td class="p-2 text-right">₹${(bill.invigilation + bill.clerical + bill.sweeping).toFixed(2)}</td>
+                            <td colspan="2" class="p-2 border border-black text-right">Subtotals:</td>
+                            <td class="p-2 border border-black text-center">₹${bill.invigilation}</td>
+                            <td class="p-2 border border-black text-center">₹${bill.clerical}</td>
+                            <td class="p-2 border border-black text-center">₹${bill.sweeping}</td>
+                            <td class="p-2 border border-black text-center">₹${bill.supervision}</td>
                         </tr>
                     </tfoot>
                 </table>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                <div class="flex justify-between text-sm"><span>Supervision Charges:</span> <span class="font-mono font-bold">₹${bill.supervision}</span></div>
-                <div class="flex justify-between text-sm"><span>Contingency:</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
-                <div class="flex justify-between text-sm"><span>Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
-                <div class="flex justify-between text-sm"><span>Accountant:</span> <span class="font-mono font-bold">₹0 (Manual Claim)</span></div>
-                
-                <div class="col-span-1 md:col-span-2 border-t border-indigo-200 mt-2 pt-3 flex justify-between items-center">
-                    <span class="text-base font-bold text-indigo-900">GRAND TOTAL ESTIMATE</span>
-                    <span class="text-2xl font-bold text-indigo-700">₹${bill.grand_total.toFixed(2)}</span>
+
+                <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm border-t-2 border-black pt-4">
+                    <div class="flex justify-between"><span>1. Supervision Charges:</span> <span class="font-mono font-bold">₹${bill.supervision}</span></div>
+                    <div class="flex justify-between"><span>4. Sweeper Charges:</span> <span class="font-mono font-bold">₹${bill.sweeping}</span></div>
+                    
+                    <div class="flex justify-between"><span>2. Invigilation Charges:</span> <span class="font-mono font-bold">₹${bill.invigilation}</span></div>
+                    <div class="flex justify-between"><span>5. Contingency (${(bill.contingency/0.4).toFixed(0)} @ 0.40):</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
+                    
+                    <div class="flex justify-between"><span>3. Clerk Charges:</span> <span class="font-mono font-bold">₹${bill.clerical}</span></div>
+                    <div class="flex justify-between"><span>6. Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
+                </div>
+
+                <div class="mt-6 p-3 bg-gray-100 border border-black flex justify-between items-center">
+                    <span class="text-lg font-bold uppercase">Grand Total Claim</span>
+                    <span class="text-2xl font-bold font-mono">₹${bill.grand_total.toFixed(2)}</span>
+                </div>
+
+                <div class="mt-12 flex justify-between text-sm font-bold">
+                    <div class="border-t border-black w-1/3 text-center pt-2">Assistant</div>
+                    <div class="border-t border-black w-1/3 text-center pt-2">Chief Superintendent</div>
                 </div>
             </div>
-            <p class="text-xs text-gray-500 mt-2 text-center">Calculated based on stored University rates. This is an estimate only.</p>
         `;
+        
+        container.insertAdjacentHTML('beforeend', html);
     }
     
     // --- NEW: Restore Last Active Tab ---
