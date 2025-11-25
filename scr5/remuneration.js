@@ -128,9 +128,19 @@ window.toggleRemunerationLock = function() {
     renderRateConfigForm();
 };
 
-// --- 4. CORE ENGINE: CALCULATE BILL (Updated with Split Supervision) ---
+// --- 4. CORE ENGINE: CALCULATE BILL ---
 function generateBillForSessions(billTitle, sessionData, streamType) {
+    // SAFETY FIX: Ensure rates are loaded if variable is empty
+    if (Object.keys(allRates).length === 0) {
+        loadRates();
+    }
+
     const rates = allRates[streamType] || allRates["Regular"];
+    
+    if (!rates) {
+        alert(`Error: Rates for stream '${streamType}' not found. Defaulting to Regular.`);
+        return null;
+    }
     
     let bill = {
         title: billTitle,
@@ -214,5 +224,8 @@ function generateBillForSessions(billTitle, sessionData, streamType) {
 
 // Expose
 window.initRemunerationModule = initRemunerationModule;
-window.renderRateConfigForm = renderRateConfigForm; // Export for selector change
+window.renderRateConfigForm = renderRateConfigForm;
 window.generateBillForSessions = generateBillForSessions;
+
+// --- FIX: Auto-Load Rates on Startup ---
+loadRates();
