@@ -9182,7 +9182,43 @@ window.removeFromWhitelist = async function(email) {
         alert("Error: " + e.message);
     }
 };
+// 6. SET STORAGE LIMIT (SUPER ADMIN)
+const setLimitBtn = document.getElementById('set-limit-btn');
+const adminCollegeIdInput = document.getElementById('admin-college-id');
+const adminStorageLimitInput = document.getElementById('admin-storage-limit');
 
+if(setLimitBtn) {
+    setLimitBtn.addEventListener('click', async () => {
+        const targetCollegeId = adminCollegeIdInput.value.trim();
+        const limitMB = parseFloat(adminStorageLimitInput.value);
+
+        if (!targetCollegeId) return alert("Please enter a College ID.");
+        if (!limitMB || limitMB <= 0) return alert("Please enter a valid MB limit.");
+
+        const bytes = Math.floor(limitMB * 1024 * 1024);
+        
+        const { db, doc, updateDoc } = window.firebase;
+        setLimitBtn.textContent = "Updating...";
+
+        try {
+            const collegeRef = doc(db, "colleges", targetCollegeId);
+            
+            // Update the specific field
+            await updateDoc(collegeRef, {
+                storageLimitBytes: bytes
+            });
+
+            alert(`✅ Success! Limit for college '${targetCollegeId}' set to ${limitMB} MB.`);
+            adminCollegeIdInput.value = '';
+            adminStorageLimitInput.value = '';
+        } catch (e) {
+            console.error(e);
+            alert("Failed to update limit. Check College ID.");
+        } finally {
+            setLimitBtn.textContent = "Set Limit";
+        }
+    });
+}
 // --- REPLACEMENT FOR findMyCollege ---
 async function findMyCollege(user) {
     // Run Super Admin Check
