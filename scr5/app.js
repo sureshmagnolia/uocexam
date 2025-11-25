@@ -5418,36 +5418,43 @@ navAbsentees.addEventListener('click', () => showView(viewAbsentees, navAbsentee
 navSettings.addEventListener('click', () => showView(viewSettings, navSettings));
 
 function showView(viewToShow, buttonToActivate) {
-    // 1. Hide all views
-    allViews.forEach(view => view.classList.add('hidden'));
+    // 1. Hide all views (Safety Check Added)
+    allViews.forEach(view => {
+        if (view) view.classList.add('hidden');
+    });
     
-    // 2. Deactivate all buttons
+    // 2. Deactivate all buttons (Safety Check Added)
     allNavButtons.forEach(btn => {
-        btn.classList.add('nav-button-inactive');
-        btn.classList.remove('nav-button-active');
+        if (btn) {
+            btn.classList.add('nav-button-inactive');
+            btn.classList.remove('nav-button-active');
+        }
     });
     
     // 3. Show target view & activate button
-    viewToShow.classList.remove('hidden');
-    buttonToActivate.classList.remove('nav-button-inactive');
-    buttonToActivate.classList.add('nav-button-active');
+    if (viewToShow) {
+        viewToShow.classList.remove('hidden');
+    }
+    
+    if (buttonToActivate) {
+        buttonToActivate.classList.remove('nav-button-inactive');
+        buttonToActivate.classList.add('nav-button-active');
+    }
     
     // 4. Clean up previous reports
-    clearReport(); 
+    if (typeof clearReport === 'function') clearReport(); 
     
     // 5. Save the active tab
-    if(viewToShow.id && buttonToActivate.id) {
+    if(viewToShow && viewToShow.id && buttonToActivate && buttonToActivate.id) {
         localStorage.setItem('lastActiveViewId', viewToShow.id);
         localStorage.setItem('lastActiveNavId', buttonToActivate.id);
     }
 
     // --- FIX: AUTO-CLOSE SIDEBAR ON MOBILE ---
     const sidebar = document.getElementById('main-nav');
-    // Check if we are on mobile (width < 768px) AND sidebar is currently open (doesn't have the hide class)
     if (window.innerWidth < 768 && sidebar && !sidebar.classList.contains('-translate-x-full')) {
-        sidebar.classList.add('-translate-x-full'); // Hide it
+        sidebar.classList.add('-translate-x-full'); 
     }
-    // -----------------------------------------
 }
 
 // --- (V48) Save from dynamic form (in Settings) ---
