@@ -10568,7 +10568,7 @@ function loadInitialData() {
         });
     }
 
-    // 4. Render Function (HTML Generation)
+    // 4. Render Function (Updated with Supervision Breakdown)
     function renderBillHTML(bill, container) {
         const rows = bill.details.map(d => `
             <tr class="border-b hover:bg-gray-50">
@@ -10621,15 +10621,31 @@ function loadInitialData() {
                     </tfoot>
                 </table>
 
-                <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm border-t-2 border-black pt-4">
-                    <div class="flex justify-between"><span>1. Supervision Charges:</span> <span class="font-mono font-bold">₹${bill.supervision}</span></div>
-                    <div class="flex justify-between"><span>4. Sweeper Charges:</span> <span class="font-mono font-bold">₹${bill.sweeping}</span></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm border-t-2 border-black pt-4">
                     
-                    <div class="flex justify-between"><span>2. Invigilation Charges:</span> <span class="font-mono font-bold">₹${bill.invigilation}</span></div>
-                    <div class="flex justify-between"><span>5. Contingency (${(bill.contingency/0.4).toFixed(0)} @ 0.40):</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
-                    
-                    <div class="flex justify-between"><span>3. Clerk Charges:</span> <span class="font-mono font-bold">₹${bill.clerical}</span></div>
-                    <div class="flex justify-between"><span>6. Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
+                    <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                        <div class="font-bold text-gray-700 border-b border-gray-300 mb-2 pb-1">1. Supervision Charges</div>
+                        <div class="flex justify-between mb-1">
+                            <span>Chief Supdt (${bill.supervision_breakdown.chief.count} sessions @ ${bill.supervision_breakdown.chief.rate}):</span>
+                            <span class="font-mono font-bold">₹${bill.supervision_breakdown.chief.total}</span>
+                        </div>
+                        <div class="flex justify-between mb-1">
+                            <span>Office Supdt (${bill.supervision_breakdown.office.count} sessions @ ${bill.supervision_breakdown.office.rate}):</span>
+                            <span class="font-mono font-bold">₹${bill.supervision_breakdown.office.total}</span>
+                        </div>
+                        <div class="flex justify-between border-t border-gray-300 pt-1 mt-1 font-bold text-blue-800">
+                            <span>Total Supervision:</span>
+                            <span class="font-mono">₹${bill.supervision}</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>2. Invigilation Charges:</span> <span class="font-mono font-bold">₹${bill.invigilation}</span></div>
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>3. Clerk Charges:</span> <span class="font-mono font-bold">₹${bill.clerical}</span></div>
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>4. Sweeper Charges:</span> <span class="font-mono font-bold">₹${bill.sweeping}</span></div>
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>5. Contingency (${(bill.contingency/0.4).toFixed(0)} @ 0.40):</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
+                        <div class="flex justify-between"><span>6. Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
+                    </div>
                 </div>
 
                 <div class="mt-6 p-3 bg-gray-100 border border-black flex justify-between items-center">
