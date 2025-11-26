@@ -38,7 +38,8 @@
         }
 
         let allAllotments = {};
-        let roomConfigs = {}; // Store location info
+        let roomConfigs = {};
+        let studentNames = {}; // Store names
         let collegeName = "Exam Centre";
 
         async function loadData() {
@@ -60,11 +61,13 @@
                     document.getElementById('college-name').textContent = collegeName;
                     
                     const allotmentJson = data.seatingData;
-                    const roomJson = data.roomData; // NEW: Location Data
+                    const roomJson = data.roomData;
+                    const nameJson = data.studentNames; // Fetch Names
                     
                     if (allotmentJson) {
                         allAllotments = JSON.parse(allotmentJson);
-                        if (roomJson) roomConfigs = JSON.parse(roomJson); // Parse Room Data
+                        if (roomJson) roomConfigs = JSON.parse(roomJson);
+                        if (nameJson) studentNames = JSON.parse(nameJson);
 
                         statusEl.textContent = ""; 
                         document.getElementById('search-section').classList.remove('hidden');
@@ -100,18 +103,19 @@
             let found = false;
             const now = new Date();
 
+            // Get Student Name
+            const myName = studentNames[regNo] || "";
+
             for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
                 const [dateStr, timeStr] = sessionKey.split(' | ');
                 let studentRoom = null;
                 let seatNumber = 0;
                 
-                // Search for student in all rooms of this session
                 for (const room of rooms) {
-                    // Get index of student in the list
                     const index = room.students.indexOf(regNo);
                     if (index !== -1) {
                         studentRoom = room.roomName;
-                        seatNumber = index + 1; // Seat = Index + 1
+                        seatNumber = index + 1;
                         break;
                     }
                 }
@@ -123,58 +127,59 @@
                     const examTime = parseSessionTime(dateStr, timeStr);
                     const unlockTime = new Date(examTime.getTime() - (45 * 60 * 1000));
                     
-                    // Get Location Info
                     const roomInfo = roomConfigs[studentRoom] || {};
                     const locationText = roomInfo.location ? `(${roomInfo.location})` : "";
 
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-lg border border-gray-100 mb-5 animate-fade-in";
                     
+                    // Header with Name
                     let content = `
-                        <div class="flex justify-between border-b border-gray-200 pb-3 mb-3">
-                            <div class="flex flex-col">
-                                <span class="text-xs text-gray-500 uppercase font-bold">Date</span>
-                                <span class="font-bold text-gray-800 text-lg">${dateStr}</span>
+                        <div class="border-b border-gray-200 pb-3 mb-3">
+                            <div class="text-center mb-2">
+                                <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Candidate</span>
+                                <div class="text-lg font-black text-gray-800 leading-tight">${myName}</div>
+                                <div class="text-xs font-bold text-indigo-500 font-mono">${regNo}</div>
                             </div>
-                            <div class="flex flex-col text-right">
-                                <span class="text-xs text-gray-500 uppercase font-bold">Time</span>
-                                <span class="font-bold text-indigo-600 text-lg">${timeStr}</span>
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
+                                <div class="flex flex-col">
+                                    <span class="text-[10px] text-gray-500 uppercase font-bold">Date</span>
+                                    <span class="font-bold text-gray-800 text-sm">${dateStr}</span>
+                                </div>
+                                <div class="flex flex-col text-right">
+                                    <span class="text-[10px] text-gray-500 uppercase font-bold">Time</span>
+                                    <span class="font-bold text-indigo-600 text-sm">${timeStr}</span>
+                                </div>
                             </div>
                         </div>
                     `;
 
                     if (now >= unlockTime) {
-                        // UNLOCKED VIEW
                         content += `
                             <div class="text-center py-2">
                                 <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mb-1">Allotted Hall</p>
-                                <div class="text-3xl font-black text-gray-900 leading-none">${studentRoom}</div>
-                                <div class="text-sm font-bold text-gray-500 mt-1 mb-4">${locationText}</div>
+                                <div class="text-4xl font-black text-gray-900 leading-none tracking-tight">${studentRoom}</div>
+                                <div class="text-sm font-bold text-gray-500 mt-1 mb-5">${locationText}</div>
                                 
-                                <div class="inline-block bg-indigo-50 rounded-lg px-6 py-3 border border-indigo-100">
-                                     <span class="block text-[10px] text-indigo-400 uppercase font-bold tracking-wider">Seat Number</span>
-                                     <span class="block text-4xl font-black text-indigo-600">#${seatNumber}</span>
+                                <div class="inline-block bg-indigo-50 rounded-xl px-8 py-4 border border-indigo-100 shadow-inner">
+                                     <span class="block text-[10px] text-indigo-400 uppercase font-bold tracking-wider mb-1">Your Seat Number</span>
+                                     <span class="block text-5xl font-black text-indigo-600">#${seatNumber}</span>
                                 </div>
                                 
-                                <p class="text-xs text-green-600 mt-4 font-bold flex items-center justify-center gap-1">
-                                    <span class="relative flex h-2 w-2">
+                                <p class="text-[10px] text-green-600 mt-5 font-bold flex items-center justify-center gap-1.5 uppercase tracking-wide">
+                                    <span class="relative flex h-2.5 w-2.5">
                                       <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                                     </span>
-                                    Live Status
+                                    Seating Live
                                 </p>
                             </div>
                         `;
                     } else {
-                        // LOCKED VIEW
                         const diffMs = unlockTime - now;
                         const diffMins = Math.ceil(diffMs / (1000 * 60));
                         let timeDisplay = `${diffMins} mins`;
-                        
-                        if (diffMins > 60) {
-                            const hours = Math.ceil(diffMins / 60);
-                            timeDisplay = `${hours} hours`;
-                        }
+                        if (diffMins > 60) timeDisplay = `${Math.ceil(diffMins / 60)} hours`;
                         
                         content += `
                             <div class="text-center py-6 bg-gray-50 rounded-lg border border-gray-100">
