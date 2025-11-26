@@ -10592,7 +10592,7 @@ function loadInitialData() {
         });
     }
 
-    // 5. Render Function (Optimized: Horizontal Split & Column Widths)
+    // 5. Render Function (Updated: Split Sup. Columns)
     function renderBillHTML(bill, container) {
         const rows = bill.details.map(d => {
             let studentDetail = `${d.total_students}`;
@@ -10606,21 +10606,22 @@ function loadInitialData() {
             }
             
             return `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-2 border text-left align-top">${d.date} <br><span class="text-[10px] text-gray-500">${d.time}</span></td>
-                    <td class="p-2 border text-center align-top font-bold">
+                <tr class="border-b hover:bg-gray-50 text-center">
+                    <td class="p-1 border text-left align-middle">${d.date} <br><span class="text-[10px] text-gray-500">${d.time}</span></td>
+                    <td class="p-1 border align-middle font-bold text-xs">
                         ${studentDetail}
                     </td>
-                    <td class="p-2 border text-center align-top text-xs">
+                    <td class="p-1 border align-middle text-xs">
                         ${invigDetail}<br>
                         <span class="text-gray-500 text-[10px]">(₹${d.invig_cost})</span>
                     </td>
-                    <td class="p-2 border text-right align-top text-xs">₹${d.clerk_cost}</td>
-                    <td class="p-2 border text-right align-top text-xs">₹${d.sweeper_cost}</td>
+                    <td class="p-1 border align-middle text-xs">₹${d.clerk_cost}</td>
+                    <td class="p-1 border align-middle text-xs">₹${d.sweeper_cost}</td>
                     
-                    <td class="p-2 border text-left align-middle text-[10px] bg-gray-50 leading-tight">
-                        CS: ₹${d.cs_cost}, SAS: ₹${d.sas_cost}, OS: ₹${d.os_cost}, <strong class="text-black text-xs">Total: ₹${d.supervision_cost}</strong>
-                    </td>
+                    <td class="p-1 border align-middle text-xs text-gray-700">₹${d.cs_cost}</td>
+                    <td class="p-1 border align-middle text-xs text-gray-700">₹${d.sas_cost}</td>
+                    <td class="p-1 border align-middle text-xs text-gray-700">₹${d.os_cost}</td>
+                    <td class="p-1 border align-middle text-xs font-bold bg-gray-50">₹${d.supervision_cost}</td>
                 </tr>
             `;
         }).join('');
@@ -10636,25 +10637,32 @@ function loadInitialData() {
 
                 <table class="w-full border-collapse border border-black text-sm mb-4 table-fixed">
                     <colgroup>
-                        <col style="width: 18%;"> <col style="width: 14%;"> <col style="width: 12%;"> <col style="width: 8%;">  <col style="width: 8%;">  <col style="width: 40%;"> </colgroup>
-                    <thead class="bg-gray-100 text-xs">
+                        <col style="width: 16%;"> <col style="width: 12%;"> <col style="width: 10%;"> <col style="width: 8%;">  <col style="width: 8%;">  <col style="width: 10%;"> <col style="width: 10%;"> <col style="width: 10%;"> <col style="width: 12%;"> </colgroup>
+                    <thead class="bg-gray-100 text-xs uppercase">
                         <tr>
-                            <th class="p-2 border border-black text-left">Session</th>
-                            <th class="p-2 border border-black">Candidates</th>
-                            <th class="p-2 border border-black">Invig</th>
-                            <th class="p-2 border border-black text-right">Clerk</th>
-                            <th class="p-2 border border-black text-right">Swpr</th>
-                            <th class="p-2 border border-black text-left">Supervision Breakdown</th>
+                            <th class="p-1 border border-black text-left">Session</th>
+                            <th class="p-1 border border-black text-center">Candidates</th>
+                            <th class="p-1 border border-black text-center">Invig</th>
+                            <th class="p-1 border border-black text-center">Clerk</th>
+                            <th class="p-1 border border-black text-center">Swpr</th>
+                            <th class="p-1 border border-black text-center">CS</th>
+                            <th class="p-1 border border-black text-center">SAS</th>
+                            <th class="p-1 border border-black text-center">OS</th>
+                            <th class="p-1 border border-black text-center">Total Sup</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
-                    <tfoot class="bg-gray-100 font-bold text-xs">
+                    <tfoot class="bg-gray-100 font-bold text-xs text-center">
                         <tr>
                             <td colspan="2" class="p-2 border border-black text-right">Subtotals:</td>
-                            <td class="p-2 border border-black text-center">₹${bill.invigilation}</td>
-                            <td class="p-2 border border-black text-right">₹${bill.clerical}</td>
-                            <td class="p-2 border border-black text-right">₹${bill.sweeping}</td>
-                            <td class="p-2 border border-black text-right">₹${bill.supervision}</td>
+                            <td class="p-2 border border-black">₹${bill.invigilation}</td>
+                            <td class="p-2 border border-black">₹${bill.clerical}</td>
+                            <td class="p-2 border border-black">₹${bill.sweeping}</td>
+                            
+                            <td class="p-2 border border-black">₹${bill.supervision_breakdown.chief.total}</td>
+                            <td class="p-2 border border-black">₹${bill.supervision_breakdown.senior.total}</td>
+                            <td class="p-2 border border-black">₹${bill.supervision_breakdown.office.total}</td>
+                            <td class="p-2 border border-black">₹${bill.supervision}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -10662,27 +10670,18 @@ function loadInitialData() {
                 <div class="summary-box grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm border-t-2 border-black pt-4 break-inside-avoid">
                     
                     <div class="bg-gray-50 p-3 rounded border border-gray-200 print:border-0 print:bg-transparent print:p-0">
-                        <div class="font-bold text-gray-700 border-b border-gray-300 mb-2 pb-1">1. Supervision Charges</div>
-                        <div class="flex justify-between mb-1">
-                            <span>Chief Supdt (${bill.supervision_breakdown.chief.count} x ${bill.supervision_breakdown.chief.rate}):</span>
-                            <span class="font-mono font-bold">₹${bill.supervision_breakdown.chief.total}</span>
-                        </div>
-                        <div class="flex justify-between mb-1">
-                            <span>Senior Asst Supdt (${bill.supervision_breakdown.senior.count} x ${bill.supervision_breakdown.senior.rate}):</span>
-                            <span class="font-mono font-bold">₹${bill.supervision_breakdown.senior.total}</span>
-                        </div>
-                        <div class="flex justify-between mb-1">
-                            <span>Office Supdt (${bill.supervision_breakdown.office.count} x ${bill.supervision_breakdown.office.rate}):</span>
-                            <span class="font-mono font-bold">₹${bill.supervision_breakdown.office.total}</span>
-                        </div>
+                        <div class="font-bold text-gray-700 border-b border-gray-300 mb-2 pb-1">1. Consolidated Charges</div>
+                        <div class="flex justify-between mb-1"><span>Total Supervision (CS+SAS+OS):</span> <span class="font-mono font-bold">₹${bill.supervision}</span></div>
+                        <div class="flex justify-between mb-1"><span>Total Invigilation:</span> <span class="font-mono font-bold">₹${bill.invigilation}</span></div>
+                        <div class="flex justify-between mb-1"><span>Total Clerk:</span> <span class="font-mono font-bold">₹${bill.clerical}</span></div>
+                        <div class="flex justify-between mb-1"><span>Total Sweeper:</span> <span class="font-mono font-bold">₹${bill.sweeping}</span></div>
                     </div>
 
                     <div class="space-y-2">
-                        <div class="flex justify-between border-b border-dotted pb-1"><span>2. Invigilation Charges:</span> <span class="font-mono font-bold">₹${bill.invigilation}</span></div>
-                        <div class="flex justify-between border-b border-dotted pb-1"><span>3. Clerk Charges:</span> <span class="font-mono font-bold">₹${bill.clerical}</span></div>
-                        <div class="flex justify-between border-b border-dotted pb-1"><span>4. Sweeper Charges:</span> <span class="font-mono font-bold">₹${bill.sweeping}</span></div>
-                        <div class="flex justify-between border-b border-dotted pb-1"><span>5. Contingency:</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
-                        <div class="flex justify-between"><span>6. Data Entry:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
+                        <div class="flex justify-between border-b border-dotted pb-1 font-bold text-gray-700">2. Other Allowances</div>
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>Contingency (Approx):</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>Accountant:</span> <span class="font-mono font-bold">₹${allRates["Regular"].accountant}</span></div>
                     </div>
                 </div>
 
