@@ -39,7 +39,8 @@
 
         let allAllotments = {};
         let roomConfigs = {};
-        let studentNames = {}; // Store names
+        let studentNames = {}; 
+        let studentCourses = {}; // Store Courses
         let collegeName = "Exam Centre";
 
         async function loadData() {
@@ -62,12 +63,14 @@
                     
                     const allotmentJson = data.seatingData;
                     const roomJson = data.roomData;
-                    const nameJson = data.studentNames; // Fetch Names
+                    const nameJson = data.studentNames;
+                    const courseJson = data.studentCourses; // Fetch Courses
                     
                     if (allotmentJson) {
                         allAllotments = JSON.parse(allotmentJson);
                         if (roomJson) roomConfigs = JSON.parse(roomJson);
                         if (nameJson) studentNames = JSON.parse(nameJson);
+                        if (courseJson) studentCourses = JSON.parse(courseJson);
 
                         statusEl.textContent = ""; 
                         document.getElementById('search-section').classList.remove('hidden');
@@ -102,12 +105,25 @@
 
             let found = false;
             const now = new Date();
+            const todayMidnight = new Date();
+            todayMidnight.setHours(0,0,0,0); // Reset time to start of today
 
-            // Get Student Name
-            const myName = studentNames[regNo] || studentNames[regInput.value.trim()] || "Student";
+            // Get Student Details
+            const myName = studentNames[regNo] || "";
+            const myCourse = studentCourses[regNo] || "Course Not Listed";
+
+            // Collect valid exams first so we can sort them
+            let myExams = [];
 
             for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
                 const [dateStr, timeStr] = sessionKey.split(' | ');
+                
+                // 1. Date Filter (Remove Past)
+                const examDateObject = parseSessionTime(dateStr, "00:00 AM"); // Only date matters for filtering
+                if (examDateObject < todayMidnight) {
+                    continue; // Skip this exam, it's in the past
+                }
+
                 let studentRoom = null;
                 let seatNumber = 0;
                 
@@ -121,34 +137,46 @@
                 }
 
                 if (studentRoom) {
-                    found = true;
-                    localStorage.setItem('myExamRegNo', regNo);
+                    myExams.push({
+                        dateStr, timeStr, studentRoom, seatNumber,
+                        fullDate: parseSessionTime(dateStr, timeStr)
+                    });
+                }
+            }
 
-                    const examTime = parseSessionTime(dateStr, timeStr);
-                    const unlockTime = new Date(examTime.getTime() - (45 * 60 * 1000));
-                    
-                    const roomInfo = roomConfigs[studentRoom] || {};
+            // Sort exams by date (Nearest first)
+            myExams.sort((a, b) => a.fullDate - b.fullDate);
+
+            if (myExams.length > 0) {
+                found = true;
+                localStorage.setItem('myExamRegNo', regNo);
+
+                // Render Cards
+                myExams.forEach(exam => {
+                    const unlockTime = new Date(exam.fullDate.getTime() - (45 * 60 * 1000));
+                    const roomInfo = roomConfigs[exam.studentRoom] || {};
                     const locationText = roomInfo.location ? `(${roomInfo.location})` : "";
 
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-lg border border-gray-100 mb-5 animate-fade-in";
                     
-                    // Header with Name
                     let content = `
                         <div class="border-b border-gray-200 pb-3 mb-3">
-                            <div class="text-center mb-2">
-                                <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Candidate</span>
+                            <div class="text-center mb-3">
                                 <div class="text-lg font-black text-gray-800 leading-tight">${myName}</div>
                                 <div class="text-xs font-bold text-indigo-500 font-mono">${regNo}</div>
+                                <div class="mt-2 bg-indigo-50 text-indigo-900 text-xs font-bold px-2 py-1 rounded inline-block max-w-full truncate">
+                                    ${myCourse}
+                                </div>
                             </div>
                             <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
                                 <div class="flex flex-col">
                                     <span class="text-[10px] text-gray-500 uppercase font-bold">Date</span>
-                                    <span class="font-bold text-gray-800 text-sm">${dateStr}</span>
+                                    <span class="font-bold text-gray-800 text-sm">${exam.dateStr}</span>
                                 </div>
                                 <div class="flex flex-col text-right">
                                     <span class="text-[10px] text-gray-500 uppercase font-bold">Time</span>
-                                    <span class="font-bold text-indigo-600 text-sm">${timeStr}</span>
+                                    <span class="font-bold text-indigo-600 text-sm">${exam.timeStr}</span>
                                 </div>
                             </div>
                         </div>
@@ -158,12 +186,12 @@
                         content += `
                             <div class="text-center py-2">
                                 <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mb-1">Allotted Hall</p>
-                                <div class="text-4xl font-black text-gray-900 leading-none tracking-tight">${studentRoom}</div>
+                                <div class="text-4xl font-black text-gray-900 leading-none tracking-tight">${exam.studentRoom}</div>
                                 <div class="text-sm font-bold text-gray-500 mt-1 mb-5">${locationText}</div>
                                 
                                 <div class="inline-block bg-indigo-50 rounded-xl px-8 py-4 border border-indigo-100 shadow-inner">
                                      <span class="block text-[10px] text-indigo-400 uppercase font-bold tracking-wider mb-1">Your Seat Number</span>
-                                     <span class="block text-5xl font-black text-indigo-600">#${seatNumber}</span>
+                                     <span class="block text-5xl font-black text-indigo-600">#${exam.seatNumber}</span>
                                 </div>
                                 
                                 <p class="text-[10px] text-green-600 mt-5 font-bold flex items-center justify-center gap-1.5 uppercase tracking-wide">
@@ -180,7 +208,8 @@
                         const diffMins = Math.ceil(diffMs / (1000 * 60));
                         let timeDisplay = `${diffMins} mins`;
                         if (diffMins > 60) timeDisplay = `${Math.ceil(diffMins / 60)} hours`;
-                        
+                        if (diffMins > 1440) timeDisplay = `${Math.ceil(diffMins / 1440)} days`;
+
                         content += `
                             <div class="text-center py-6 bg-gray-50 rounded-lg border border-gray-100">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-10 h-10 text-gray-400 mx-auto mb-3">
@@ -192,17 +221,17 @@
                             </div>
                         `;
                     }
-                    
                     card.innerHTML = content;
                     resultContainer.appendChild(card);
-                }
+                });
             }
 
             if (!found) {
                 resultContainer.innerHTML = `
                     <div class="text-center py-8 bg-white rounded-lg shadow-sm border border-gray-200">
-                        <p class="text-gray-800 font-bold text-lg">No Exams Found</p>
+                        <p class="text-gray-800 font-bold text-lg">No Upcoming Exams</p>
                         <p class="text-gray-500 text-sm mt-1">for register number <span class="font-mono font-bold text-black">${regNo}</span></p>
+                        <p class="text-xs text-gray-400 mt-2">(Past exams are hidden)</p>
                     </div>
                 `;
             } else {
