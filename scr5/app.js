@@ -744,29 +744,36 @@ async function syncDataToCloud() {
             batch.set(chunkRef, { payload: chunkStr, index: index, totalChunks: chunks.length });
         });
         
-        // --- NEW: SECURE PUBLIC SYNC (For Student View) ---
-        // This pushes only the seating data to the public collection
+        // --- NEW: SECURE PUBLIC SYNC (Robust Name Mapping) ---
         const publicRef = doc(db, "public_seating", currentCollegeId);
+        
         const allotmentData = localStorage.getItem('examRoomAllotment') || '{}';
-        const roomConfigData = localStorage.getItem('examRoomConfig') || '{}'; // <--- NEW
+        const roomConfigData = localStorage.getItem('examRoomConfig') || '{}';
         const collegeName = localStorage.getItem('examCollegeName') || "Exam Centre";
+
+        // 1. Generate Name Map (Normalized Keys)
         const baseDataStr = localStorage.getItem('examBaseData');
         let nameMap = {};
+        
         if (baseDataStr) {
              try {
                  const baseData = JSON.parse(baseDataStr);
                  baseData.forEach(s => {
-                     if (s['Register Number']) {
-                         nameMap[s['Register Number']] = s.Name;
+                     const r = s['Register Number'];
+                     const n = s.Name;
+                     if (r && n) {
+                         // Force Uppercase & Trim to ensure matching
+                         nameMap[r.toString().trim().toUpperCase()] = n.toString().trim();
                      }
                  });
              } catch (e) { console.error("Error parsing base data for public sync", e); }
         }
+
         batch.set(publicRef, {
             collegeName: collegeName,
             seatingData: allotmentData,
-            roomData: roomConfigData, // <--- Sending Location Info
-            studentNames: JSON.stringify(nameMap), // <--- SENDING NAMES
+            roomData: roomConfigData,
+            studentNames: JSON.stringify(nameMap), // <--- Sending Normalized Names
             lastUpdated: new Date().toISOString()
         });
         // -------------------------------
