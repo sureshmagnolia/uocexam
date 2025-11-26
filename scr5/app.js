@@ -752,13 +752,14 @@ async function syncDataToCloud() {
             }
         });
 
-        // 3. Filter Names & Papers
+// 3. Filter Names & Papers
         let nameMap = {};
         let paperMap = {}; 
         
-        if () {
+        // FIX: Added 'localBaseData' back into the condition and parse function
+        if (localBaseData) {
              try {
-                 const baseData = JSON.parse();
+                 const baseData = JSON.parse(localBaseData);
                  baseData.forEach(s => {
                      const r = s['Register Number'];
                      if (r && activeRegNos.has(r)) {
