@@ -3,13 +3,20 @@
 // --- 1. DEFAULT RATE CARDS ---
 const DEFAULT_RATES = {
     "Regular": {
-        // Supervision (Updated: Removed Addl Chief, Kept Senior)
+        // Supervision
         chief_supdt: 113, 
         senior_supdt: 105, 
         office_supdt: 90,
         
         // Execution
-        invigilator: 90, invigilator_ratio: 25, invigilator_min_fraction: 5,
+        invigilator: 90, 
+        invigilator_ratio: 25, 
+        invigilator_min_fraction: 5,
+        
+        // Scribe Logic (1 Invigilator per X Scribes)
+        // You requested "each of them need a separate invigilator", so ratio is 1.
+        scribe_invigilator_ratio: 1, 
+
         clerk_full_slab: 113, clerk_slab_1: 38, clerk_slab_2: 75,
         sweeper_rate: 25, sweeper_min: 35,
         
@@ -17,9 +24,10 @@ const DEFAULT_RATES = {
         data_entry_operator: 890, accountant: 1000, contingent_charge: 0.40
     },
     "Other": {
-        // Placeholder (Can be customized later)
+        // Placeholder
         chief_supdt: 113, senior_supdt: 105, office_supdt: 90,
         invigilator: 90, invigilator_ratio: 25, invigilator_min_fraction: 5,
+        scribe_invigilator_ratio: 1,
         clerk_full_slab: 113, clerk_slab_1: 38, clerk_slab_2: 75,
         sweeper_rate: 25, sweeper_min: 35,
         data_entry_operator: 890, accountant: 1000, contingent_charge: 0.40
@@ -40,10 +48,6 @@ function loadRates() {
     const saved = localStorage.getItem(REMUNERATION_CONFIG_KEY);
     if (saved) {
         allRates = JSON.parse(saved);
-        // Ensure "Regular" has correct keys if loading old data
-        if(allRates["Regular"] && !allRates["Regular"].senior_supdt) {
-             allRates["Regular"].senior_supdt = 105;
-        }
     } else {
         allRates = JSON.parse(JSON.stringify(DEFAULT_RATES));
         localStorage.setItem(REMUNERATION_CONFIG_KEY, JSON.stringify(allRates));
@@ -63,7 +67,6 @@ function renderRateConfigForm() {
     const disabledAttr = isRatesLocked ? 'disabled' : '';
     const bgClass = isRatesLocked ? 'bg-gray-100 text-gray-500' : 'bg-white text-gray-900 border-blue-400 ring-1 ring-blue-200';
 
-    // Render Form (Removed Addl Chief Input)
     container.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div class="space-y-3">
@@ -75,6 +78,10 @@ function renderRateConfigForm() {
             <div class="space-y-3">
                 <h4 class="font-semibold text-xs text-blue-600 uppercase border-b pb-1">Duty Staff</h4>
                 ${createRateInput('Invigilator Rate', 'invigilator', rates.invigilator, disabledAttr, bgClass)}
+                ${createRateInput('Invig Ratio (Reg)', 'invigilator_ratio', rates.invigilator_ratio, disabledAttr, bgClass)}
+                ${createRateInput('Invig Ratio (Scribe)', 'scribe_invigilator_ratio', rates.scribe_invigilator_ratio, disabledAttr, bgClass)}
+                
+                <div class="pt-2 border-t border-gray-200"></div>
                 ${createRateInput('Clerk (Full Slab)', 'clerk_full_slab', rates.clerk_full_slab, disabledAttr, bgClass)}
                 <div class="grid grid-cols-2 gap-2">
                     ${createRateInput('Clerk (<30)', 'clerk_slab_1', rates.clerk_slab_1, disabledAttr, bgClass)}
@@ -131,17 +138,19 @@ window.toggleRemunerationLock = function() {
     renderRateConfigForm();
 };
 
-// --- 4. CORE ENGINE: CALCULATE BILL (Updated Logic) ---
+// --- 4. CORE ENGINE: CALCULATE BILL (Scribe Aware) ---
 function generateBillForSessions(billTitle, sessionData, streamType) {
     if (Object.keys(allRates).length === 0) loadRates();
 
     const rates = allRates[streamType] || allRates["Regular"];
-    
     if (!rates) {
         alert(`Error: Rates for stream '${streamType}' not found.`);
         return null;
     }
     
+    // Default Scribe Ratio to 1 if not set in old config
+    const scribeRatio = rates.scribe_invigilator_ratio || 1;
+
     let bill = {
         title: billTitle,
         stream: streamType,
@@ -149,7 +158,6 @@ function generateBillForSessions(billTitle, sessionData, streamType) {
         invigilation: 0,
         clerical: 0,
         sweeping: 0,
-        // Updated Breakdown: Removed Addl Chief, Added Senior
         supervision_breakdown: {
             chief: { count: 0, rate: rates.chief_supdt, total: 0 },
             senior: { count: 0, rate: rates.senior_supdt, total: 0 },
@@ -159,18 +167,35 @@ function generateBillForSessions(billTitle, sessionData, streamType) {
     };
 
     sessionData.forEach(session => {
-        const count = session.studentCount;
+        // session now has: normalCount, scribeCount, totalCount
+        const normalStudents = session.normalCount || 0;
+        const scribeStudents = session.scribeCount || 0;
+        const totalStudents = normalStudents + scribeStudents;
         
-        // 1. Invigilators
-        let invigCount = Math.floor(count / rates.invigilator_ratio);
-        if ((count % rates.invigilator_ratio) > rates.invigilator_min_fraction) invigCount++;
-        if (count > 0 && invigCount === 0) invigCount = 1;
-        const invigCost = invigCount * rates.invigilator;
+        // 1. Invigilators (Calculated Separately)
+        
+        // A. Normal Students (1 per 25, fraction > 5)
+        let normalInvigs = 0;
+        if (normalStudents > 0) {
+            normalInvigs = Math.floor(normalStudents / rates.invigilator_ratio);
+            if ((normalStudents % rates.invigilator_ratio) > rates.invigilator_min_fraction) normalInvigs++;
+            // Minimum 1 if students exist
+            if (normalInvigs === 0) normalInvigs = 1; 
+        }
 
-        // 2. Clerk
+        // B. Scribe Students (1 per 1, or defined ratio)
+        let scribeInvigs = 0;
+        if (scribeStudents > 0) {
+            scribeInvigs = Math.ceil(scribeStudents / scribeRatio);
+        }
+
+        const totalInvigs = normalInvigs + scribeInvigs;
+        const invigCost = totalInvigs * rates.invigilator;
+
+        // 2. Clerk (Based on TOTAL students)
         let clerkCost = 0;
-        const clerkFullBatches = Math.floor(count / 100);
-        const clerkRemainder = count % 100;
+        const clerkFullBatches = Math.floor(totalStudents / 100);
+        const clerkRemainder = totalStudents % 100;
         clerkCost += clerkFullBatches * rates.clerk_full_slab;
         if (clerkRemainder > 0) {
             if (clerkRemainder <= 30) clerkCost += rates.clerk_slab_1;
@@ -178,23 +203,21 @@ function generateBillForSessions(billTitle, sessionData, streamType) {
             else clerkCost += rates.clerk_full_slab;
         }
 
-        // 3. Sweeper
-        let sweeperCost = Math.ceil(count / 100) * rates.sweeper_rate;
+        // 3. Sweeper (Based on TOTAL students)
+        let sweeperCost = Math.ceil(totalStudents / 100) * rates.sweeper_rate;
         if (sweeperCost < rates.sweeper_min) sweeperCost = rates.sweeper_min;
 
-        // 4. Supervision (Chief + Senior + Office)
+        // 4. Supervision
         const chiefCost = rates.chief_supdt;
-        const seniorCost = rates.senior_supdt; // Calculated per session
+        const seniorCost = rates.senior_supdt;
         const officeCost = rates.office_supdt;
         const supervisionCost = chiefCost + seniorCost + officeCost;
 
         // Update Breakdowns
         bill.supervision_breakdown.chief.count++;
         bill.supervision_breakdown.chief.total += chiefCost;
-        
         bill.supervision_breakdown.senior.count++;
         bill.supervision_breakdown.senior.total += seniorCost;
-        
         bill.supervision_breakdown.office.count++;
         bill.supervision_breakdown.office.total += officeCost;
 
@@ -207,16 +230,23 @@ function generateBillForSessions(billTitle, sessionData, streamType) {
         bill.details.push({
             date: session.date,
             time: session.time,
-            students: count,
-            invig_count: invigCount,
+            
+            // Breakdown for display
+            normal_students: normalStudents,
+            scribe_students: scribeStudents,
+            total_students: totalStudents,
+            
+            invig_count_normal: normalInvigs,
+            invig_count_scribe: scribeInvigs,
             invig_cost: invigCost,
+            
             clerk_cost: clerkCost,
             sweeper_cost: sweeperCost,
             supervision_cost: supervisionCost
         });
     });
 
-    const totalRegistered = sessionData.reduce((sum, s) => sum + s.studentCount, 0);
+    const totalRegistered = sessionData.reduce((sum, s) => sum + (s.normalCount + s.scribeCount), 0);
     bill.contingency = totalRegistered * rates.contingent_charge;
     bill.data_entry = rates.data_entry_operator;
     
