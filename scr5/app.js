@@ -4648,7 +4648,7 @@ generateQPaperReportButton.addEventListener('click', async () => {
     }
 });
 
-// --- Event listener for "Generate QP Distribution Report" (Stream-Aware) ---
+// --- Event listener for "Generate QP Distribution Report" (Optimized) ---
 if (generateQpDistributionReportButton) {
     generateQpDistributionReportButton.addEventListener('click', async () => {
         const sessionKey = reportsSessionSelect.value; 
@@ -4677,7 +4677,6 @@ if (generateQpDistributionReportButton) {
                 const courseName = student.Course;
                 const streamName = student.Stream || "Regular"; 
 
-                // *** FIX: Use Stream-Aware Key ***
                 const courseKey = getQpKey(courseName, streamName);
                 const sessionKeyPipe = `${student.Date} | ${student.Time}`;
                 const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
@@ -4714,48 +4713,106 @@ if (generateQpDistributionReportButton) {
                 qpEntry.rooms[roomName].streams[streamName]++;
             }
             
-            // ... (Rest of the HTML generation logic remains same as V3) ...
-            // For brevity, reusing the existing HTML generation logic from V3 you have.
-            // Just ensure the loop above is replaced.
-            
             let allPagesHtml = '';
-            const sortedSessionKeys = Object.keys(sessions).sort();
+            const sortedSessionKeys = Object.keys(sessions).sort(compareSessionStrings);
             
             for (const sessionKey of sortedSessionKeys) {
                 const session = sessions[sessionKey];
                 const sessionKeyPipe = `${session.Date} | ${session.Time}`;
                 const roomSerialMap = getRoomSerialMap(sessionKeyPipe);
 
-                allPagesHtml += `<div class="print-page"><div class="print-header-group"><h1>${currentCollegeName}</h1><h2>Question Paper Distribution</h2><h3>${session.Date} &nbsp;|&nbsp; ${session.Time}</h3></div>`;
+                allPagesHtml += `
+                    <div class="print-page" style="padding: 10mm !important;">
+                        <div class="print-header-group text-center mb-4 border-b-2 border-black pb-2">
+                            <h1 class="text-xl font-bold uppercase">${currentCollegeName}</h1>
+                            <h2 class="text-lg font-semibold">QP Distribution Summary</h2>
+                            <h3 class="text-md">${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
+                        </div>
+                `;
+                
                 const sortedQPCodes = Object.keys(session.qpCodes).sort();
 
                 for (const qpCode of sortedQPCodes) {
                     const qpData = session.qpCodes[qpCode];
-                    const courseList = Array.from(qpData.courseNames).sort().join(', ');
+                    
+                    // Truncate Course List for conciseness
+                    const courseArray = Array.from(qpData.courseNames).sort();
+                    let courseList = courseArray.join(', ');
+                    if (courseList.length > 80) courseList = courseList.substring(0, 80) + "...";
+
+                    // Sort Stream Totals (Regular First)
                     const grandStreamParts = [];
-                    Object.entries(qpData.streamTotals).forEach(([strm, cnt]) => grandStreamParts.push(`${strm}: ${cnt}`));
+                    const sortedGrandStreams = Object.keys(qpData.streamTotals).sort((a, b) => {
+                        if (a === "Regular") return -1;
+                        if (b === "Regular") return 1;
+                        return a.localeCompare(b);
+                    });
+                    
+                    sortedGrandStreams.forEach(strm => {
+                        grandStreamParts.push(`${strm}: ${qpData.streamTotals[strm]}`);
+                    });
 
                     allPagesHtml += `
-                        <div style="margin-top: 1.5rem; border: 1px solid #000; padding: 10px; page-break-inside: avoid;">
-                            <h4 style="font-size: 12pt; font-weight: bold; margin: 0; border-bottom: 1px dotted #000; padding-bottom: 5px;">QP Code: <span style="background-color:#eee; padding:2px 5px;">${qpCode}</span></h4>
-                            <div style="font-size: 9pt; margin-top: 5px; font-style: italic; color: #444;">Courses: ${courseList}</div>
-                            <table class="qp-distribution-table" style="margin-top: 10px; width: 100%; border-collapse: collapse; font-size: 10pt;">
-                                <thead><tr style="background-color: #f9f9f9;"><th style="width: 50%; border: 1px solid #ccc; padding: 4px;">Room</th><th style="width: 35%; border: 1px solid #ccc; padding: 4px;">Stream Breakdown</th><th style="width: 15%; border: 1px solid #ccc; padding: 4px; text-align:center;">Count</th></tr></thead>
+                        <div style="margin-top: 10px; border: 1px solid #000; padding: 5px; page-break-inside: avoid;">
+                            <div class="flex justify-between items-center border-b border-dotted border-gray-400 pb-1 mb-1">
+                                <h4 class="font-bold text-sm">QP: <span class="bg-gray-200 px-2 rounded">${qpCode}</span></h4>
+                                <span class="text-xs font-bold">Total: ${qpData.total}</span>
+                            </div>
+                            <div class="text-[10px] italic text-gray-600 mb-2 truncate">${courseList}</div>
+                            
+                            <table class="w-full border-collapse border border-black text-[10px]">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="border border-black px-1 py-0.5 text-left w-[40%]">Room / Location</th>
+                                        <th class="border border-black px-1 py-0.5 text-left w-[45%]">Stream Split</th>
+                                        <th class="border border-black px-1 py-0.5 text-center w-[15%]">Qty</th>
+                                    </tr>
+                                </thead>
                                 <tbody>`;
                     
-                    const sortedRoomKeys = Object.keys(qpData.rooms).sort((a, b) => (parseInt(a.replace(/\D/g, ''), 10) || 0) - (parseInt(b.replace(/\D/g, ''), 10) || 0));
+                    const sortedRoomKeys = Object.keys(qpData.rooms).sort((a, b) => {
+                        // Sort by Serial Number first
+                        const sA = roomSerialMap[a] || 999;
+                        const sB = roomSerialMap[b] || 999;
+                        return sA - sB;
+                    });
 
                     for (const roomName of sortedRoomKeys) {
                         const rData = qpData.rooms[roomName];
-                        const roomInfo = currentRoomConfig[roomName];
-                        const displayLocation = (roomInfo && roomInfo.location) ? roomInfo.location : roomName;
-                        const serialNo = roomSerialMap[roomName] || '-';
-                        const streamParts = [];
-                        Object.entries(rData.streams).forEach(([strm, cnt]) => streamParts.push(`<span style="white-space:nowrap;">${strm}: <strong>${cnt}</strong></span>`));
+                        const roomInfo = currentRoomConfig[roomName] || {};
                         
-                        allPagesHtml += `<tr><td style="border: 1px solid #ccc; padding: 4px;"><strong>${serialNo} | ${displayLocation}</strong> <span style="font-size:0.85em; color:#666;">(${roomName})</span></td><td style="border: 1px solid #ccc; padding: 4px; font-size: 0.9em;">${streamParts.join(', ')}</td><td style="border: 1px solid #ccc; padding: 4px; text-align: center; font-weight: bold;">${rData.total}</td></tr>`;
+                        // Truncate Location
+                        let loc = roomInfo.location || "";
+                        if (loc.length > 15) loc = loc.substring(0, 13) + "..";
+                        const displayLoc = loc ? `${roomName} <span class='text-gray-500'>(${loc})</span>` : roomName;
+                        const serialNo = roomSerialMap[roomName] || '-';
+                        
+                        // Sort Streams in Row (Regular First)
+                        const streamParts = [];
+                        const rowStreams = Object.keys(rData.streams).sort((a, b) => {
+                            if (a === "Regular") return -1;
+                            if (b === "Regular") return 1;
+                            return a.localeCompare(b);
+                        });
+
+                        rowStreams.forEach(strm => {
+                            streamParts.push(`<b>${strm}:</b> ${rData.streams[strm]}`);
+                        });
+                        
+                        allPagesHtml += `
+                            <tr>
+                                <td class="border border-black px-1 py-0.5 font-medium">
+                                    <span class="inline-block w-6 text-center bg-gray-50 border-r border-gray-200 mr-1 text-[9px] font-bold">${serialNo}</span>
+                                    ${displayLoc}
+                                </td>
+                                <td class="border border-black px-1 py-0.5 text-gray-700">${streamParts.join(', ')}</td>
+                                <td class="border border-black px-1 py-0.5 text-center font-bold text-[11px]">${rData.total}</td>
+                            </tr>`;
                     }
-                    allPagesHtml += `</tbody><tfoot style="background-color: #f0f0f0;"><tr><td style="border: 1px solid #ccc; padding: 6px; font-weight: bold; text-align: right;">Total:</td><td style="border: 1px solid #ccc; padding: 6px; font-size: 0.9em; font-weight:bold;">${grandStreamParts.join(', ')}</td><td style="border: 1px solid #ccc; padding: 6px; font-weight: bold; text-align: center; font-size: 1.1em;">${qpData.total}</td></tr></tfoot></table></div>`;
+                    allPagesHtml += `
+                                </tbody>
+                            </table>
+                        </div>`;
                 }
                 allPagesHtml += `</div>`; 
             }
