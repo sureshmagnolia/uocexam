@@ -611,7 +611,8 @@ function syncDataFromCloud(collegeId) {
         if (typeof finalizeAppLoad === 'function') finalizeAppLoad();
     });
 }
-// 4. CLOUD UPLOAD FUNCTION (Network Aware)
+
+// 4. CLOUD UPLOAD FUNCTION (Network Aware + Remuneration + Public Sync)
 async function syncDataToCloud() {
     if (!currentUser || !currentCollegeId) return;
     if (isSyncing) return;
@@ -639,7 +640,7 @@ async function syncDataToCloud() {
             cloudData = cloudSnap.data();
         }
 
-// --- STEP 2: Smart Merge Helpers ---
+        // --- STEP 2: Smart Merge Helpers ---
         const isEmptyOrDefault = (key, val) => {
             if (!val) return true;
             if (key === 'examCollegeName') return val === "University of Calicut";
@@ -649,7 +650,11 @@ async function syncDataToCloud() {
             if (key === 'examQPCodes') return val === '{}';
             if (key === 'examAbsenteeList') return val === '{}';
             if (key === 'examSessionNames') return val === '{}';
-            // if (key === 'examRulesConfig') return val === '[]'; // <--- ADD THIS LINE
+            if (key === 'examRemunerationConfig') return false; // Always sync remuneration
+            
+            // Allow empty lists to sync (deletion)
+            // if (key === 'examRulesConfig') return val === '[]'; 
+            
             if (key === 'examRoomAllotment' || key === 'examScribeAllotment') return val === '{}' || val.length < 5; 
             return false;
         };
@@ -684,7 +689,8 @@ async function syncDataToCloud() {
             'examScribeAllotment', 
             'examAbsenteeList',
             'examSessionNames',
-            'examRulesConfig' // <--- ADD THIS LINE (To save to Cloud)
+            'examRulesConfig',
+            'examRemunerationConfig' // <--- NEW: Sync Remuneration Rates
         ];
 
         const finalMainData = { lastUpdated: timestamp };
@@ -709,13 +715,11 @@ async function syncDataToCloud() {
         
         const bulkString = JSON.stringify(bulkDataObj);
 
-        // 🛑 LIMIT CHECK LOGIC STARTS HERE 🛑
-        // 1. Calculate Size (in Bytes)
+        // 🛑 LIMIT CHECK LOGIC 🛑
         const payloadSize = new Blob([bulkString]).size;
         const payloadSizeMB = (payloadSize / (1024 * 1024)).toFixed(2);
 
-        // 2. Get Limit from Cloud Data (Default to 15MB if not set)
-        // 'storageLimitBytes' is the field Super Admin will set
+        // Get Limit from Cloud Data (Default to 15MB if not set)
         const limitBytes = currentCollegeData.storageLimitBytes || (15 * 1024 * 1024); 
         const limitMB = (limitBytes / (1024 * 1024)).toFixed(2);
 
@@ -726,9 +730,8 @@ async function syncDataToCloud() {
             
             updateSyncStatus("Over Limit", "error");
             isSyncing = false;
-            return; // <--- STOP THE UPLOAD
+            return; 
         }
-        // 🛑 LIMIT CHECK ENDS 🛑
 
         const chunks = chunkString(bulkString, 800000);
 
@@ -739,6 +742,19 @@ async function syncDataToCloud() {
             const chunkRef = doc(db, "colleges", currentCollegeId, "data", `chunk_${index}`);
             batch.set(chunkRef, { payload: chunkStr, index: index, totalChunks: chunks.length });
         });
+        
+        // --- NEW: SECURE PUBLIC SYNC (For Student View) ---
+        // This pushes only the seating data to the public collection
+        const publicRef = doc(db, "public_seating", currentCollegeId);
+        const allotmentData = localStorage.getItem('examRoomAllotment') || '{}';
+        const collegeName = localStorage.getItem('examCollegeName') || "Exam Centre";
+        
+        batch.set(publicRef, {
+            collegeName: collegeName,
+            seatingData: allotmentData,
+            lastUpdated: new Date().toISOString()
+        });
+        // -------------------------------
         
         await batch.commit();
         
@@ -753,7 +769,7 @@ async function syncDataToCloud() {
                  await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId), { lastUpdated: new Date().toISOString() });
              } catch (retryErr) {}
         }
-        // Check if error is network related
+        
         if (e.code === 'unavailable' || !navigator.onLine) {
              updateSyncStatus("Offline - Saved Locally", "error");
         } else {
@@ -763,7 +779,6 @@ async function syncDataToCloud() {
         isSyncing = false;
     }
 }
-
 // --- 3. ADMIN / TEAM MANAGEMENT LOGIC ---
 
 adminBtn.addEventListener('click', () => {
