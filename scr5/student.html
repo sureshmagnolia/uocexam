@@ -77,7 +77,6 @@
                     if (nameSnap.exists() && nameSnap.data().json) {
                         studentNames = JSON.parse(nameSnap.data().json);
                     } else if (data.studentNames) {
-                        // Fallback for old format
                         studentNames = JSON.parse(data.studentNames);
                     }
 
@@ -85,7 +84,6 @@
                     if (courseSnap.exists() && courseSnap.data().json) {
                         examPapers = JSON.parse(courseSnap.data().json);
                     } else if (data.examPapers) {
-                        // Fallback for old format
                         examPapers = JSON.parse(data.examPapers);
                     }
 
@@ -133,7 +131,6 @@
             for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
                 const [dateStr, timeStr] = sessionKey.split(' | ');
                 
-                // Date Filter
                 const examDateObject = parseSessionTime(dateStr, "00:00 AM"); 
                 if (examDateObject < todayMidnight) continue; 
 
@@ -168,8 +165,14 @@
 
                 myExams.forEach(exam => {
                     const unlockTime = new Date(exam.fullDate.getTime() - (45 * 60 * 1000));
+                    
+                    // --- CHANGED: PRIORITIZE LOCATION ---
                     const roomInfo = roomConfigs[exam.studentRoom] || {};
-                    const locationText = roomInfo.location ? `(${roomInfo.location})` : "";
+                    // Use Location if available, else Room Name
+                    const displayLocation = (roomInfo.location && roomInfo.location.trim() !== "") 
+                                            ? roomInfo.location 
+                                            : exam.studentRoom;
+                    // ------------------------------------
 
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-lg border border-gray-100 mb-5 animate-fade-in";
@@ -202,9 +205,9 @@
                     if (now >= unlockTime) {
                         content += `
                             <div class="text-center py-2">
-                                <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mb-1">Allotted Hall</p>
-                                <div class="text-4xl font-black text-gray-900 leading-none tracking-tight">${exam.studentRoom}</div>
-                                <div class="text-sm font-bold text-gray-500 mt-1 mb-5">${locationText}</div>
+                                <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mb-2">Allotted Hall</p>
+                                
+                                <div class="text-2xl font-black text-gray-900 leading-tight mb-5 px-2">${displayLocation}</div>
                                 
                                 <div class="inline-block bg-indigo-50 rounded-xl px-8 py-4 border border-indigo-100 shadow-inner">
                                      <span class="block text-[10px] text-indigo-400 uppercase font-bold tracking-wider mb-1">Your Seat Number</span>
@@ -248,6 +251,7 @@
                     <div class="text-center py-8 bg-white rounded-lg shadow-sm border border-gray-200">
                         <p class="text-gray-800 font-bold text-lg">No Upcoming Exams</p>
                         <p class="text-gray-500 text-sm mt-1">for register number <span class="font-mono font-bold text-black">${regNo}</span></p>
+                        <p class="text-xs text-gray-400 mt-2">(Past exams are hidden)</p>
                     </div>
                 `;
             } else {
