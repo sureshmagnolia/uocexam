@@ -38,6 +38,7 @@
         }
 
         let allAllotments = {};
+        let allScribes = {}; // <--- Scribe Data
         let roomConfigs = {};
         let studentNames = {}; 
         let examPapers = {}; 
@@ -53,7 +54,6 @@
             statusEl.textContent = "Loading Exam Data...";
             
             try {
-                // FETCH 3 DOCUMENTS IN PARALLEL
                 const mainRef = doc(db, "public_seating", collegeId);
                 const namesRef = doc(db, "public_seating", collegeId + "_names");
                 const coursesRef = doc(db, "public_seating", collegeId + "_courses");
@@ -69,18 +69,16 @@
                     collegeName = data.collegeName || "Exam Centre";
                     document.getElementById('college-name').textContent = collegeName;
                     
-                    // 1. Main Data
                     if (data.seatingData) allAllotments = JSON.parse(data.seatingData);
+                    if (data.scribeData) allScribes = JSON.parse(data.scribeData); // <--- Load Scribes
                     if (data.roomData) roomConfigs = JSON.parse(data.roomData);
 
-                    // 2. Names (Aux Doc)
                     if (nameSnap.exists() && nameSnap.data().json) {
                         studentNames = JSON.parse(nameSnap.data().json);
                     } else if (data.studentNames) {
                         studentNames = JSON.parse(data.studentNames);
                     }
 
-                    // 3. Courses (Aux Doc)
                     if (courseSnap.exists() && courseSnap.data().json) {
                         examPapers = JSON.parse(courseSnap.data().json);
                     } else if (data.examPapers) {
@@ -136,7 +134,9 @@
 
                 let studentRoom = null;
                 let seatNumber = 0;
+                let isScribeRoom = false;
                 
+                // 1. Check for Regular Room Allotment
                 for (const room of rooms) {
                     const index = room.students.indexOf(regNo);
                     if (index !== -1) {
@@ -146,12 +146,20 @@
                     }
                 }
 
+                // 2. Check for Scribe Override
+                const sessionScribes = allScribes[sessionKey] || {};
+                if (sessionScribes[regNo]) {
+                    studentRoom = sessionScribes[regNo];
+                    isScribeRoom = true;
+                    seatNumber = "Scribe"; // Scribes usually don't have fixed seat numbers
+                }
+
                 if (studentRoom) {
                     const paperKey = `${regNo}_${dateStr}_${timeStr}`;
                     const paperName = examPapers[paperKey] || "Subject Details N/A";
 
                     myExams.push({
-                        dateStr, timeStr, studentRoom, seatNumber, paperName,
+                        dateStr, timeStr, studentRoom, seatNumber, paperName, isScribeRoom,
                         fullDate: parseSessionTime(dateStr, timeStr)
                     });
                 }
@@ -166,13 +174,15 @@
                 myExams.forEach(exam => {
                     const unlockTime = new Date(exam.fullDate.getTime() - (45 * 60 * 1000));
                     
-                    // --- CHANGED: PRIORITIZE LOCATION ---
                     const roomInfo = roomConfigs[exam.studentRoom] || {};
-                    // Use Location if available, else Room Name
                     const displayLocation = (roomInfo.location && roomInfo.location.trim() !== "") 
                                             ? roomInfo.location 
                                             : exam.studentRoom;
-                    // ------------------------------------
+                    
+                    // Visual Tag for Scribes
+                    const scribeTag = exam.isScribeRoom 
+                        ? `<span class="bg-orange-100 text-orange-700 text-[10px] px-2 py-0.5 rounded border border-orange-200 font-bold ml-2 uppercase">Scribe Room</span>` 
+                        : "";
 
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-lg border border-gray-100 mb-5 animate-fade-in";
@@ -205,13 +215,15 @@
                     if (now >= unlockTime) {
                         content += `
                             <div class="text-center py-2">
-                                <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mb-2">Allotted Hall</p>
+                                <p class="text-xs text-gray-400 uppercase tracking-widest font-bold mb-2 flex items-center justify-center">
+                                    Allotted Hall ${scribeTag}
+                                </p>
                                 
                                 <div class="text-2xl font-black text-gray-900 leading-tight mb-5 px-2">${displayLocation}</div>
                                 
                                 <div class="inline-block bg-indigo-50 rounded-xl px-8 py-4 border border-indigo-100 shadow-inner">
                                      <span class="block text-[10px] text-indigo-400 uppercase font-bold tracking-wider mb-1">Your Seat Number</span>
-                                     <span class="block text-5xl font-black text-indigo-600">#${exam.seatNumber}</span>
+                                     <span class="block text-5xl font-black text-indigo-600">${exam.seatNumber === "Scribe" ? "Spl" : "#" + exam.seatNumber}</span>
                                 </div>
                                 
                                 <p class="text-[10px] text-green-600 mt-5 font-bold flex items-center justify-center gap-1.5 uppercase tracking-wide">
@@ -251,7 +263,6 @@
                     <div class="text-center py-8 bg-white rounded-lg shadow-sm border border-gray-200">
                         <p class="text-gray-800 font-bold text-lg">No Upcoming Exams</p>
                         <p class="text-gray-500 text-sm mt-1">for register number <span class="font-mono font-bold text-black">${regNo}</span></p>
-                        <p class="text-xs text-gray-400 mt-2">(Past exams are hidden)</p>
                     </div>
                 `;
             } else {
