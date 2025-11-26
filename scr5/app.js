@@ -10443,21 +10443,16 @@ function loadInitialData() {
 }
 
 // ==========================================
-    // 💰 REMUNERATION LOGIC (FINAL)
+    // 💰 REMUNERATION LOGIC (FINAL - SCRIBE AWARE)
     // ==========================================
 
-    // 1. Navigation Listener
     if (navRemuneration) {
         navRemuneration.addEventListener('click', () => {
             showView(viewRemuneration, navRemuneration);
-            // Initialize the separate module logic
-            if (typeof initRemunerationModule === 'function') {
-                initRemunerationModule();
-            }
+            if (typeof initRemunerationModule === 'function') initRemunerationModule();
         });
     }
 
-    // 2. Handle Grouping Mode Change (Show/Hide Dates)
     const billModeSelect = document.getElementById('bill-mode-select');
     const billDateRange = document.getElementById('bill-date-range');
     
@@ -10473,7 +10468,6 @@ function loadInitialData() {
         });
     }
 
-    // 3. Generate Bill Button
     const btnGenerateBill = document.getElementById('btn-generate-bill');
     const btnPrintBill = document.getElementById('btn-print-bill');
 
@@ -10484,15 +10478,18 @@ function loadInitialData() {
                 return;
             }
 
-            // Inputs
             const selectedStream = document.getElementById('bill-stream-select').value;
             const mode = document.getElementById('bill-mode-select').value;
             
-            // A. Filter Data by Stream
+            // 1. Load Scribe List to identify scribes
+            const scribeListRaw = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
+            const scribeRegNos = new Set(scribeListRaw.map(s => s.regNo));
+
+            // 2. Filter Data by Stream
             const filteredData = allStudentData.filter(s => {
                 const sStream = s.Stream || "Regular";
                 if (selectedStream === "Regular") return sStream === "Regular";
-                return sStream !== "Regular"; // Matches Distance, Supplementary, etc.
+                return sStream !== "Regular";
             });
 
             if (filteredData.length === 0) {
@@ -10500,11 +10497,9 @@ function loadInitialData() {
                 return;
             }
 
-            // B. Prepare Groups
+            // 3. Prepare Groups (Separating Scribes)
             const billGroups = {}; 
-            // Structure: { "Exam Name": { "Date|Time": count } }
 
-            // Helper to parse date for comparison
             const parseDate = (dStr) => {
                 const [d, m, y] = dStr.split('.');
                 return new Date(`${y}-${m}-${d}`);
@@ -10514,19 +10509,16 @@ function loadInitialData() {
             const endDateInput = document.getElementById('bill-end-date').valueAsDate;
 
             filteredData.forEach(s => {
-                // Date Range Check (for Period Mode)
                 if (mode === 'period' && (startDateInput || endDateInput)) {
                     const sDate = parseDate(s.Date);
-                    if (startDateInput && sDate < startDateInput) return; // Skip
-                    if (endDateInput && sDate > endDateInput) return; // Skip
+                    if (startDateInput && sDate < startDateInput) return;
+                    if (endDateInput && sDate > endDateInput) return;
                 }
 
                 const sessionKey = `${s.Date} | ${s.Time}`;
                 let groupKey = "Consolidated Bill";
 
-                // Grouping Logic
                 if (mode === 'exam') {
-                    // Use the existing helper to find Exam Name
                     groupKey = getExamName(s.Date, s.Time, s.Stream) || "Unknown / Other Exams";
                 } else {
                     const sStr = document.getElementById('bill-start-date').value || "Start";
@@ -10536,14 +10528,25 @@ function loadInitialData() {
 
                 if (!billGroups[groupKey]) billGroups[groupKey] = {};
                 
-                // Count students per session within this group
+                // Initialize Session Stats
                 if (!billGroups[groupKey][sessionKey]) {
-                    billGroups[groupKey][sessionKey] = { date: s.Date, time: s.Time, count: 0 };
+                    billGroups[groupKey][sessionKey] = { 
+                        date: s.Date, 
+                        time: s.Time, 
+                        normalCount: 0, 
+                        scribeCount: 0 
+                    };
                 }
-                billGroups[groupKey][sessionKey].count++;
+
+                // Increment Correct Counter
+                if (scribeRegNos.has(s['Register Number'])) {
+                    billGroups[groupKey][sessionKey].scribeCount++;
+                } else {
+                    billGroups[groupKey][sessionKey].normalCount++;
+                }
             });
 
-            // C. Process Groups -> Calculate Bill
+            // 4. Calculate & Render
             const outputContainer = document.getElementById('remuneration-output');
             outputContainer.innerHTML = '';
             outputContainer.classList.remove('hidden');
@@ -10557,21 +10560,13 @@ function loadInitialData() {
             }
 
             groupKeys.forEach(title => {
-                // Convert session map to array for the calculator
                 const sessionMap = billGroups[title];
-                const sessionArray = Object.values(sessionMap).map(obj => ({
-                    date: obj.date,
-                    time: obj.time,
-                    studentCount: obj.count
-                })).sort((a,b) => {
-                    // Sort Chronologically
+                const sessionArray = Object.values(sessionMap).sort((a,b) => {
                     const d1 = a.date.split('.').reverse().join('');
                     const d2 = b.date.split('.').reverse().join('');
                     return d1.localeCompare(d2) || a.time.localeCompare(b.time);
                 });
 
-                // CALL ENGINE (from remuneration.js)
-                // We pass the selectedStream so it picks the right rates
                 const bill = generateBillForSessions(title, sessionArray, selectedStream);
                 
                 if (bill) {
@@ -10579,49 +10574,50 @@ function loadInitialData() {
                 }
             });
 
-            // Show Print Button
             if (btnPrintBill) btnPrintBill.classList.remove('hidden');
         });
     }
 
-// 4. Print Button Listener
     if (btnPrintBill) {
         btnPrintBill.addEventListener('click', () => {
-            // 1. Add the class that triggers the CSS above
             document.body.classList.add('printing-bill');
-            
-            // 2. Print
             window.print();
-            
-            // 3. Remove the class after a short delay so the app returns to normal
-            // (Using a timeout allows the print dialog to capture the style before removal)
             setTimeout(() => {
                 document.body.classList.remove('printing-bill');
             }, 500);
         });
     }
 
-    // 5. Helper to Render Bill HTML (Updated for Chief/Senior/Office)
+    // 5. Render Function (Updated to show Scribe Invigilators)
     function renderBillHTML(bill, container) {
-        const rows = bill.details.map(d => `
-            <tr class="border-b hover:bg-gray-50">
-                <td class="p-2 border">${d.date} <br><span class="text-xs text-gray-500">${d.time}</span></td>
-                <td class="p-2 border text-center font-bold">${d.students}</td>
-                <td class="p-2 border text-center text-xs">
-                    ${d.invig_count} Invig<br>
-                    <span class="font-mono font-bold">₹${d.invig_cost}</span>
-                </td>
-                <td class="p-2 border text-center text-xs">
-                    <span class="font-mono font-bold">₹${d.clerk_cost}</span>
-                </td>
-                <td class="p-2 border text-center text-xs">
-                    <span class="font-mono font-bold">₹${d.sweeper_cost}</span>
-                </td>
-                <td class="p-2 border text-center text-xs bg-gray-50">
-                    <span class="font-mono font-bold">₹${d.supervision_cost}</span>
-                </td>
-            </tr>
-        `).join('');
+        const rows = bill.details.map(d => {
+            // Create tooltip-like text for counts
+            let studentDetail = `${d.normal_students}`;
+            if (d.scribe_students > 0) studentDetail += ` + <span class="text-orange-600 font-bold">${d.scribe_students} Scribe</span>`;
+            
+            let invigDetail = `${d.invig_count_normal}`;
+            if (d.invig_count_scribe > 0) invigDetail += ` + <span class="text-orange-600 font-bold">${d.invig_count_scribe}</span>`;
+            
+            return `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 border">${d.date} <br><span class="text-xs text-gray-500">${d.time}</span></td>
+                    <td class="p-2 border text-center text-sm">${studentDetail}</td>
+                    <td class="p-2 border text-center text-xs">
+                        ${invigDetail} Invig<br>
+                        <span class="font-mono font-bold">₹${d.invig_cost}</span>
+                    </td>
+                    <td class="p-2 border text-center text-xs">
+                        <span class="font-mono font-bold">₹${d.clerk_cost}</span>
+                    </td>
+                    <td class="p-2 border text-center text-xs">
+                        <span class="font-mono font-bold">₹${d.sweeper_cost}</span>
+                    </td>
+                    <td class="p-2 border text-center text-xs bg-gray-50">
+                        <span class="font-mono font-bold">₹${d.supervision_cost}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
 
         const html = `
             <div class="bg-white border-2 border-gray-800 p-6 print-page mb-8 page-break-avoid">
@@ -10635,8 +10631,8 @@ function loadInitialData() {
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="p-2 border border-black">Date/Session</th>
-                            <th class="p-2 border border-black">Students</th>
-                            <th class="p-2 border border-black">Invigilation</th>
+                            <th class="p-2 border border-black">Candidates</th>
+                            <th class="p-2 border border-black">Invigilators</th>
                             <th class="p-2 border border-black">Clerk</th>
                             <th class="p-2 border border-black">Sweeper</th>
                             <th class="p-2 border border-black">Supervision</th>
@@ -10656,32 +10652,26 @@ function loadInitialData() {
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm border-t-2 border-black pt-4">
                     
-                    <!-- Left Column: Supervision Detailed (Updated) -->
                     <div class="bg-gray-50 p-3 rounded border border-gray-200">
                         <div class="font-bold text-gray-700 border-b border-gray-300 mb-2 pb-1">1. Supervision Charges</div>
-                        
                         <div class="flex justify-between mb-1">
-                            <span>Chief Supdt (${bill.supervision_breakdown.chief.count} sessions @ ${bill.supervision_breakdown.chief.rate}):</span>
+                            <span>Chief Supdt (${bill.supervision_breakdown.chief.count} x ${bill.supervision_breakdown.chief.rate}):</span>
                             <span class="font-mono font-bold">₹${bill.supervision_breakdown.chief.total}</span>
                         </div>
-                        
                         <div class="flex justify-between mb-1">
-                            <span>Senior Supdt (${bill.supervision_breakdown.senior.count} sessions @ ${bill.supervision_breakdown.senior.rate}):</span>
+                            <span>Senior Supdt (${bill.supervision_breakdown.senior.count} x ${bill.supervision_breakdown.senior.rate}):</span>
                             <span class="font-mono font-bold">₹${bill.supervision_breakdown.senior.total}</span>
                         </div>
-
                         <div class="flex justify-between mb-1">
-                            <span>Office Supdt (${bill.supervision_breakdown.office.count} sessions @ ${bill.supervision_breakdown.office.rate}):</span>
+                            <span>Office Supdt (${bill.supervision_breakdown.office.count} x ${bill.supervision_breakdown.office.rate}):</span>
                             <span class="font-mono font-bold">₹${bill.supervision_breakdown.office.total}</span>
                         </div>
-
                         <div class="flex justify-between border-t border-gray-300 pt-1 mt-1 font-bold text-blue-800">
                             <span>Total Supervision:</span>
                             <span class="font-mono">₹${bill.supervision}</span>
                         </div>
                     </div>
 
-                    <!-- Right Column: Other Charges -->
                     <div class="space-y-2">
                         <div class="flex justify-between border-b border-dotted pb-1"><span>2. Invigilation Charges:</span> <span class="font-mono font-bold">₹${bill.invigilation}</span></div>
                         <div class="flex justify-between border-b border-dotted pb-1"><span>3. Clerk Charges:</span> <span class="font-mono font-bold">₹${bill.clerical}</span></div>
