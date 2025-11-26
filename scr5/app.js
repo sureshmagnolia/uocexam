@@ -613,15 +613,13 @@ function syncDataFromCloud(collegeId) {
     });
 }
 
-// 4. CLOUD UPLOAD FUNCTION (Network Aware + Remuneration + Public Sync)
+// 4. CLOUD UPLOAD FUNCTION (Network Aware + Smart Filtering)
 async function syncDataToCloud() {
     if (!currentUser || !currentCollegeId) return;
     if (isSyncing) return;
     
-    // [NEW] Offline Check
     if (!navigator.onLine) {
         updateSyncStatus("Offline - Saved Locally", "error");
-        console.log("⚠️ Offline. Data saved to LocalStorage only.");
         return;
     }
     
@@ -634,14 +632,12 @@ async function syncDataToCloud() {
         const batch = writeBatch(db);
         const mainRef = doc(db, "colleges", currentCollegeId);
 
-        // --- STEP 1: Fetch Current Cloud State ---
+        // --- STEP 1: Fetch Cloud State ---
         const cloudSnap = await getDoc(mainRef);
         let cloudData = {};
-        if (cloudSnap.exists()) {
-            cloudData = cloudSnap.data();
-        }
+        if (cloudSnap.exists()) cloudData = cloudSnap.data();
 
-        // --- STEP 2: Smart Merge Helpers ---
+        // --- STEP 2: Merge Settings ---
         const isEmptyOrDefault = (key, val) => {
             if (!val) return true;
             if (key === 'examCollegeName') return val === "University of Calicut";
@@ -651,156 +647,157 @@ async function syncDataToCloud() {
             if (key === 'examQPCodes') return val === '{}';
             if (key === 'examAbsenteeList') return val === '{}';
             if (key === 'examSessionNames') return val === '{}';
-            if (key === 'examRemunerationConfig') return false; // Always sync remuneration
-            
-            // Allow empty lists to sync (deletion)
-            // if (key === 'examRulesConfig') return val === '[]'; 
-            
+            if (key === 'examRemunerationConfig') return false; 
             if (key === 'examRoomAllotment' || key === 'examScribeAllotment') return val === '{}' || val.length < 5; 
             return false;
         };
 
         const pickRobusterValue = (key, localVal, cloudVal) => {
             if (!localVal) {
-                if (cloudVal) {
-                    localStorage.setItem(key, cloudVal); 
-                    return cloudVal;
-                }
+                if (cloudVal) { localStorage.setItem(key, cloudVal); return cloudVal; }
                 return null;
             }
             if (!cloudVal) return localVal;
-            
             if (isEmptyOrDefault(key, localVal) && !isEmptyOrDefault(key, cloudVal)) {
-                localStorage.setItem(key, cloudVal); 
-                return cloudVal;
+                localStorage.setItem(key, cloudVal); return cloudVal;
             }
             return localVal;
         };
 
-        // --- STEP 3: Prepare Main Data ---
         const timestamp = new Date().toISOString();
         localStorage.setItem('lastUpdated', timestamp);
 
         const settingsKeys = [
-            'examCollegeName', 
-            'examStreamsConfig', 
-            'examRoomConfig', 
-            'examQPCodes', 
-            'examScribeList', 
-            'examScribeAllotment', 
-            'examAbsenteeList',
-            'examSessionNames',
-            'examRulesConfig',
-            'examRemunerationConfig' // <--- NEW: Sync Remuneration Rates
+            'examCollegeName', 'examStreamsConfig', 'examRoomConfig', 
+            'examQPCodes', 'examScribeList', 'examScribeAllotment', 
+            'examAbsenteeList', 'examSessionNames', 'examRulesConfig',
+            'examRemunerationConfig'
         ];
 
         const finalMainData = { lastUpdated: timestamp };
-
         settingsKeys.forEach(key => {
             const localVal = localStorage.getItem(key);
-            const cloudVal = cloudData[key];
-            const bestVal = pickRobusterValue(key, localVal, cloudVal);
+            const bestVal = pickRobusterValue(key, localVal, cloudData[key]);
             if (bestVal) finalMainData[key] = bestVal;
         });
 
-        // --- STEP 4: Prepare Bulk Data ---
+        // --- STEP 3: Bulk Data Handling ---
         const localBaseData = localStorage.getItem('examBaseData');
         let localAllotment = localStorage.getItem('examRoomAllotment');
-        
         const bulkDataObj = {};
         if (localBaseData) bulkDataObj['examBaseData'] = localBaseData;
-        
-        if (localAllotment && localAllotment !== '{}') {
-            bulkDataObj['examRoomAllotment'] = localAllotment;
-        }
+        if (localAllotment && localAllotment !== '{}') bulkDataObj['examRoomAllotment'] = localAllotment;
         
         const bulkString = JSON.stringify(bulkDataObj);
-
-        // 🛑 LIMIT CHECK LOGIC 🛑
-        const payloadSize = new Blob([bulkString]).size;
-        const payloadSizeMB = (payloadSize / (1024 * 1024)).toFixed(2);
-
-        // Get Limit from Cloud Data (Default to 15MB if not set)
         const limitBytes = currentCollegeData.storageLimitBytes || (15 * 1024 * 1024); 
-        const limitMB = (limitBytes / (1024 * 1024)).toFixed(2);
-
-        console.log(`Data Size: ${payloadSizeMB} MB / Limit: ${limitMB} MB`);
-
-        if (payloadSize > limitBytes) {
-            alert(`⚠️ STORAGE LIMIT EXCEEDED ⚠️\n\nYour data size (${payloadSizeMB} MB) exceeds the allowed limit (${limitMB} MB) for your college.\n\nAction Required:\n1. Go to 'Danger Zone' or 'Settings'.\n2. Delete old student data or clear Absentees/Room Allotments.\n3. Try syncing again.`);
-            
+        
+        if (new Blob([bulkString]).size > limitBytes) {
+            alert(`⚠️ STORAGE LIMIT EXCEEDED ⚠️\n\nPlease delete old data.`);
             updateSyncStatus("Over Limit", "error");
             isSyncing = false;
             return; 
         }
 
         const chunks = chunkString(bulkString, 800000);
-
-        // --- STEP 5: Commit ---
         batch.update(mainRef, finalMainData);
-
         chunks.forEach((chunkStr, index) => {
             const chunkRef = doc(db, "colleges", currentCollegeId, "data", `chunk_${index}`);
             batch.set(chunkRef, { payload: chunkStr, index: index, totalChunks: chunks.length });
         });
+
+        // ============================================================
+        // 🚀 SECURE PUBLIC SYNC (OPTIMIZED: TODAY & FUTURE ONLY)
+        // ============================================================
         
-       // --- NEW: SECURE PUBLIC SYNC (Split into 3 Docs to fix Size Limit) ---
         const collegeName = localStorage.getItem('examCollegeName') || "Exam Centre";
-        const allotmentData = localStorage.getItem('examRoomAllotment') || '{}';
         const roomConfigData = localStorage.getItem('examRoomConfig') || '{}';
         
-        // 1. Prepare Data Maps
-        const baseDataStr = localStorage.getItem('examBaseData');
+        // 1. Prepare Filters
+        const todayMidnight = new Date();
+        todayMidnight.setHours(0,0,0,0);
+        
+        // Helper to parse "DD.MM.YYYY"
+        const parseDateKey = (dStr) => {
+            if (!dStr) return new Date(0);
+            const [d, m, y] = dStr.split('.');
+            return new Date(`${y}-${m}-${d}`);
+        };
+
+        // 2. Filter Allotment (Seating Data)
+        let publicAllotment = {};
+        const rawAllotment = JSON.parse(localAllotment || '{}');
+        const activeRegNos = new Set(); // Track students who have future exams
+
+        Object.keys(rawAllotment).forEach(sessionKey => {
+            const [dateStr] = sessionKey.split(' | ');
+            const examDate = parseDateKey(dateStr);
+            
+            // KEEP if Exam is Today or Future
+            if (examDate >= todayMidnight) {
+                publicAllotment[sessionKey] = rawAllotment[sessionKey];
+                
+                // Collect active students
+                rawAllotment[sessionKey].forEach(room => {
+                    room.students.forEach(regNo => activeRegNos.add(regNo));
+                });
+            }
+        });
+
+        // 3. Filter Names & Papers (Based on Active Students/Dates)
         let nameMap = {};
         let paperMap = {}; 
         
-        if (baseDataStr) {
+        if (localBaseData) {
              try {
-                 const baseData = JSON.parse(baseDataStr);
+                 const baseData = JSON.parse(localBaseData);
                  baseData.forEach(s => {
                      const r = s['Register Number'];
-                     const n = s.Name;
-                     const c = s.Course;
-                     const d = s.Date;
-                     const t = s.Time;
                      
-                     if (r) {
+                     // Optimization: Only process if this student has an upcoming exam
+                     if (r && activeRegNos.has(r)) {
+                         const n = s.Name;
+                         const c = s.Course;
+                         const d = s.Date;
+                         const t = s.Time;
                          const cleanReg = r.toString().trim().toUpperCase();
+
+                         // Add Name
                          if (n) nameMap[cleanReg] = n.toString().trim();
+                         
+                         // Add Paper (Only if date is valid)
                          if (c && d && t) {
-                             const paperKey = `${cleanReg}_${d}_${t}`;
-                             paperMap[paperKey] = c.toString().trim();
+                             const examDate = parseDateKey(d);
+                             if (examDate >= todayMidnight) {
+                                 const paperKey = `${cleanReg}_${d}_${t}`;
+                                 paperMap[paperKey] = c.toString().trim();
+                             }
                          }
                      }
                  });
-             } catch (e) { console.error("Error parsing base data for public sync", e); }
+             } catch (e) { console.error("Error filtering public data", e); }
         }
 
-        // 2. Define Document References (Split Strategy)
+        // 4. Upload 3 Split Documents
         const publicRef = doc(db, "public_seating", currentCollegeId);
         const namesRef = doc(db, "public_seating", currentCollegeId + "_names");
         const coursesRef = doc(db, "public_seating", currentCollegeId + "_courses");
 
-        // 3. Queue Batch Writes
-        // Doc A: Main Seating & Rooms
+        // Doc A: Seating
         batch.set(publicRef, {
             collegeName: collegeName,
-            seatingData: allotmentData,
+            seatingData: JSON.stringify(publicAllotment), // Filtered JSON
             roomData: roomConfigData,
             lastUpdated: new Date().toISOString()
         });
 
-        // Doc B: Student Names (Separate Doc)
-        batch.set(namesRef, {
-            json: JSON.stringify(nameMap)
-        });
+        // Doc B: Names (Filtered)
+        batch.set(namesRef, { json: JSON.stringify(nameMap) });
 
-        // Doc C: Exam Papers (Separate Doc - This is the heavy one)
-        batch.set(coursesRef, {
-            json: JSON.stringify(paperMap)
-        });
-        // -------------------------------------------------------------------
+        // Doc C: Courses (Filtered)
+        batch.set(coursesRef, { json: JSON.stringify(paperMap) });
         
+        // ============================================================
+
         await batch.commit();
         
         console.log(`Data synced!`);
@@ -810,16 +807,9 @@ async function syncDataToCloud() {
     } catch (e) {
         console.error("Sync Up Error:", e);
         if (e.code === 'not-found') {
-             try {
-                 await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId), { lastUpdated: new Date().toISOString() });
-             } catch (retryErr) {}
+             try { await window.firebase.setDoc(window.firebase.doc(db, "colleges", currentCollegeId), { lastUpdated: new Date().toISOString() }); } catch (retryErr) {}
         }
-        
-        if (e.code === 'unavailable' || !navigator.onLine) {
-             updateSyncStatus("Offline - Saved Locally", "error");
-        } else {
-             updateSyncStatus("Save Fail", "error");
-        }
+        updateSyncStatus(navigator.onLine ? "Save Fail" : "Offline - Saved Locally", "error");
     } finally {
         isSyncing = false;
     }
