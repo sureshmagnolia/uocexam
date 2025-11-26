@@ -7686,6 +7686,7 @@ let editCurrentPage = 1;
 const STUDENTS_PER_EDIT_PAGE = 10;
 let currentEditSession = '';
 let currentEditCourse = '';
+let currentEditStream = ''; // <--- ADD THIS NEW VARIABLE
 let currentCourseStudents = []; // This will hold the "working copy" of students
 let hasUnsavedEdits = false;
 let currentlyEditingIndex = null; // Store the index of the student being edited
@@ -7704,7 +7705,7 @@ const modalName = document.getElementById('modal-edit-name');
 const modalSaveBtn = document.getElementById('modal-save-student');
 const modalCancelBtn = document.getElementById('modal-cancel-student');
 
-// 1. Session selection (Same as before)
+// 1. Session selection (Updated: Splits Course by Stream)
 editSessionSelect.addEventListener('change', () => {
     currentEditSession = editSessionSelect.value;
     editDataContainer.innerHTML = '';
@@ -7712,52 +7713,94 @@ editSessionSelect.addEventListener('change', () => {
     editSaveSection.classList.add('hidden');
     addNewStudentBtn.classList.add('hidden');
     
+    // Hide Bulk Container
+    const bulkContainer = document.getElementById('bulk-course-update-container');
+    if(bulkContainer) bulkContainer.classList.add('hidden');
+
     if (currentEditSession) {
-        // Populate course dropdown
         const [date, time] = currentEditSession.split(' | ');
         const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
-        const courses = [...new Set(sessionStudents.map(s => s.Course))].sort();
         
-    editCourseSelect.innerHTML = ''; // Clear it completely
-    // Add the default "Select" option
-    editCourseSelect.appendChild(new Option('-- Select a Course --', ''));
-    // Add each course option safely
-    courses.forEach(course => {
-        // new Option(text, value)
-        editCourseSelect.appendChild(new Option(course, course));
-    });
+        // Identify Unique Pairs: Course + Stream
+        const uniquePairs = [];
+        const seen = new Set();
+        
+        sessionStudents.forEach(s => {
+            const strm = s.Stream || "Regular";
+            const pairKey = `${s.Course}|${strm}`; // Composite Key
+            
+            if (!seen.has(pairKey)) {
+                seen.add(pairKey);
+                uniquePairs.push({
+                    course: s.Course,
+                    stream: strm,
+                    value: pairKey
+                });
+            }
+        });
+        
+        // Sort: Regular first, then Alphabetical
+        uniquePairs.sort((a, b) => {
+            if (a.stream === "Regular" && b.stream !== "Regular") return -1;
+            if (a.stream !== "Regular" && b.stream === "Regular") return 1;
+            if (a.course !== b.course) return a.course.localeCompare(b.course);
+            return a.stream.localeCompare(b.stream);
+        });
+        
+        editCourseSelect.innerHTML = '';
+        editCourseSelect.appendChild(new Option('-- Select a Course --', ''));
+        
+        uniquePairs.forEach(item => {
+            // Display Format: "Course Name (Stream)"
+            const label = `${item.course} (${item.stream})`;
+            editCourseSelect.appendChild(new Option(label, item.value));
+        });
 
-    editCourseSelectContainer.classList.remove('hidden');
+        editCourseSelectContainer.classList.remove('hidden');
     } else {
         editCourseSelectContainer.classList.add('hidden');
     }
 });
 
-// 2. Course selection (Updated with Student Count)
+// 2. Course selection (Updated: Parses Composite Key)
 editCourseSelect.addEventListener('change', () => {
-    currentEditCourse = editCourseSelect.value;
+    const selectedValue = editCourseSelect.value; // "CourseName|StreamName"
     editCurrentPage = 1;
     hasUnsavedEdits = false; 
 
-    // Get reference to count display or create it
     let countDisplay = document.getElementById('edit-student-count');
     if (!countDisplay && addNewStudentBtn) {
         countDisplay = document.createElement('div');
         countDisplay.id = 'edit-student-count';
         countDisplay.className = 'mb-2 font-bold text-blue-700 text-sm';
-        // Insert just before the "Add New Student" button
         addNewStudentBtn.parentNode.insertBefore(countDisplay, addNewStudentBtn);
     }
 
-    if (currentEditCourse) {
+    if (selectedValue) {
         const [date, time] = currentEditSession.split(' | ');
+        
+        // Split the key back to Course and Stream
+        const parts = selectedValue.split('|');
+        const selectedStream = parts.pop(); // Last part is Stream
+        const selectedCourse = parts.join('|'); // Rest is Course
+        
+        // Update Globals
+        currentEditCourse = selectedCourse;
+        currentEditStream = selectedStream; 
+
+        // Strict Filter
         currentCourseStudents = allStudentData
-            .filter(s => s.Date === date && s.Time === time && s.Course === currentEditCourse)
+            .filter(s => {
+                const sStream = s.Stream || "Regular";
+                return s.Date === date && 
+                       s.Time === time && 
+                       s.Course === selectedCourse && 
+                       sStream === selectedStream;
+            })
             .map(s => ({ ...s })); 
         
-        // Update Count Text
         if (countDisplay) {
-            countDisplay.textContent = `Total Students Mapped: ${currentCourseStudents.length}`;
+            countDisplay.textContent = `Students: ${currentCourseStudents.length} | Stream: ${selectedStream}`;
             countDisplay.classList.remove('hidden');
         }
         
@@ -7765,15 +7808,21 @@ editCourseSelect.addEventListener('change', () => {
         editSaveSection.classList.remove('hidden');
         addNewStudentBtn.classList.remove('hidden');
     } else {
+        // Reset
+        currentEditCourse = '';
+        currentEditStream = '';
         editDataContainer.innerHTML = '';
         editPaginationControls.classList.add('hidden');
         editSaveSection.classList.add('hidden');
         addNewStudentBtn.classList.add('hidden');
         if (countDisplay) countDisplay.classList.add('hidden');
+        
+        // Hide Bulk if open
+        const bulk = document.getElementById('bulk-course-update-container');
+        if(bulk) bulk.classList.add('hidden');
     }
 });
 
-// 3. Render Table (NEW: With Serial Number)
 // 3. Render Table (Updated with Stream Column)
 function renderStudentEditTable() {
     editDataContainer.innerHTML = '';
@@ -8033,7 +8082,7 @@ modalSaveBtn.addEventListener('click', () => {
     }
 });
 
-// 10. Save All Changes to LocalStorage (The "Master Save" - Unchanged)
+// 10. Save All Changes to LocalStorage
 saveEditDataButton.addEventListener('click', () => {
     if (!hasUnsavedEdits) {
         editDataStatus.textContent = 'No changes to save.';
@@ -8045,11 +8094,17 @@ saveEditDataButton.addEventListener('click', () => {
         
         const [date, time] = currentEditSession.split(' | ');
         const course = currentEditCourse;
+        const stream = currentEditStream; // <--- Use Global Stream
 
-        // 1. Filter out ALL students from the original data that match this session/course
-        const otherStudents = allStudentData.filter(s => 
-            !(s.Date === date && s.Time === time && s.Course === course)
-        );
+        // 1. Filter out matching records (STRICT STREAM CHECK)
+        // We keep everything that DOES NOT match our current view
+        const otherStudents = allStudentData.filter(s => {
+            const sStream = s.Stream || "Regular";
+            return !(s.Date === date && 
+                     s.Time === time && 
+                     s.Course === course && 
+                     sStream === stream);
+        });
 
         // 2. Create the new master list
         const updatedAllStudentData = [...otherStudents, ...currentCourseStudents];
@@ -8061,7 +8116,7 @@ saveEditDataButton.addEventListener('click', () => {
         editDataStatus.textContent = 'All changes saved successfully!';
         setUnsavedChanges(false);
         setTimeout(() => { editDataStatus.textContent = ''; }, 3000);
-        syncDataToCloud(); // <--- ADD THIS
+        if(typeof syncDataToCloud === 'function') syncDataToCloud();
         
         // 4. Reload other parts of the app
         jsonDataStore.innerHTML = JSON.stringify(allStudentData);
@@ -8072,7 +8127,13 @@ saveEditDataButton.addEventListener('click', () => {
 
         // 5. Reload the current view
         currentCourseStudents = allStudentData
-            .filter(s => s.Date === date && s.Time === time && s.Course === course)
+            .filter(s => {
+                const sStream = s.Stream || "Regular";
+                return s.Date === date && 
+                       s.Time === time && 
+                       s.Course === course && 
+                       sStream === stream;
+            })
             .map(s => ({ ...s }));
         
         renderStudentEditTable();
@@ -8123,20 +8184,22 @@ const bulkTimeToInput = (timeStr) => {
     return `${String(h).padStart(2, '0')}:${m}`;
 };
 
-// 2. Listener to Show/Hide Bulk Section & Pre-fill
+// 2. Listener to Show/Hide Bulk Section
 if (editCourseSelect) {
     editCourseSelect.addEventListener('change', () => {
         if (editCourseSelect.value) {
             // Show Section
-            bulkUpdateContainer.classList.remove('hidden');
-            bulkTargetCourseName.textContent = editCourseSelect.value;
+            if(bulkUpdateContainer) bulkUpdateContainer.classList.remove('hidden');
+            
+            // Use Global Variable for clean name display
+            if(bulkTargetCourseName) bulkTargetCourseName.textContent = `${currentEditCourse} (${currentEditStream})`;
             
             // RESET STATE: Lock Inputs
             if(bulkInputsWrapper) {
                 bulkInputsWrapper.classList.add('opacity-50', 'pointer-events-none');
             }
             
-            // Lock all inputs including the new Course Input
+            // Lock all inputs
             [bulkNewCourseInput, bulkNewDateInput, bulkNewTimeInput, bulkNewStreamSelect, btnBulkApply].forEach(el => {
                 if(el) {
                     el.disabled = true;
@@ -8146,6 +8209,7 @@ if (editCourseSelect) {
 
             if(bulkEditModeBtn) {
                 bulkEditModeBtn.classList.remove('hidden');
+                // Reset button text
                 bulkEditModeBtn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                       <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
@@ -8160,19 +8224,14 @@ if (editCourseSelect) {
                 if(bulkNewTimeInput) bulkNewTimeInput.value = bulkTimeToInput(currTime);
             }
             
-            // Pre-fill Course Name
-            if(bulkNewCourseInput) bulkNewCourseInput.value = editCourseSelect.value;
+            // Pre-fill Course Name (Use Global)
+            if(bulkNewCourseInput) bulkNewCourseInput.value = currentEditCourse;
             
-// Populate Stream Dropdown (UPDATED)
+            // Populate Stream Dropdown
             if (bulkNewStreamSelect) {
-                // Add a default "No Change" option first
-                const streamOptions = currentStreamConfig.map(s => 
-                    `<option value="${s}">${s}</option>`
-                ).join('');
-                
-                // Insert the "No Change" option at the start
+                const streamOptions = currentStreamConfig.map(s => `<option value="${s}">${s}</option>`).join('');
                 bulkNewStreamSelect.innerHTML = `<option value="">-- No Change --</option>` + streamOptions;
-                bulkNewStreamSelect.value = ""; // Default to empty (No Change)
+                bulkNewStreamSelect.value = ""; 
             }
         } else {
             if(bulkUpdateContainer) bulkUpdateContainer.classList.add('hidden');
@@ -9175,54 +9234,56 @@ if (editCourseSelect) {
 // 2. Handle Delete Click
 if (deleteCourseBtn) {
     deleteCourseBtn.addEventListener('click', async () => {
-        const targetCourse = editCourseSelect.value;
-        const sessionVal = editSessionSelect.value;
+        // Use Globals instead of parsing value again
+        const targetCourse = currentEditCourse;
+        const targetStream = currentEditStream;
+        const sessionVal = editSessionSelect.value; 
         
         if (!targetCourse || !sessionVal) return;
 
         const [date, time] = sessionVal.split(' | ');
         
-        // Count students to be deleted
-        const studentsToDelete = allStudentData.filter(s => 
-            s.Date === date && 
-            s.Time === time && 
-            s.Course === targetCourse
-        );
+        // Count students to be deleted (Strict Stream Check)
+        const studentsToDelete = allStudentData.filter(s => {
+            const sStream = s.Stream || "Regular";
+            return s.Date === date && 
+                   s.Time === time && 
+                   s.Course === targetCourse &&
+                   sStream === targetStream;
+        });
 
         if (studentsToDelete.length === 0) {
-            alert("No students found in this course to delete.");
+            alert("No students found in this course/stream to delete.");
             return;
         }
 
-        // Warning Confirmation
         const confirmMsg = `
 🛑 DANGER: DELETE COURSE 🛑
 
 Target: ${targetCourse}
+Stream: ${targetStream}
 Session: ${date} | ${time}
 Students: ${studentsToDelete.length} records will be removed.
 
 This action cannot be undone.
-Are you sure you want to delete this ENTIRE course?
+Are you sure?
         `;
 
         if (confirm(confirmMsg)) {
-            // Double Confirmation for safety
             if(!confirm("Are you absolutely sure?")) return;
 
-            // --- EXECUTE DELETE ---
-            
-            // Filter OUT the students of this course
-            allStudentData = allStudentData.filter(s => 
-                !(s.Date === date && s.Time === time && s.Course === targetCourse)
-            );
+            // --- EXECUTE DELETE (Strict Stream Check) ---
+            allStudentData = allStudentData.filter(s => {
+                const sStream = s.Stream || "Regular";
+                return !(s.Date === date && 
+                         s.Time === time && 
+                         s.Course === targetCourse && 
+                         sStream === targetStream);
+            });
 
-            // Save to Storage
             localStorage.setItem(BASE_DATA_KEY, JSON.stringify(allStudentData));
-            
             alert(`Deleted ${studentsToDelete.length} records.\nThe page will now reload.`);
             
-            // Sync to Cloud & Reload
             if (typeof syncDataToCloud === 'function') await syncDataToCloud();
             window.location.reload();
         }
