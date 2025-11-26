@@ -705,36 +705,46 @@ async function syncDataToCloud() {
             batch.set(chunkRef, { payload: chunkStr, index: index, totalChunks: chunks.length });
         });
 
-        // ============================================================
-        // 🚀 SECURE PUBLIC SYNC (OPTIMIZED: TODAY & FUTURE ONLY)
-        // ============================================================
+        
+        // --- NEW: SECURE PUBLIC SYNC (Seating + Names + Courses + Scribes) ---
+        const publicRef = doc(db, "public_seating", currentCollegeId);
+        const namesRef = doc(db, "public_seating", currentCollegeId + "_names");
+        const coursesRef = doc(db, "public_seating", currentCollegeId + "_courses");
         
         const collegeName = localStorage.getItem('examCollegeName') || "Exam Centre";
+        const allotmentData = localStorage.getItem('examRoomAllotment') || '{}';
         const roomConfigData = localStorage.getItem('examRoomConfig') || '{}';
-        
-        // 1. Prepare Filters
+        const scribeData = localStorage.getItem('examScribeAllotment') || '{}'; // <--- NEW: Scribe Data
+
+        // 1. Prepare Data Maps (Filtered for Today/Future)
+        const localBaseData = localStorage.getItem('examBaseData');
         const todayMidnight = new Date();
         todayMidnight.setHours(0,0,0,0);
         
-        // Helper to parse "DD.MM.YYYY"
         const parseDateKey = (dStr) => {
             if (!dStr) return new Date(0);
             const [d, m, y] = dStr.split('.');
             return new Date(`${y}-${m}-${d}`);
         };
 
-        // 2. Filter Allotment (Seating Data)
+        // 2. Filter Allotment & Scribes
         let publicAllotment = {};
-        const rawAllotment = JSON.parse(localAllotment || '{}');
-        const activeRegNos = new Set(); // Track students who have future exams
+        let publicScribes = {}; // <--- Filtered Scribe Data
+        
+        const rawAllotment = JSON.parse(allotmentData);
+        const rawScribes = JSON.parse(scribeData);
+        const activeRegNos = new Set();
 
         Object.keys(rawAllotment).forEach(sessionKey => {
             const [dateStr] = sessionKey.split(' | ');
             const examDate = parseDateKey(dateStr);
             
-            // KEEP if Exam is Today or Future
             if (examDate >= todayMidnight) {
                 publicAllotment[sessionKey] = rawAllotment[sessionKey];
+                // Keep Scribe Data for this session
+                if (rawScribes[sessionKey]) {
+                    publicScribes[sessionKey] = rawScribes[sessionKey];
+                }
                 
                 // Collect active students
                 rawAllotment[sessionKey].forEach(room => {
@@ -743,7 +753,7 @@ async function syncDataToCloud() {
             }
         });
 
-        // 3. Filter Names & Papers (Based on Active Students/Dates)
+        // 3. Filter Names & Papers
         let nameMap = {};
         let paperMap = {}; 
         
@@ -752,8 +762,6 @@ async function syncDataToCloud() {
                  const baseData = JSON.parse(localBaseData);
                  baseData.forEach(s => {
                      const r = s['Register Number'];
-                     
-                     // Optimization: Only process if this student has an upcoming exam
                      if (r && activeRegNos.has(r)) {
                          const n = s.Name;
                          const c = s.Course;
@@ -761,10 +769,7 @@ async function syncDataToCloud() {
                          const t = s.Time;
                          const cleanReg = r.toString().trim().toUpperCase();
 
-                         // Add Name
                          if (n) nameMap[cleanReg] = n.toString().trim();
-                         
-                         // Add Paper (Only if date is valid)
                          if (c && d && t) {
                              const examDate = parseDateKey(d);
                              if (examDate >= todayMidnight) {
@@ -777,25 +782,18 @@ async function syncDataToCloud() {
              } catch (e) { console.error("Error filtering public data", e); }
         }
 
-        // 4. Upload 3 Split Documents
-        const publicRef = doc(db, "public_seating", currentCollegeId);
-        const namesRef = doc(db, "public_seating", currentCollegeId + "_names");
-        const coursesRef = doc(db, "public_seating", currentCollegeId + "_courses");
-
-        // Doc A: Seating
+        // 4. Upload Split Docs
         batch.set(publicRef, {
             collegeName: collegeName,
-            seatingData: JSON.stringify(publicAllotment), // Filtered JSON
+            seatingData: JSON.stringify(publicAllotment),
+            scribeData: JSON.stringify(publicScribes), // <--- Uploading Scribes
             roomData: roomConfigData,
             lastUpdated: new Date().toISOString()
         });
 
-        // Doc B: Names (Filtered)
         batch.set(namesRef, { json: JSON.stringify(nameMap) });
-
-        // Doc C: Courses (Filtered)
         batch.set(coursesRef, { json: JSON.stringify(paperMap) });
-        
+        // -------------------------------
         // ============================================================
 
         await batch.commit();
