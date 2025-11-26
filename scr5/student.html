@@ -40,7 +40,7 @@
         let allAllotments = {};
         let roomConfigs = {};
         let studentNames = {}; 
-        let studentCourses = {}; // Store Courses
+        let examPapers = {}; // Store Specific Papers
         let collegeName = "Exam Centre";
 
         async function loadData() {
@@ -64,13 +64,13 @@
                     const allotmentJson = data.seatingData;
                     const roomJson = data.roomData;
                     const nameJson = data.studentNames;
-                    const courseJson = data.studentCourses; // Fetch Courses
+                    const paperJson = data.examPapers; // Fetch Papers
                     
                     if (allotmentJson) {
                         allAllotments = JSON.parse(allotmentJson);
                         if (roomJson) roomConfigs = JSON.parse(roomJson);
                         if (nameJson) studentNames = JSON.parse(nameJson);
-                        if (courseJson) studentCourses = JSON.parse(courseJson);
+                        if (paperJson) examPapers = JSON.parse(paperJson);
 
                         statusEl.textContent = ""; 
                         document.getElementById('search-section').classList.remove('hidden');
@@ -106,22 +106,19 @@
             let found = false;
             const now = new Date();
             const todayMidnight = new Date();
-            todayMidnight.setHours(0,0,0,0); // Reset time to start of today
+            todayMidnight.setHours(0,0,0,0); 
 
-            // Get Student Details
             const myName = studentNames[regNo] || "";
-            const myCourse = studentCourses[regNo] || "Course Not Listed";
-
-            // Collect valid exams first so we can sort them
+            
             let myExams = [];
 
             for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
                 const [dateStr, timeStr] = sessionKey.split(' | ');
                 
-                // 1. Date Filter (Remove Past)
-                const examDateObject = parseSessionTime(dateStr, "00:00 AM"); // Only date matters for filtering
+                // Date Filter (Remove Past)
+                const examDateObject = parseSessionTime(dateStr, "00:00 AM"); 
                 if (examDateObject < todayMidnight) {
-                    continue; // Skip this exam, it's in the past
+                    continue; 
                 }
 
                 let studentRoom = null;
@@ -137,14 +134,17 @@
                 }
 
                 if (studentRoom) {
+                    // Look up the SPECIFIC paper for this session
+                    const paperKey = `${regNo}_${dateStr}_${timeStr}`;
+                    const paperName = examPapers[paperKey] || "Subject Details N/A";
+
                     myExams.push({
-                        dateStr, timeStr, studentRoom, seatNumber,
+                        dateStr, timeStr, studentRoom, seatNumber, paperName,
                         fullDate: parseSessionTime(dateStr, timeStr)
                     });
                 }
             }
 
-            // Sort exams by date (Nearest first)
             myExams.sort((a, b) => a.fullDate - b.fullDate);
 
             if (myExams.length > 0) {
@@ -160,15 +160,19 @@
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-lg border border-gray-100 mb-5 animate-fade-in";
                     
+                    // Header with Date & Paper
                     let content = `
                         <div class="border-b border-gray-200 pb-3 mb-3">
                             <div class="text-center mb-3">
                                 <div class="text-lg font-black text-gray-800 leading-tight">${myName}</div>
                                 <div class="text-xs font-bold text-indigo-500 font-mono">${regNo}</div>
-                                <div class="mt-2 bg-indigo-50 text-indigo-900 text-xs font-bold px-2 py-1 rounded inline-block max-w-full truncate">
-                                    ${myCourse}
-                                </div>
                             </div>
+                            
+                            <div class="bg-blue-50 border border-blue-100 p-3 rounded-lg mb-3">
+                                <div class="text-[10px] text-blue-400 uppercase font-bold tracking-wider mb-1">Subject</div>
+                                <div class="text-sm font-bold text-blue-900 leading-snug">${exam.paperName}</div>
+                            </div>
+
                             <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
                                 <div class="flex flex-col">
                                     <span class="text-[10px] text-gray-500 uppercase font-bold">Date</span>
