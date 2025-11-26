@@ -10584,11 +10584,17 @@ function loadInitialData() {
         });
     }
 
-    // 4. Print Button Listener
+// 4. Print Button Listener
     if (btnPrintBill) {
         btnPrintBill.addEventListener('click', () => {
+            // 1. Add the class that triggers the CSS above
             document.body.classList.add('printing-bill');
+            
+            // 2. Print
             window.print();
+            
+            // 3. Remove the class after a short delay so the app returns to normal
+            // (Using a timeout allows the print dialog to capture the style before removal)
             setTimeout(() => {
                 document.body.classList.remove('printing-bill');
             }, 500);
