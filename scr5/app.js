@@ -4648,7 +4648,7 @@ generateQPaperReportButton.addEventListener('click', async () => {
     }
 });
 
-// --- Event listener for "Generate QP Distribution Report" (Prominent Qty + Checkbox) ---
+// --- Event listener for "Generate QP Distribution Report" (Boxed Room Layout) ---
 if (generateQpDistributionReportButton) {
     generateQpDistributionReportButton.addEventListener('click', async () => {
         const sessionKey = reportsSessionSelect.value; 
@@ -4750,21 +4750,21 @@ if (generateQpDistributionReportButton) {
                     const streamBadge = `<span class="${streamBadgeClass} px-1.5 rounded border border-gray-200 text-[10px] font-bold uppercase">${paper.stream}</span>`;
 
                     allPagesHtml += `
-                        <div style="margin-top: 12px; border: 1px solid #000; padding: 6px; page-break-inside: avoid;">
-                            <div class="flex justify-between items-start border-b border-dotted border-gray-400 pb-1 mb-2">
+                        <div style="margin-top: 10px; border: 2px solid #000; padding: 8px; page-break-inside: avoid; border-radius: 4px;">
+                            <div class="flex justify-between items-start border-b border-gray-300 pb-2 mb-3">
                                 <div class="w-[85%]">
-                                    <div class="font-bold text-sm leading-tight text-gray-900 mb-0.5">${paper.courseName}</div>
+                                    <div class="font-bold text-sm leading-tight text-gray-900 mb-1">${paper.courseName}</div>
                                     <div class="flex items-center gap-2">
                                         ${streamBadge}
                                         <span class="text-xs font-semibold text-gray-600">QP: ${qpBadge}</span>
                                     </div>
                                 </div>
                                 <div class="w-[15%] text-right">
-                                    <span class="text-sm font-black border border-black px-2 py-0.5 bg-gray-100">Total: ${paper.total}</span>
+                                    <span class="text-sm font-black border border-black px-2 py-1 bg-gray-100 block text-center">Total: ${paper.total}</span>
                                 </div>
                             </div>
                             
-                            <div class="grid grid-cols-3 gap-x-6 gap-y-2">
+                            <div class="grid grid-cols-3 gap-3">
                     `;
                     
                     const sortedRoomKeys = Object.keys(paper.rooms).sort((a, b) => {
@@ -4778,21 +4778,27 @@ if (generateQpDistributionReportButton) {
                         const roomInfo = currentRoomConfig[roomName] || {};
                         let loc = roomInfo.location || "";
                         
-                        if (loc.length > 12) loc = loc.substring(0, 10) + "..";
-                        const displayLoc = loc ? `<span class='text-gray-500 text-[9px]'>(${loc})</span>` : "";
+                        if (loc.length > 15) loc = loc.substring(0, 13) + "..";
+                        const displayLoc = loc ? `<div class='text-gray-500 text-[10px] truncate'>${loc}</div>` : "";
                         const serialNo = roomSerialMap[roomName] || '-';
                         
-                        // --- CHANGED: Prominent Number & Checkbox ---
+                        // --- NEW BOX DESIGN ---
                         allPagesHtml += `
-                            <div class="flex justify-between items-center border-b border-gray-300 pb-1">
-                                <div class="truncate w-[60%] text-[10px] leading-tight">
-                                    <span class="font-bold mr-1 text-gray-800 bg-gray-100 px-1 rounded">${serialNo}</span> 
-                                    <span class="font-semibold">${roomName}</span> 
-                                    ${displayLoc}
+                            <div class="border border-gray-600 rounded p-2 flex flex-col justify-between relative bg-white">
+                                <div class="mb-1">
+                                   <div class="flex items-center gap-2 mb-1">
+                                       <span class="bg-black text-white font-bold text-[10px] px-1.5 py-0.5 rounded leading-none">#${serialNo}</span>
+                                       <span class="font-bold text-sm leading-none text-gray-800">${roomName}</span>
+                                   </div>
+                                   ${displayLoc}
                                 </div>
-                                <div class="flex items-center justify-end gap-2 w-[40%]">
-                                    <span class="text-lg font-black text-black leading-none">${count}</span>
-                                    <span class="w-4 h-4 border-2 border-black inline-block bg-white rounded-sm"></span>
+                                
+                                <div class="flex items-end justify-between mt-1 pt-1 border-t border-gray-100">
+                                    <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Count:</span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xl font-black text-black leading-none">${count}</span>
+                                        <span class="w-5 h-5 border-2 border-black bg-white rounded-sm"></span>
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -4807,7 +4813,7 @@ if (generateQpDistributionReportButton) {
             
             reportOutputArea.innerHTML = allPagesHtml;
             reportOutputArea.style.display = 'block'; 
-            reportStatus.textContent = `Generated QP Distribution Report.`;
+            reportStatus.textContent = `Generated QP Distribution Report (Boxed Layout).`;
             reportControls.classList.remove('hidden');
             lastGeneratedReportType = "QP_Distribution_Report";
 
