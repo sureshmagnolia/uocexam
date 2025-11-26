@@ -29,18 +29,23 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- CRITICAL FIX: EXPOSE FIREBASE TO WINDOW FOR DEBUGGING ---
+        // --- EXPOSE FIREBASE FOR DEBUGGING ---
         window.firebase = { db, doc, getDoc }; 
-        // -------------------------------------------------------------
 
-        // --- 2. GET COLLEGE ID FROM URL ---
+        // --- 2. GET COLLEGE ID FROM URL (FIXED) ---
         const urlParams = new URLSearchParams(window.location.search);
-        const collegeId = urlParams.get('id');
+        let collegeId = urlParams.get('id');
+
+        // *** AUTO-FIX: Remove path prefixes if user pasted full path ***
+        if (collegeId && collegeId.includes('/')) {
+            const parts = collegeId.split('/');
+            collegeId = parts[parts.length - 1]; // Get the last part (The ID)
+        }
 
         let allAllotments = {};
         let collegeName = "Exam Centre";
 
-        // --- 3. FETCH DATA (SECURE MODE) ---
+        // --- 3. FETCH DATA ---
         async function loadData() {
             const statusEl = document.getElementById('status');
             if (!collegeId) {
@@ -51,7 +56,6 @@
             statusEl.textContent = "Loading Exam Data...";
             
             try {
-                // Connect to PUBLIC collection
                 const docRef = doc(db, "public_seating", collegeId);
                 const docSnap = await getDoc(docRef);
 
@@ -60,26 +64,25 @@
                     collegeName = data.collegeName || "Exam Centre";
                     document.getElementById('college-name').textContent = collegeName;
                     
-                    // Get Seating Data
                     const allotmentJson = data.seatingData;
                     
                     if (allotmentJson) {
                         allAllotments = JSON.parse(allotmentJson);
-                        statusEl.textContent = ""; // Clear loading text
+                        statusEl.textContent = ""; 
                         document.getElementById('search-section').classList.remove('hidden');
 
-                        // --- AUTO-FILL & SEARCH ---
+                        // Auto-Fill & Search
                         const savedRegNo = localStorage.getItem('myExamRegNo');
                         if (savedRegNo) {
                             document.getElementById('reg-input').value = savedRegNo;
-                            // Small delay for UI smoothness
                             setTimeout(() => window.searchStudent(), 300); 
                         }
                     } else {
                         statusEl.textContent = "No seating data available yet.";
                     }
                 } else {
-                    statusEl.textContent = "Seating data not found. (Check Link ID)";
+                    statusEl.innerHTML = `<span class="text-red-500">ID Not Found. Please check the link.</span>`;
+                    console.error("ID searched:", collegeId);
                 }
             } catch (error) {
                 console.error("Load Error:", error);
@@ -102,13 +105,10 @@
             let found = false;
             const now = new Date();
 
-            // Loop through all sessions
             for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
                 const [dateStr, timeStr] = sessionKey.split(' | ');
-                
                 let studentRoom = null;
                 
-                // Find student in rooms
                 for (const room of rooms) {
                     if (room.students.includes(regNo)) {
                         studentRoom = room.roomName;
@@ -118,16 +118,12 @@
 
                 if (studentRoom) {
                     found = true;
-                    
-                    // Save for next time
                     localStorage.setItem('myExamRegNo', regNo);
 
-                    // Parse Exam Time
                     const examTime = parseSessionTime(dateStr, timeStr);
-                    // Calculate Unlock Time (45 mins before)
+                    // Unlock 45 mins before
                     const unlockTime = new Date(examTime.getTime() - (45 * 60 * 1000));
                     
-                    // Create Card
                     const card = document.createElement('div');
                     card.className = "bg-white p-4 rounded-lg shadow-md border border-gray-200 mb-4 animate-fade-in";
                     
@@ -138,9 +134,7 @@
                         </div>
                     `;
 
-                    // Show/Hide Logic
                     if (now >= unlockTime) {
-                        // UNLOCKED
                         content += `
                             <div class="text-center py-4">
                                 <p class="text-sm text-gray-500 uppercase tracking-wide">Your Seat is in</p>
@@ -149,7 +143,6 @@
                             </div>
                         `;
                     } else {
-                        // LOCKED (Countdown)
                         const diffMs = unlockTime - now;
                         const diffMins = Math.ceil(diffMs / (1000 * 60));
                         let timeDisplay = `${diffMins} mins`;
@@ -207,7 +200,6 @@
         }
 
         loadData();
-
     </script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
