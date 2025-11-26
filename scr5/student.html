@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Seating Status</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // --- 1. YOUR FIREBASE CONFIG (SAME AS INDEX.HTML) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBu1CD5Kv55e0avayUUyAbDFC_ek4lEgJM",
+            authDomain: "examflow-de08f.firebaseapp.com",
+            projectId: "examflow-de08f",
+            storageBucket: "examflow-de08f.firebasestorage.app",
+            messagingSenderId: "1094663914110",
+            appId: "1:1094663914110:web:50c4f206f2053a873f0e2f",
+            measurementId: "G-8S6GE8Q7NR"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- 2. GET COLLEGE ID FROM URL ---
+        // Usage: student.html?id=YOUR_COLLEGE_DOC_ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const collegeId = urlParams.get('id');
+
+        let allAllotments = {};
+        let collegeName = "Exam Centre";
+
+        // --- 3. FETCH DATA ---
+        async function loadData() {
+            const statusEl = document.getElementById('status');
+            if (!collegeId) {
+                statusEl.innerHTML = `<span class="text-red-500">Error: Invalid Link. Please contact office.</span>`;
+                return;
+            }
+
+            statusEl.textContent = "Loading Exam Data...";
+            
+            try {
+                const docRef = doc(db, "colleges", collegeId);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    collegeName = data.examCollegeName || "Exam Centre";
+                    document.getElementById('college-name').textContent = collegeName;
+                    
+                    // Parse Allotment Data
+                    const allotmentJson = data.examRoomAllotment;
+                    if (allotmentJson) {
+                        allAllotments = JSON.parse(allotmentJson);
+                        statusEl.textContent = "";
+                        document.getElementById('search-section').classList.remove('hidden');
+                    } else {
+                        statusEl.textContent = "No seating data uploaded yet.";
+                    }
+                } else {
+                    statusEl.textContent = "College data not found.";
+                }
+            } catch (error) {
+                console.error(error);
+                statusEl.textContent = "Connection failed. Please try again.";
+            }
+        }
+
+        // --- 4. SEARCH & TIMER LOGIC ---
+        window.searchStudent = function() {
+            const regNo = document.getElementById('reg-input').value.trim().toUpperCase();
+            const resultContainer = document.getElementById('result-container');
+            resultContainer.innerHTML = '';
+
+            if (regNo.length < 3) {
+                alert("Please enter a valid Register Number.");
+                return;
+            }
+
+            let found = false;
+            const now = new Date();
+
+            // Loop through all sessions
+            for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
+                const [dateStr, timeStr] = sessionKey.split(' | ');
+                
+                // Check if student is in any room for this session
+                let studentRoom = null;
+                
+                for (const room of rooms) {
+                    if (room.students.includes(regNo)) {
+                        studentRoom = room.roomName;
+                        break;
+                    }
+                }
+
+                if (studentRoom) {
+                    found = true;
+                    
+                    // A. Parse Exam Time
+                    const examTime = parseSessionTime(dateStr, timeStr);
+                    
+                    // B. Calculate Unlock Time (45 mins before)
+                    const unlockTime = new Date(examTime.getTime() - (45 * 60 * 1000));
+                    
+                    // C. Create Card
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-4 rounded-lg shadow-md border border-gray-200 mb-4";
+                    
+                    let content = `
+                        <div class="flex justify-between border-b pb-2 mb-2">
+                            <span class="font-bold text-gray-700">${dateStr}</span>
+                            <span class="text-sm text-gray-500">${timeStr}</span>
+                        </div>
+                    `;
+
+                    // D. Logic: Show or Hide
+                    if (now >= unlockTime) {
+                        // SHOW INFO
+                        content += `
+                            <div class="text-center py-4">
+                                <p class="text-sm text-gray-500 uppercase tracking-wide">Your Seat is in</p>
+                                <p class="text-3xl font-black text-blue-600 mt-1">${studentRoom}</p>
+                                <p class="text-xs text-green-600 mt-2 font-bold animate-pulse">● Live Now</p>
+                            </div>
+                        `;
+                    } else {
+                        // SHOW COUNTDOWN
+                        const diffMs = unlockTime - now;
+                        const diffMins = Math.ceil(diffMs / (1000 * 60));
+                        
+                        content += `
+                            <div class="text-center py-4 bg-gray-50 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-gray-400 mx-auto mb-2">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25 2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                                </svg>
+                                <p class="text-sm text-gray-600 font-bold">Seating Info Locked</p>
+                                <p class="text-xs text-gray-500 mt-1">Reveals in <span class="font-mono font-bold text-red-500">${diffMins} mins</span></p>
+                                <p class="text-[10px] text-gray-400 mt-1">(Available 45m before exam)</p>
+                            </div>
+                        `;
+                    }
+                    
+                    card.innerHTML = content;
+                    resultContainer.appendChild(card);
+                }
+            }
+
+            if (!found) {
+                resultContainer.innerHTML = `<div class="text-center text-gray-500 mt-4">No exams found for <strong>${regNo}</strong></div>`;
+            }
+        };
+
+        // Helper: Parse Date/Time string to JS Date Object
+        function parseSessionTime(dateStr, timeStr) {
+            // dateStr: DD.MM.YYYY
+            // timeStr: HH:MM AM/PM
+            const [d, m, y] = dateStr.split('.');
+            
+            let [time, modifier] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':');
+            
+            if (hours === '12') hours = '00';
+            if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
+            
+            return new Date(y, m - 1, d, hours, minutes);
+        }
+
+        // Start
+        loadData();
+
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
+
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8 mt-4">
+            <h1 class="text-xl font-bold text-gray-800" id="college-name">Exam Centre</h1>
+            <p class="text-sm text-gray-500">Student Seating Portal</p>
+        </div>
+
+        <div id="status" class="text-center text-sm font-medium text-indigo-600 mb-4"></div>
+
+        <div id="search-section" class="hidden bg-white p-6 rounded-xl shadow-lg">
+            <label class="block text-sm font-bold text-gray-700 mb-2">Enter Register Number</label>
+            <div class="flex gap-2">
+                <input type="text" id="reg-input" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-mono" placeholder="e.g. ABCDE123">
+                <button onclick="searchStudent()" class="bg-indigo-600 text-white px-4 rounded-lg font-bold hover:bg-indigo-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div id="result-container" class="mt-6 space-y-4"></div>
+        
+        <p class="text-center text-xs text-gray-400 mt-10">Powered by ExamFlow</p>
+    </div>
+
+</body>
+</html>
