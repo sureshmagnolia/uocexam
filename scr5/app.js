@@ -4648,7 +4648,7 @@ generateQPaperReportButton.addEventListener('click', async () => {
     }
 });
 
-// --- Event listener for "Generate QP Distribution Report" (Sectioned & Styled) ---
+// --- Event listener for "Generate QP Distribution Report" (Single-Line Compact) ---
 if (generateQpDistributionReportButton) {
     generateQpDistributionReportButton.addEventListener('click', async () => {
         const sessionKey = reportsSessionSelect.value; 
@@ -4737,12 +4737,11 @@ if (generateQpDistributionReportButton) {
 
                 // Sort Helper
                 const sortPapers = (arr) => arr.sort((a, b) => a.courseName.localeCompare(b.courseName));
-                
                 sortPapers(regularPapers);
                 sortPapers(otherPapers);
 
                 // --- SECTION RENDERER ---
-                const renderSection = (papers, title, bgClass) => {
+                const renderSection = (papers, title, bgClass, borderClass) => {
                     let html = '';
                     if (papers.length > 0) {
                         html += `<div class="font-bold text-sm uppercase border-b-2 border-black mt-4 mb-2 pb-1">${title}</div>`;
@@ -4753,7 +4752,7 @@ if (generateQpDistributionReportButton) {
                                 : `<span class="text-gray-400 text-[10px] italic">(QP Missing)</span>`;
                             
                             html += `
-                                <div style="margin-top: 8px; padding: 4px; page-break-inside: avoid; border-radius: 4px; border: 1px solid #000; background: ${bgClass};">
+                                <div style="margin-top: 8px; padding: 4px; page-break-inside: avoid; border-radius: 4px; ${borderClass}; background: ${bgClass};">
                                     <div class="flex justify-between items-start border-b border-dotted border-gray-400 pb-1 mb-1.5">
                                         <div class="w-[90%]">
                                             <div class="font-bold text-xs leading-tight text-gray-900 mb-0.5">${paper.courseName}</div>
@@ -4781,23 +4780,27 @@ if (generateQpDistributionReportButton) {
                                 const roomInfo = currentRoomConfig[roomName] || {};
                                 let loc = roomInfo.location || "";
                                 
-                                if (loc.length > 15) loc = loc.substring(0, 13) + "..";
-                                const displayLoc = loc ? `<div class='text-gray-600 text-[9px] mt-0.5 truncate'>${loc}</div>` : "";
+                                // Truncate Location
+                                if (loc.length > 10) loc = loc.substring(0, 8) + "..";
+                                // Format: (Loc)
+                                const displayLoc = loc ? `<span class='text-gray-500 text-[10px] font-normal ml-1 truncate'>(${loc})</span>` : "";
                                 const serialNo = roomSerialMap[roomName] || '-';
                                 
-                                // --- UPDATED BOX LAYOUT (Count - Serial) ---
+                                // --- UPDATED SINGLE-LINE BOX LAYOUT ---
+                                // Order: [Count] [Serial (Loc)] [Checkbox]
                                 html += `
-                                    <div class="border border-gray-400 rounded p-1 bg-white h-[38px] relative shadow-sm">
-                                        <div class="flex items-center justify-between">
-                                            <div class="flex items-baseline">
-                                                <span class="text-lg font-black text-black leading-none mr-1">${count}</span>
-                                                <span class="text-gray-400 font-light mr-1">-</span>
-                                                <span class="text-sm font-bold text-black leading-none">#${serialNo}</span>
-                                            </div>
+                                    <div class="border border-gray-400 rounded p-1 bg-white h-[36px] flex items-center justify-between relative shadow-sm px-2">
+                                        
+                                        <div class="flex items-center gap-2 overflow-hidden">
+                                            <span class="text-xl font-black text-black leading-none">${count}</span>
                                             
-                                            <span class="w-3.5 h-3.5 border-2 border-black bg-white rounded-sm"></span>
+                                            <div class="flex items-baseline min-w-0">
+                                                <span class="bg-black text-white font-bold text-xs px-1.5 py-0.5 rounded leading-none shrink-0">#${serialNo}</span>
+                                                ${displayLoc}
+                                            </div>
                                         </div>
-                                        ${displayLoc}
+                                        
+                                        <span class="w-4 h-4 border-2 border-black bg-white rounded-sm shrink-0"></span>
                                     </div>
                                 `;
                             });
@@ -4811,17 +4814,17 @@ if (generateQpDistributionReportButton) {
                 };
 
                 // Render Regular Section
-                allPagesHtml += renderSection(regularPapers, "Regular Stream", "#fff");
+                allPagesHtml += renderSection(regularPapers, "Regular Stream", "#fff", "border: 1px solid #000");
                 
-                // Render Other Streams Section (Different BG)
-                allPagesHtml += renderSection(otherPapers, "Other Streams", "#fffbeb"); // Amber-50
+                // Render Other Streams Section (Dashed, Yellow)
+                allPagesHtml += renderSection(otherPapers, "Other Streams", "#fffbeb", "border: 2px dashed #000");
 
                 allPagesHtml += `</div>`; 
             }
             
             reportOutputArea.innerHTML = allPagesHtml;
             reportOutputArea.style.display = 'block'; 
-            reportStatus.textContent = `Generated QP Distribution Report.`;
+            reportStatus.textContent = `Generated QP Distribution Report (Final Layout).`;
             reportControls.classList.remove('hidden');
             lastGeneratedReportType = "QP_Distribution_Report";
 
