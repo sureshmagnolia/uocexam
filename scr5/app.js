@@ -4648,7 +4648,199 @@ generateQPaperReportButton.addEventListener('click', async () => {
     }
 });
 
+// --- Event listener for "Generate QP Distribution Report" (Final Ergonomic Tweaks) ---
 if (generateQpDistributionReportButton) {
+    generateQpDistributionReportButton.addEventListener('click', async () => {
+        const sessionKey = reportsSessionSelect.value; 
+        if (filterSessionRadio.checked && !checkManualAllotment(sessionKey)) { return; }
+        
+        generateQpDistributionReportButton.disabled = true;
+        generateQpDistributionReportButton.textContent = "Generating...";
+        reportOutputArea.innerHTML = "";
+        reportControls.classList.add('hidden');
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        try {
+            currentCollegeName = localStorage.getItem(COLLEGE_NAME_KEY) || "University of Calicut";
+            getRoomCapacitiesFromStorage(); 
+            loadQPCodes(); 
+            
+            const data = getFilteredReportData('qp-distribution');
+            if (data.length === 0) { alert("No data found."); return; }
+
+            const processed_rows_with_rooms = performOriginalAllocation(data);
+            const sessions = {};
+            
+            // 1. Grouping Logic
+            for (const student of processed_rows_with_rooms) {
+                const sessionKey = `${student.Date}_${student.Time}`;
+                const roomName = student['Room No'];
+                const streamName = student.Stream || "Regular";
+                const paperKey = getQpKey(student.Course, streamName); 
+                
+                const sessionKeyPipe = `${student.Date} | ${student.Time}`;
+                const sessionQPCodes = qpCodeMap[sessionKeyPipe] || {};
+                const qpCodeDisplay = sessionQPCodes[paperKey] || 'N/A'; 
+
+                if (!sessions[sessionKey]) {
+                    sessions[sessionKey] = { 
+                        Date: student.Date, 
+                        Time: student.Time, 
+                        papers: {} 
+                    };
+                }
+                
+                let paperEntry = sessions[sessionKey].papers[paperKey];
+                
+                if (!paperEntry) {
+                    paperEntry = {
+                        courseName: student.Course,
+                        stream: streamName,
+                        qpCode: qpCodeDisplay,
+                        total: 0,
+                        rooms: {}
+                    };
+                    sessions[sessionKey].papers[paperKey] = paperEntry;
+                }
+                
+                paperEntry.total++;
+                
+                if (!paperEntry.rooms[roomName]) {
+                    paperEntry.rooms[roomName] = 0;
+                }
+                paperEntry.rooms[roomName]++;
+            }
+            
+            // 2. Rendering Logic
+            let allPagesHtml = '';
+            const sortedSessionKeys = Object.keys(sessions).sort(compareSessionStrings);
+            
+            for (const sessionKey of sortedSessionKeys) {
+                const session = sessions[sessionKey];
+                const sessionKeyPipe = `${session.Date} | ${session.Time}`;
+                const roomSerialMap = getRoomSerialMap(sessionKeyPipe);
+
+                allPagesHtml += `
+                    <div class="print-page" style="padding: 5mm !important;">
+                        <div class="print-header-group text-center mb-3 border-b-2 border-black pb-1">
+                            <h1 class="text-lg font-bold uppercase leading-tight">${currentCollegeName}</h1>
+                            <h2 class="text-base font-semibold">QP Distribution Summary</h2>
+                            <h3 class="text-sm">${session.Date} &nbsp;|&nbsp; ${session.Time}</h3>
+                        </div>
+                `;
+                
+                const paperArray = Object.values(session.papers);
+
+                // Split into Regular and Other
+                const regularPapers = paperArray.filter(p => p.stream === "Regular");
+                const otherPapers = paperArray.filter(p => p.stream !== "Regular");
+
+                // Sort Helper
+                const sortPapers = (arr) => arr.sort((a, b) => a.courseName.localeCompare(b.courseName));
+                sortPapers(regularPapers);
+                sortPapers(otherPapers);
+
+                // --- SECTION RENDERER ---
+                const renderSection = (papers, title, bgClass, borderClass) => {
+                    let html = '';
+                    if (papers.length > 0) {
+                        html += `<div class="font-bold text-sm uppercase border-b-2 border-black mt-4 mb-2 pb-1">${title}</div>`;
+                        
+                        for (const paper of papers) {
+                            const qpBadge = paper.qpCode !== 'N/A' 
+                                ? `<span class="bg-white text-black px-1.5 rounded text-xs font-bold border border-black shadow-sm">${paper.qpCode}</span>` 
+                                : `<span class="text-gray-400 text-[10px] italic">(QP Missing)</span>`;
+                            
+                            html += `
+                                <div style="margin-top: 8px; padding: 4px; page-break-inside: avoid; border-radius: 4px; ${borderClass}; background: ${bgClass};">
+                                    <div class="flex justify-between items-start border-b border-dotted border-gray-400 pb-1 mb-1.5">
+                                        <div class="w-[90%]">
+                                            <div class="font-bold text-xs leading-tight text-gray-900 mb-0.5">${paper.courseName}</div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-[10px] font-semibold text-gray-600">QP: ${qpBadge}</span>
+                                                ${title === 'Other Streams' ? `<span class="text-[9px] font-bold text-purple-700">(${paper.stream})</span>` : ''}
+                                            </div>
+                                        </div>
+                                        <div class="w-[10%] text-right">
+                                            <span class="text-xs font-black border border-black px-1.5 py-0.5 bg-white block text-center">${paper.total}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-4 gap-2">
+                            `;
+                            
+                            const sortedRoomKeys = Object.keys(paper.rooms).sort((a, b) => {
+                                const sA = roomSerialMap[a] || 999;
+                                const sB = roomSerialMap[b] || 999;
+                                return sA - sB;
+                            });
+
+                            sortedRoomKeys.forEach(roomName => {
+                                const count = paper.rooms[roomName];
+                                const roomInfo = currentRoomConfig[roomName] || {};
+                                let loc = roomInfo.location || "";
+                                
+                                // Truncate Location (Keep it concise)
+                                if (loc.length > 15) loc = loc.substring(0, 13) + "..";
+                                const displayLoc = loc ? `(${loc})` : "";
+                                const serialNo = roomSerialMap[roomName] || '-';
+                                
+                                // --- NEW BOX LAYOUT ---
+                                html += `
+                                    <div class="border border-gray-400 rounded p-1 bg-white h-[42px] flex flex-col justify-center relative shadow-sm px-2">
+                                        
+                                        <div class="flex items-baseline justify-between mb-0.5 leading-none">
+                                            <div class="flex items-baseline gap-1.5 whitespace-nowrap">
+                                                <span>
+                                                    <span class="text-lg font-black text-black">${count}</span>
+                                                    <span class="text-[10px] font-bold text-gray-600">Nos</span>
+                                                </span>
+                                                
+                                                <span class="text-lg font-black text-black">Room #${serialNo}</span>
+                                            </div>
+                                            
+                                            <span class="w-4 h-4 border-2 border-black bg-white rounded-sm shrink-0 ml-1"></span>
+                                        </div>
+                                        
+                                        <div class="text-[10px] leading-none font-bold text-gray-800 truncate">
+                                            ${displayLoc}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+
+                            html += `
+                                    </div>
+                                </div>`;
+                        }
+                    }
+                    return html;
+                };
+
+                // Render Regular Section
+                allPagesHtml += renderSection(regularPapers, "Regular Stream", "#fff", "border: 1px solid #000");
+                
+                // Render Other Streams Section (Dashed, Yellow)
+                allPagesHtml += renderSection(otherPapers, "Other Streams", "#fffbeb", "border: 2px dashed #000");
+
+                allPagesHtml += `</div>`; 
+            }
+            
+            reportOutputArea.innerHTML = allPagesHtml;
+            reportOutputArea.style.display = 'block'; 
+            reportStatus.textContent = `Generated QP Distribution Report.`;
+            reportControls.classList.remove('hidden');
+            lastGeneratedReportType = "QP_Distribution_Report";
+
+        } catch (e) {
+            console.error("Error:", e);
+            alert("Error: " + e.message);
+        } finally {
+            generateQpDistributionReportButton.disabled = false;
+            generateQpDistributionReportButton.textContent = "Generate QP Distribution by QP-Code Report";
+        }
+    });
+}
 
 // *** NEW: Helper for Absentee Report (Text-Based / No Gaps) ***
 function formatRegNoList(regNos) {
