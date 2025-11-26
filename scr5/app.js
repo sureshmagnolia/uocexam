@@ -10592,7 +10592,7 @@ function loadInitialData() {
         });
     }
 
-    // 5. Render Function (Updated: Line Total & Split Columns)
+    // 5. Render Function (Updated: Exact Contingency Label)
     function renderBillHTML(bill, container) {
         // Calculate the Table Total (Sum of all duty costs) to display in footer
         const totalTableCost = bill.invigilation + bill.clerical + bill.sweeping + bill.supervision;
@@ -10609,7 +10609,6 @@ function loadInitialData() {
             }
 
             // CALCULATION: Line Total = Invig + Clerk + Sweeper + CS + SAS + OS
-            // (Note: d.supervision_cost is already CS+SAS+OS)
             const lineTotal = d.invig_cost + d.clerk_cost + d.sweeper_cost + d.supervision_cost;
             
             return `
@@ -10688,7 +10687,9 @@ function loadInitialData() {
 
                     <div class="space-y-2">
                         <div class="flex justify-between border-b border-dotted pb-1 font-bold text-gray-700">2. Other Allowances</div>
-                        <div class="flex justify-between border-b border-dotted pb-1"><span>Contingency (Approx):</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
+                        
+                        <div class="flex justify-between border-b border-dotted pb-1"><span>Contingency (@ 0.40/student):</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
+                        
                         <div class="flex justify-between border-b border-dotted pb-1"><span>Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
                         <div class="flex justify-between border-b border-dotted pb-1"><span>Accountant:</span> <span class="font-mono font-bold">₹${allRates[bill.stream].accountant}</span></div>
                     </div>
