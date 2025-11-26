@@ -40,7 +40,7 @@
         let allAllotments = {};
         let roomConfigs = {};
         let studentNames = {}; 
-        let examPapers = {}; // Store Specific Papers
+        let examPapers = {}; 
         let collegeName = "Exam Centre";
 
         async function loadData() {
@@ -53,25 +53,43 @@
             statusEl.textContent = "Loading Exam Data...";
             
             try {
-                const docRef = doc(db, "public_seating", collegeId);
-                const docSnap = await getDoc(docRef);
+                // FETCH 3 DOCUMENTS IN PARALLEL
+                const mainRef = doc(db, "public_seating", collegeId);
+                const namesRef = doc(db, "public_seating", collegeId + "_names");
+                const coursesRef = doc(db, "public_seating", collegeId + "_courses");
 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
+                const [mainSnap, nameSnap, courseSnap] = await Promise.all([
+                    getDoc(mainRef),
+                    getDoc(namesRef),
+                    getDoc(coursesRef)
+                ]);
+
+                if (mainSnap.exists()) {
+                    const data = mainSnap.data();
                     collegeName = data.collegeName || "Exam Centre";
                     document.getElementById('college-name').textContent = collegeName;
                     
-                    const allotmentJson = data.seatingData;
-                    const roomJson = data.roomData;
-                    const nameJson = data.studentNames;
-                    const paperJson = data.examPapers; // Fetch Papers
-                    
-                    if (allotmentJson) {
-                        allAllotments = JSON.parse(allotmentJson);
-                        if (roomJson) roomConfigs = JSON.parse(roomJson);
-                        if (nameJson) studentNames = JSON.parse(nameJson);
-                        if (paperJson) examPapers = JSON.parse(paperJson);
+                    // 1. Main Data
+                    if (data.seatingData) allAllotments = JSON.parse(data.seatingData);
+                    if (data.roomData) roomConfigs = JSON.parse(data.roomData);
 
+                    // 2. Names (Aux Doc)
+                    if (nameSnap.exists() && nameSnap.data().json) {
+                        studentNames = JSON.parse(nameSnap.data().json);
+                    } else if (data.studentNames) {
+                        // Fallback for old format
+                        studentNames = JSON.parse(data.studentNames);
+                    }
+
+                    // 3. Courses (Aux Doc)
+                    if (courseSnap.exists() && courseSnap.data().json) {
+                        examPapers = JSON.parse(courseSnap.data().json);
+                    } else if (data.examPapers) {
+                        // Fallback for old format
+                        examPapers = JSON.parse(data.examPapers);
+                    }
+
+                    if (Object.keys(allAllotments).length > 0) {
                         statusEl.textContent = ""; 
                         document.getElementById('search-section').classList.remove('hidden');
 
@@ -115,11 +133,9 @@
             for (const [sessionKey, rooms] of Object.entries(allAllotments)) {
                 const [dateStr, timeStr] = sessionKey.split(' | ');
                 
-                // Date Filter (Remove Past)
+                // Date Filter
                 const examDateObject = parseSessionTime(dateStr, "00:00 AM"); 
-                if (examDateObject < todayMidnight) {
-                    continue; 
-                }
+                if (examDateObject < todayMidnight) continue; 
 
                 let studentRoom = null;
                 let seatNumber = 0;
@@ -134,7 +150,6 @@
                 }
 
                 if (studentRoom) {
-                    // Look up the SPECIFIC paper for this session
                     const paperKey = `${regNo}_${dateStr}_${timeStr}`;
                     const paperName = examPapers[paperKey] || "Subject Details N/A";
 
@@ -151,7 +166,6 @@
                 found = true;
                 localStorage.setItem('myExamRegNo', regNo);
 
-                // Render Cards
                 myExams.forEach(exam => {
                     const unlockTime = new Date(exam.fullDate.getTime() - (45 * 60 * 1000));
                     const roomInfo = roomConfigs[exam.studentRoom] || {};
@@ -160,7 +174,6 @@
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-lg border border-gray-100 mb-5 animate-fade-in";
                     
-                    // Header with Date & Paper
                     let content = `
                         <div class="border-b border-gray-200 pb-3 mb-3">
                             <div class="text-center mb-3">
@@ -235,7 +248,6 @@
                     <div class="text-center py-8 bg-white rounded-lg shadow-sm border border-gray-200">
                         <p class="text-gray-800 font-bold text-lg">No Upcoming Exams</p>
                         <p class="text-gray-500 text-sm mt-1">for register number <span class="font-mono font-bold text-black">${regNo}</span></p>
-                        <p class="text-xs text-gray-400 mt-2">(Past exams are hidden)</p>
                     </div>
                 `;
             } else {
