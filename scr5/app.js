@@ -10646,33 +10646,82 @@ function loadInitialData() {
     }
 }
 
-    // ==========================================
-    // 💰 REMUNERATION LOGIC (FINAL - DYNAMIC STREAMS)
+   // ==========================================
+    // 💰 REMUNERATION LOGIC (FINAL - B&W + EXAM FILTER)
     // ==========================================
 
     // 1. Navigation Listener
     if (navRemuneration) {
         navRemuneration.addEventListener('click', () => {
             showView(viewRemuneration, navRemuneration);
-            // Initialize the separate module logic
-            if (typeof initRemunerationModule === 'function') {
-                initRemunerationModule();
-            }
+            if (typeof initRemunerationModule === 'function') initRemunerationModule();
+            // Auto-populate exam names when tab opens
+            populateBillExamDropdown();
         });
     }
 
-    // 2. Handle Grouping Mode Change (Show/Hide Dates)
+    // 2. Elements
     const billModeSelect = document.getElementById('bill-mode-select');
     const billDateRange = document.getElementById('bill-date-range');
-    
+    const billExamDropdownContainer = document.getElementById('bill-exam-dropdown-container');
+    const billExamSelect = document.getElementById('bill-exam-select');
+    const billStreamSelect = document.getElementById('bill-stream-select');
+
+    // Helper: Populate Exam Name Dropdown
+    function populateBillExamDropdown() {
+        if (!billExamSelect) return;
+        
+        const selectedStream = billStreamSelect ? billStreamSelect.value : "Regular";
+        
+        // 1. Find all unique exam names for the selected stream
+        const examNames = new Set();
+        
+        // We need to iterate unique sessions to get their exam names
+        const sessions = new Set();
+        if (allStudentData) {
+            allStudentData.forEach(s => {
+                // Stream Filter
+                const sStream = s.Stream || "Regular";
+                if (selectedStream === "Regular" && sStream !== "Regular") return;
+                if (selectedStream !== "Regular" && sStream === "Regular") return;
+
+                const sessionKey = `${s.Date} | ${s.Time}`;
+                if (!sessions.has(sessionKey)) {
+                    sessions.add(sessionKey);
+                    // Lookup Exam Name
+                    const name = getExamName(s.Date, s.Time, sStream);
+                    if (name) examNames.add(name);
+                }
+            });
+        }
+
+        // 2. Populate Select
+        billExamSelect.innerHTML = '<option value="">-- Generate All --</option>';
+        Array.from(examNames).sort().forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            billExamSelect.appendChild(opt);
+        });
+    }
+
+    // Listeners for Dropdown Population
+    if (billStreamSelect) {
+        billStreamSelect.addEventListener('change', populateBillExamDropdown);
+    }
+
+    // Handle Grouping Mode Change
     if (billModeSelect) {
         billModeSelect.addEventListener('change', () => {
             if (billModeSelect.value === 'period') {
                 billDateRange.classList.remove('hidden');
                 billDateRange.classList.add('grid');
+                if (billExamDropdownContainer) billExamDropdownContainer.classList.add('hidden');
             } else {
                 billDateRange.classList.add('hidden');
                 billDateRange.classList.remove('grid');
+                if (billExamDropdownContainer) billExamDropdownContainer.classList.remove('hidden');
+                populateBillExamDropdown(); // Refresh when switching to exam mode
             }
         });
     }
@@ -10688,16 +10737,16 @@ function loadInitialData() {
                 return;
             }
 
-            // Inputs
             const selectedStream = document.getElementById('bill-stream-select').value;
             const mode = document.getElementById('bill-mode-select').value;
+            const selectedExamName = document.getElementById('bill-exam-select').value; // Specific filter
             
             if (!selectedStream) {
                 alert("Please select a stream.");
                 return;
             }
 
-            // A. Filter Data by Exact Stream Name
+            // A. Filter Data by Stream
             const filteredData = allStudentData.filter(s => {
                 const sStream = s.Stream || "Regular";
                 return sStream === selectedStream;
@@ -10720,19 +10769,24 @@ function loadInitialData() {
             const endDateInput = document.getElementById('bill-end-date').valueAsDate;
 
             filteredData.forEach(s => {
-                // Date Range Check (for Period Mode)
                 if (mode === 'period' && (startDateInput || endDateInput)) {
                     const sDate = parseDate(s.Date);
-                    if (startDateInput && sDate < startDateInput) return; // Skip
-                    if (endDateInput && sDate > endDateInput) return; // Skip
+                    if (startDateInput && sDate < startDateInput) return;
+                    if (endDateInput && sDate > endDateInput) return;
                 }
 
                 const sessionKey = `${s.Date} | ${s.Time}`;
                 let groupKey = "Consolidated Bill";
 
-                // Grouping Logic
                 if (mode === 'exam') {
-                    groupKey = getExamName(s.Date, s.Time, s.Stream) || "Unknown / Other Exams";
+                    // Get the Exam Name
+                    const foundName = getExamName(s.Date, s.Time, s.Stream) || "Unknown / Other Exams";
+                    
+                    // *** FILTER LOGIC ***
+                    if (selectedExamName && selectedExamName !== "" && foundName !== selectedExamName) {
+                        return; // Skip if it doesn't match selected exam
+                    }
+                    groupKey = foundName;
                 } else {
                     const sStr = document.getElementById('bill-start-date').value || "Start";
                     const eStr = document.getElementById('bill-end-date').value || "End";
@@ -10741,17 +10795,12 @@ function loadInitialData() {
 
                 if (!billGroups[groupKey]) billGroups[groupKey] = {};
                 
-                // Initialize Session Stats
                 if (!billGroups[groupKey][sessionKey]) {
                     billGroups[groupKey][sessionKey] = { 
-                        date: s.Date, 
-                        time: s.Time, 
-                        normalCount: 0, 
-                        scribeCount: 0 
+                        date: s.Date, time: s.Time, normalCount: 0, scribeCount: 0 
                     };
                 }
 
-                // Load Scribe List for accurate counting
                 const scribeListRaw = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
                 const scribeRegNos = new Set(scribeListRaw.map(s => s.regNo));
 
@@ -10762,7 +10811,7 @@ function loadInitialData() {
                 }
             });
 
-            // C. Process Groups -> Calculate Bill
+            // C. Process Groups
             const outputContainer = document.getElementById('remuneration-output');
             outputContainer.innerHTML = '';
             outputContainer.classList.remove('hidden');
@@ -10776,7 +10825,6 @@ function loadInitialData() {
             }
 
             groupKeys.forEach(title => {
-                // Convert session map to array for the calculator
                 const sessionMap = billGroups[title];
                 const sessionArray = Object.values(sessionMap).sort((a,b) => {
                     const d1 = a.date.split('.').reverse().join('');
@@ -10784,20 +10832,14 @@ function loadInitialData() {
                     return d1.localeCompare(d2) || a.time.localeCompare(b.time);
                 });
 
-                // CALL ENGINE (from remuneration.js)
                 const bill = generateBillForSessions(title, sessionArray, selectedStream);
-                
-                if (bill) {
-                    renderBillHTML(bill, outputContainer);
-                }
+                if (bill) renderBillHTML(bill, outputContainer);
             });
 
-            // Show Print Button
             if (btnPrintBill) btnPrintBill.classList.remove('hidden');
         });
     }
 
-    // 4. Print Button Listener
     if (btnPrintBill) {
         btnPrintBill.addEventListener('click', () => {
             document.body.classList.add('printing-bill');
@@ -10808,129 +10850,98 @@ function loadInitialData() {
         });
     }
 
-   // 5. Render Function (Updated: All Text Black)
+    // 5. Render Function (Updated: CLEAN B&W - No Shading)
     function renderBillHTML(bill, container) {
-        
-        // --- Helper: Number to Words (Indian Format) ---
         function numToWords(n) {
             const a = ['','One ','Two ','Three ','Four ','Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
             const b = ['', '', 'Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
-            
             if ((n = n.toString()).length > 9) return 'Overflow';
             const n_array = ('000000000' + n).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
             if (!n_array) return; 
-            
             let str = '';
             str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
             str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
             str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
             str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
             str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
-            
             return str.trim();
         }
 
-        // Decimal Logic
         const totalAmount = bill.grand_total.toFixed(2);
         const [rupeesPart, paisePart] = totalAmount.split('.');
-        
         let amountInWords = numToWords(Number(rupeesPart));
-        
         if (Number(paisePart) > 0) {
             const paiseWords = numToWords(Number(paisePart));
             amountInWords += ` and ${paiseWords} Paise`;
         }
 
-        // Table Logic
         const isRegular = bill.stream === "Regular";
         const hasPeon = bill.has_peon;
+        let colGroup = isRegular 
+            ? `<col style="width: 16%;"><col style="width: 12%;"><col style="width: 10%;"><col style="width: 8%;"><col style="width: 8%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 12%;">`
+            : `<col style="width: 16%;"><col style="width: 12%;"><col style="width: 10%;"><col style="width: 8%;"><col style="width: 8%;"><col style="width: 8%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 12%;">`;
 
-        // Define Column Widths
-        let colGroup = "";
-        if (isRegular) {
-            colGroup = `<col style="width: 16%;"><col style="width: 12%;"><col style="width: 10%;"><col style="width: 8%;"><col style="width: 8%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 12%;">`;
-        } else {
-            colGroup = `<col style="width: 16%;"><col style="width: 12%;"><col style="width: 10%;"><col style="width: 8%;"><col style="width: 8%;"><col style="width: 8%;"><col style="width: 10%;"><col style="width: 10%;"><col style="width: 12%;">`;
-        }
-
-        // Headers
         const osHeader = isRegular ? '<th class="p-1 border border-black text-center text-black">OS</th>' : '';
         const peonHeader = hasPeon ? '<th class="p-1 border border-black text-center text-black">Peon</th>' : '';
+        const osFooter = isRegular ? `<td class="p-2 border border-black text-black">₹${bill.supervision_breakdown.office.total}</td>` : '';
+        const peonFooter = hasPeon ? `<td class="p-2 border border-black text-black">₹${bill.peon}</td>` : '';
+        const tableTotal = bill.invigilation + bill.clerical + bill.sweeping + bill.peon + bill.supervision;
 
-        // Rows
+        let supSummaryHTML = isRegular 
+            ? `CS: ₹${bill.supervision_breakdown.chief.total}, SAS: ₹${bill.supervision_breakdown.senior.total}, OS: ₹${bill.supervision_breakdown.office.total}, <strong class="text-black">Total: ₹${bill.supervision}</strong>`
+            : `Chief Supdt: ₹${bill.supervision_breakdown.chief.total}, Senior Supdt: ₹${bill.supervision_breakdown.senior.total}, <strong class="text-black">Total: ₹${bill.supervision}</strong>`;
+
         const rows = bill.details.map(d => {
             let studentDetail = `${d.total_students}`;
-            if (d.scribe_students > 0) {
-                // BLACK TEXT
-                studentDetail += ` <span class="text-black font-bold text-[10px]" style="white-space:nowrap;">(Incl ${d.scribe_students} Scr)</span>`;
-            }
-            
+            if (d.scribe_students > 0) studentDetail += ` <span class="text-black font-bold text-[10px]" style="white-space:nowrap;">(Incl ${d.scribe_students} Scr)</span>`;
             let invigDetail = `${d.invig_count_normal}`;
-            if (d.invig_count_scribe > 0) {
-                // BLACK TEXT
-                invigDetail += ` + <span class="text-black font-bold">${d.invig_count_scribe}</span>`;
-            }
+            if (d.invig_count_scribe > 0) invigDetail += ` + <span class="text-black font-bold">${d.invig_count_scribe}</span>`;
 
             const lineTotal = d.invig_cost + d.clerk_cost + d.sweeper_cost + (d.peon_cost||0) + d.supervision_cost;
             const osCell = isRegular ? `<td class="p-1 border align-middle text-xs text-black">₹${d.os_cost}</td>` : '';
             const peonCell = hasPeon ? `<td class="p-1 border align-middle text-xs text-black">₹${d.peon_cost}</td>` : '';
 
             return `
-                <tr class="border-b hover:bg-gray-50 text-center">
-                    <td class="p-1 border text-left align-middle text-black">${d.date} <br><span class="text-[10px] text-black">${d.time}</span></td>
-                    <td class="p-1 border align-middle font-bold text-xs text-black">${studentDetail}</td>
-                    <td class="p-1 border align-middle text-xs text-black">${invigDetail}<br><span class="text-black text-[10px]">(₹${d.invig_cost})</span></td>
-                    <td class="p-1 border align-middle text-xs text-black">₹${d.clerk_cost}</td>
+                <tr class="border-b border-black text-center">
+                    <td class="p-1 border border-black text-left align-middle text-black">${d.date} <br><span class="text-[10px] text-black">${d.time}</span></td>
+                    <td class="p-1 border border-black align-middle font-bold text-xs text-black">${studentDetail}</td>
+                    <td class="p-1 border border-black align-middle text-xs text-black">${invigDetail}<br><span class="text-black text-[10px]">(₹${d.invig_cost})</span></td>
+                    <td class="p-1 border border-black align-middle text-xs text-black">₹${d.clerk_cost}</td>
                     ${peonCell}
-                    <td class="p-1 border align-middle text-xs text-black">₹${d.sweeper_cost}</td>
-                    <td class="p-1 border align-middle text-xs text-black">₹${d.cs_cost}</td>
-                    <td class="p-1 border align-middle text-xs text-black">₹${d.sas_cost}</td>
+                    <td class="p-1 border border-black align-middle text-xs text-black">₹${d.sweeper_cost}</td>
+                    <td class="p-1 border border-black align-middle text-xs text-black">₹${d.cs_cost}</td>
+                    <td class="p-1 border border-black align-middle text-xs text-black">₹${d.sas_cost}</td>
                     ${osCell}
-                    <td class="p-1 border align-middle text-xs font-bold bg-gray-100 text-black">₹${lineTotal}</td>
+                    <td class="p-1 border border-black align-middle text-xs font-bold text-black">₹${lineTotal}</td>
                 </tr>
             `;
         }).join('');
 
-        // Footers
-        const osFooter = isRegular ? `<td class="p-2 border border-black text-black">₹${bill.supervision_breakdown.office.total}</td>` : '';
-        const peonFooter = hasPeon ? `<td class="p-2 border border-black text-black">₹${bill.peon}</td>` : '';
-        const tableTotal = bill.invigilation + bill.clerical + bill.sweeping + bill.peon + bill.supervision;
-
-        // Supervision Summary
-        let supSummaryHTML = '';
-        if (isRegular) {
-            supSummaryHTML = `CS: ₹${bill.supervision_breakdown.chief.total}, SAS: ₹${bill.supervision_breakdown.senior.total}, OS: ₹${bill.supervision_breakdown.office.total}, <strong class="text-black">Total: ₹${bill.supervision}</strong>`;
-        } else {
-            supSummaryHTML = `Chief Supdt: ₹${bill.supervision_breakdown.chief.total}, Senior Supdt: ₹${bill.supervision_breakdown.senior.total}, <strong class="text-black">Total: ₹${bill.supervision}</strong>`;
-        }
-
         const html = `
             <div class="bg-white border-2 border-gray-800 shadow-xl p-8 print-page mb-8 relative text-black">
-                
                 <div class="text-center border-b-2 border-black pb-4 mb-4">
                     <h2 class="text-xl font-bold uppercase leading-tight text-black">${currentCollegeName}</h2>
                     <h3 class="text-lg font-semibold mt-1 text-black">Remuneration Bill: ${bill.title}</h3>
                     <p class="text-sm text-black mt-1">Stream: ${bill.stream} | Generated on ${new Date().toLocaleDateString()}</p>
                 </div>
-
                 <table class="w-full border-collapse border border-black text-sm mb-4 table-fixed text-black">
                     <colgroup>${colGroup}</colgroup>
-                    <thead class="bg-gray-100 text-xs uppercase">
+                    <thead>
                         <tr>
-                            <th class="p-1 border border-black text-left text-black">Session</th>
-                            <th class="p-1 border border-black text-center text-black">Candidates</th>
-                            <th class="p-1 border border-black text-center text-black">Invig</th>
-                            <th class="p-1 border border-black text-center text-black">Clerk</th>
+                            <th class="p-1 border border-black text-left text-black font-bold">Session</th>
+                            <th class="p-1 border border-black text-center text-black font-bold">Candidates</th>
+                            <th class="p-1 border border-black text-center text-black font-bold">Invig</th>
+                            <th class="p-1 border border-black text-center text-black font-bold">Clerk</th>
                             ${peonHeader}
-                            <th class="p-1 border border-black text-center text-black">Swpr</th>
-                            <th class="p-1 border border-black text-center text-black">CS</th>
-                            <th class="p-1 border border-black text-center text-black">SAS</th>
+                            <th class="p-1 border border-black text-center text-black font-bold">Swpr</th>
+                            <th class="p-1 border border-black text-center text-black font-bold">CS</th>
+                            <th class="p-1 border border-black text-center text-black font-bold">SAS</th>
                             ${osHeader}
                             <th class="p-1 border border-black text-center font-bold text-black">Total</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
-                    <tfoot class="bg-gray-100 font-bold text-xs text-center">
+                    <tfoot class="font-bold text-xs text-center">
                         <tr>
                             <td colspan="2" class="p-2 border border-black text-right text-black">Subtotals:</td>
                             <td class="p-2 border border-black text-black">₹${bill.invigilation}</td>
@@ -10944,36 +10955,32 @@ function loadInitialData() {
                         </tr>
                     </tfoot>
                 </table>
-
                 <div class="summary-box grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm border-t-2 border-black pt-4 break-inside-avoid text-black">
-                    <div class="bg-gray-50 p-3 rounded border border-gray-200 print:border-0 print:bg-transparent print:p-0">
-                        <div class="font-bold text-black border-b border-gray-300 mb-2 pb-1">1. Supervision Breakdown</div>
+                    <div class="p-3 border border-black">
+                        <div class="font-bold text-black border-b border-black mb-2 pb-1">1. Supervision Breakdown</div>
                         <div class="text-xs text-black leading-relaxed">${supSummaryHTML}</div>
                     </div>
                     <div class="space-y-2">
-                        <div class="flex justify-between border-b border-dotted pb-1 font-bold text-black">2. Other Allowances</div>
-                        <div class="flex justify-between border-b border-dotted pb-1 text-black"><span>Contingency:</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
-                        <div class="flex justify-between border-b border-dotted pb-1 text-black"><span>Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
-                        <div class="flex justify-between border-b border-dotted pb-1 text-black"><span>Accountant:</span> <span class="font-mono font-bold">₹${(allRates[bill.stream] ? allRates[bill.stream].accountant : 0)}</span></div>
+                        <div class="flex justify-between border-b border-dotted border-black pb-1 font-bold text-black">2. Other Allowances</div>
+                        <div class="flex justify-between border-b border-dotted border-black pb-1 text-black"><span>Contingency:</span> <span class="font-mono font-bold">₹${bill.contingency.toFixed(2)}</span></div>
+                        <div class="flex justify-between border-b border-dotted border-black pb-1 text-black"><span>Data Entry Operator:</span> <span class="font-mono font-bold">₹${bill.data_entry}</span></div>
+                        <div class="flex justify-between border-b border-dotted border-black pb-1 text-black"><span>Accountant:</span> <span class="font-mono font-bold">₹${(allRates[bill.stream] ? allRates[bill.stream].accountant : 0)}</span></div>
                     </div>
                 </div>
-
-                <div class="summary-box mt-6 p-3 bg-gray-100 border border-black flex flex-col items-end break-inside-avoid print:bg-transparent text-black">
+                <div class="summary-box mt-6 p-3 border border-black flex flex-col items-end break-inside-avoid text-black">
                     <div class="flex justify-between w-full items-center">
                         <span class="text-lg font-bold uppercase">Grand Total Claim</span>
                         <span class="text-2xl font-bold font-mono">₹${bill.grand_total.toFixed(2)}</span>
                     </div>
-                    <div class="w-full text-right mt-1 border-t border-gray-300 pt-1">
+                    <div class="w-full text-right mt-1 border-t border-black pt-1">
                         <span class="text-sm font-bold italic text-black">(Rupees ${amountInWords} Only)</span>
                     </div>
                 </div>
-
                 <div class="summary-box mt-12 flex justify-end text-sm font-bold break-inside-avoid text-black">
                     <div class="border-t border-black w-1/3 text-center pt-2">Chief Superintendent</div>
                 </div>
             </div>
         `;
-        
         container.insertAdjacentHTML('beforeend', html);
     }
     
