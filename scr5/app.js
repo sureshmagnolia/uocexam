@@ -10592,16 +10592,14 @@ function loadInitialData() {
         });
     }
 
-    // 5. Render Function (Updated: Candidates Format)
+    // 5. Render Function (Optimized: Horizontal Split & Column Widths)
     function renderBillHTML(bill, container) {
         const rows = bill.details.map(d => {
-            // FIX: Format as "Total (Incl X Scr)"
             let studentDetail = `${d.total_students}`;
             if (d.scribe_students > 0) {
-                studentDetail += ` <span class="text-orange-600 font-bold text-xs" style="white-space:nowrap;">(Incl ${d.scribe_students} Scr)</span>`;
+                studentDetail += ` <span class="text-orange-600 font-bold text-[10px]" style="white-space:nowrap;">(Incl ${d.scribe_students} Scr)</span>`;
             }
             
-            // Format Invigilators
             let invigDetail = `${d.invig_count_normal}`;
             if (d.invig_count_scribe > 0) {
                 invigDetail += ` + <span class="text-orange-600 font-bold">${d.invig_count_scribe}</span>`;
@@ -10609,17 +10607,20 @@ function loadInitialData() {
             
             return `
                 <tr class="border-b hover:bg-gray-50">
-                    <td class="p-2 border text-left">${d.date} <br><span class="text-xs text-gray-500">${d.time}</span></td>
-                    <td class="p-2 border text-center text-sm font-bold">
+                    <td class="p-2 border text-left align-top">${d.date} <br><span class="text-[10px] text-gray-500">${d.time}</span></td>
+                    <td class="p-2 border text-center align-top font-bold">
                         ${studentDetail}
                     </td>
-                    <td class="p-2 border text-center text-xs">
-                        ${invigDetail} Invig<br>
-                        <span class="font-mono font-bold">₹${d.invig_cost}</span>
+                    <td class="p-2 border text-center align-top text-xs">
+                        ${invigDetail}<br>
+                        <span class="text-gray-500 text-[10px]">(₹${d.invig_cost})</span>
                     </td>
-                    <td class="p-2 border text-right text-xs">₹${d.clerk_cost}</td>
-                    <td class="p-2 border text-right text-xs">₹${d.sweeper_cost}</td>
-                    <td class="p-2 border text-right text-xs bg-gray-50">₹${d.supervision_cost}</td>
+                    <td class="p-2 border text-right align-top text-xs">₹${d.clerk_cost}</td>
+                    <td class="p-2 border text-right align-top text-xs">₹${d.sweeper_cost}</td>
+                    
+                    <td class="p-2 border text-left align-middle text-[10px] bg-gray-50 leading-tight">
+                        CS: ₹${d.cs_cost}, SAS: ₹${d.sas_cost}, OS: ₹${d.os_cost}, <strong class="text-black text-xs">Total: ₹${d.supervision_cost}</strong>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -10633,21 +10634,21 @@ function loadInitialData() {
                     <p class="text-sm text-gray-600 mt-1">Stream: ${bill.stream} | Generated on ${new Date().toLocaleDateString()}</p>
                 </div>
 
-                <table class="w-full border-collapse border border-black text-sm mb-4">
+                <table class="w-full border-collapse border border-black text-sm mb-4 table-fixed">
                     <colgroup>
-                        <col style="width: 20%;"> <col style="width: 15%;"> <col style="width: 15%;"> <col style="width: 12%;"> <col style="width: 12%;"> <col style="width: 26%;"> </colgroup>
-                    <thead class="bg-gray-100">
+                        <col style="width: 18%;"> <col style="width: 14%;"> <col style="width: 12%;"> <col style="width: 8%;">  <col style="width: 8%;">  <col style="width: 40%;"> </colgroup>
+                    <thead class="bg-gray-100 text-xs">
                         <tr>
                             <th class="p-2 border border-black text-left">Session</th>
                             <th class="p-2 border border-black">Candidates</th>
                             <th class="p-2 border border-black">Invig</th>
                             <th class="p-2 border border-black text-right">Clerk</th>
-                            <th class="p-2 border border-black text-right">Sweeper</th>
-                            <th class="p-2 border border-black text-right">Sup. (CS+SAS+OS)</th>
+                            <th class="p-2 border border-black text-right">Swpr</th>
+                            <th class="p-2 border border-black text-left">Supervision Breakdown</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
-                    <tfoot class="bg-gray-100 font-bold">
+                    <tfoot class="bg-gray-100 font-bold text-xs">
                         <tr>
                             <td colspan="2" class="p-2 border border-black text-right">Subtotals:</td>
                             <td class="p-2 border border-black text-center">₹${bill.invigilation}</td>
@@ -10699,6 +10700,7 @@ function loadInitialData() {
         
         container.insertAdjacentHTML('beforeend', html);
     }
+    
     // --- NEW: Restore Last Active Tab ---
     function restoreActiveTab() {
         const savedViewId = localStorage.getItem('lastActiveViewId');
