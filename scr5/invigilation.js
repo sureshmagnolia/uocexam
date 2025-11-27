@@ -1278,6 +1278,44 @@ window.saveRoleConfig = async function() {
     window.closeModal('role-config-modal');
     updateAdminUI(); // Refresh table with new calculations
 }
+
+// --- NEW: Open Norms Modal (Shows Roles & Global Target) ---
+window.openDutyNormsModal = function() {
+    // 1. Set Global Target
+    const globalTargetEl = document.getElementById('ref-global-target');
+    if(globalTargetEl) globalTargetEl.textContent = globalDutyTarget; // e.g. "2"
+
+    // 2. List Special Roles (Warden, VP, etc.)
+    const container = document.getElementById('ref-roles-list');
+    if(!container) return;
+    
+    container.innerHTML = '';
+
+    if (Object.keys(rolesConfig).length === 0) {
+        container.innerHTML = '<p class="text-gray-400 italic text-xs text-center py-2">No special roles defined.</p>';
+    } else {
+        // Sort alphabetically
+        const sortedRoles = Object.entries(rolesConfig).sort((a,b) => a[0].localeCompare(b[0]));
+        
+        sortedRoles.forEach(([role, target]) => {
+            // Highlight exemptions (0 target)
+            const isExempt = target === 0;
+            const bgClass = isExempt ? "bg-green-50 border-green-100" : "bg-white border-gray-100";
+            const textClass = isExempt ? "text-green-700" : "text-gray-700";
+            const countDisplay = isExempt ? "EXEMPT" : `<b>${target}</b> / mo`;
+
+            container.innerHTML += `
+                <div class="flex justify-between items-center text-xs p-2.5 rounded border ${bgClass} mb-1.5">
+                    <span class="${textClass} font-bold">${role}</span>
+                    <span class="text-gray-600 ${isExempt ? 'font-bold text-green-600 text-[10px]' : ''}">${countDisplay}</span>
+                </div>
+            `;
+        });
+    }
+
+    window.openModal('norms-modal');
+}
+
 // --- EXPORT TO WINDOW (Final Fix) ---
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
