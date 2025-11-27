@@ -563,7 +563,58 @@ async function removeStaffAccess(email) {
         await updateDoc(ref, { staffAccessList: arrayRemove(email) });
     } catch(e) { console.error(e); }
 }
+// --- NEW: MANUAL SLOT ADDITION ---
 
+function openAddSlotModal() {
+    document.getElementById('manual-slot-date').valueAsDate = new Date();
+    document.getElementById('manual-slot-req').value = 5; // Default suggestion
+    window.openModal('add-slot-modal');
+}
+
+async function saveManualSlot() {
+    const dateInput = document.getElementById('manual-slot-date').value;
+    const sessionInput = document.getElementById('manual-slot-session').value;
+    const reqInput = parseInt(document.getElementById('manual-slot-req').value);
+
+    if (!dateInput || isNaN(reqInput) || reqInput < 1) {
+        alert("Please enter a valid date and required count.");
+        return;
+    }
+
+    // Format Date: YYYY-MM-DD -> DD.MM.YYYY
+    const [y, m, d] = dateInput.split('-');
+    const formattedDate = `${d}.${m}.${y}`;
+
+    // Format Time: Standardize for sorting
+    const formattedTime = (sessionInput === "FN") ? "9:30 AM" : "1:30 PM";
+
+    // Generate Key
+    const key = `${formattedDate} | ${formattedTime}`;
+
+    if (invigilationSlots[key]) {
+        if (!confirm(`Slot for ${key} already exists (Req: ${invigilationSlots[key].required}).\n\nOverwrite with ${reqInput}?`)) {
+            return;
+        }
+    }
+
+    // Create/Update Slot
+    // We preserve existing assignments if overwriting, else init empty
+    const existing = invigilationSlots[key] || { assigned: [], unavailable: [], isLocked: false };
+    
+    invigilationSlots[key] = {
+        ...existing,
+        required: reqInput,
+        // Ensure these arrays exist if creating new
+        assigned: existing.assigned || [],
+        unavailable: existing.unavailable || [],
+        isLocked: existing.isLocked || false 
+    };
+
+    await syncSlotsToCloud();
+    window.closeModal('add-slot-modal');
+    renderSlotsGridAdmin();
+    // alert(`Slot added for ${key}`);
+}
 // --- STANDARD EXPORTS ---
 window.toggleLock = async function(key) {
     invigilationSlots[key].isLocked = !invigilationSlots[key].isLocked;
@@ -1253,6 +1304,8 @@ window.saveRoleConfig = saveRoleConfig;
 window.editRoleConfig = editRoleConfig;
 window.lockAllSessions = lockAllSessions;
 window.changeSlotReq = changeSlotReq;
+window.openAddSlotModal = openAddSlotModal;
+window.saveManualSlot = saveManualSlot;
 window.switchAdminTab = function(tabName) {
     document.getElementById('tab-content-staff').classList.add('hidden');
     document.getElementById('tab-content-slots').classList.add('hidden');
