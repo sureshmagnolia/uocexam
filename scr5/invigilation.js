@@ -413,6 +413,7 @@ function renderStaffCalendar(myEmail) {
     const month = currentCalDate.getMonth();
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     ui.calTitle.textContent = `${monthNames[month]} ${year}`;
+
     const firstDayIndex = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
@@ -423,6 +424,7 @@ function renderStaffCalendar(myEmail) {
         if (parseInt(mm) === month + 1 && parseInt(yyyy) === year) {
             const dayNum = parseInt(dd);
             if (!slotsByDate[dayNum]) slotsByDate[dayNum] = [];
+            
             let sessionType = "FN";
             const t = tStr.toUpperCase();
             if (t.includes("PM") || t.startsWith("12:") || t.startsWith("12.")) sessionType = "AN";
@@ -430,6 +432,7 @@ function renderStaffCalendar(myEmail) {
         }
     });
 
+    // Update Upcoming List
     const upcomingList = document.getElementById('staff-upcoming-list');
     if(upcomingList) {
         upcomingList.innerHTML = '';
@@ -438,10 +441,39 @@ function renderStaffCalendar(myEmail) {
             const slot = invigilationSlots[key];
             if(slot.assigned.includes(myEmail)) {
                 upcomingCount++;
-                const btnColor = slot.isLocked ? "bg-gray-100 text-gray-600 cursor-not-allowed" : "bg-white text-red-600 border border-red-200 hover:bg-red-50";
-                const btnText = slot.isLocked ? "Locked" : "Cancel Duty";
-                const clickAction = `onclick="cancelDuty('${key}', '${myEmail}', ${slot.isLocked})"`
-                upcomingList.innerHTML += `<div class="bg-blue-50 p-3 rounded-md border-l-4 border-blue-500 flex justify-between items-center group"><div><div class="font-bold text-sm text-gray-800">${key}</div><div class="text-xs text-blue-600 font-semibold mt-1">Assigned</div></div><button ${clickAction} class="${btnColor} text-[10px] font-bold px-2 py-1 rounded transition shadow-sm opacity-0 group-hover:opacity-100">${btnText}</button></div>`;
+                
+                // Check if attendance is marked
+                const isCompleted = slot.attendance && slot.attendance.includes(myEmail);
+                
+                let statusHtml = "";
+                let borderClass = "border-blue-500";
+                let bgClass = "bg-blue-50";
+
+                if (isCompleted) {
+                    borderClass = "border-green-500";
+                    bgClass = "bg-green-50";
+                    statusHtml = `
+                        <div class="text-xs text-green-700 font-bold mt-1">✅ Duty Completed</div>
+                    `;
+                } else {
+                    const btnColor = slot.isLocked ? "bg-gray-100 text-gray-600 cursor-not-allowed" : "bg-white text-red-600 border border-red-200 hover:bg-red-50";
+                    const btnText = slot.isLocked ? "Locked" : "Cancel Duty";
+                    const clickAction = `onclick="cancelDuty('${key}', '${myEmail}', ${slot.isLocked})"`
+                    
+                    statusHtml = `
+                        <div class="text-xs text-blue-600 font-semibold mt-1">Assigned</div>
+                        <div class="absolute right-2 top-3">
+                             <button ${clickAction} class="${btnColor} text-[10px] font-bold px-2 py-1 rounded transition shadow-sm opacity-0 group-hover:opacity-100">${btnText}</button>
+                        </div>
+                    `;
+                }
+
+                upcomingList.innerHTML += `
+                    <div class="${bgClass} p-3 rounded-md border-l-4 ${borderClass} relative group">
+                        <div class="font-bold text-sm text-gray-800 pr-16">${key}</div>
+                        ${statusHtml}
+                    </div>
+                `;
             }
         });
         if(upcomingCount === 0) upcomingList.innerHTML = `<p class="text-gray-400 text-sm italic">No upcoming duties.</p>`;
@@ -459,6 +491,7 @@ function renderStaffCalendar(myEmail) {
         if (slots.length > 0) {
             dayContent += `<div class="flex flex-col gap-1 px-1 mt-1">`;
             slots.sort((a, b) => a.sessionType === "FN" ? -1 : 1);
+            
             slots.forEach(slot => {
                 const filled = slot.assigned.length;
                 const needed = slot.required;
@@ -466,20 +499,48 @@ function renderStaffCalendar(myEmail) {
                 const isFull = filled >= needed;
                 const isAssigned = slot.assigned.includes(myEmail);
                 const isUnavailable = isUserUnavailable(slot, myEmail);
+                const isCompleted = slot.attendance && slot.attendance.includes(myEmail);
                 
-                let badgeColor = "bg-green-100 text-green-700 border-green-200"; 
+                // STATUS LOGIC
+                let badgeColor = "bg-green-100 text-green-700 border-green-200"; // Default: Open/Green
                 let statusText = `${available}/${needed}`; 
-                if (isAssigned) { badgeColor = "bg-blue-600 text-white border-blue-600"; statusText = "Assigned"; }
-                else if (isUnavailable) { badgeColor = "bg-red-50 text-red-600 border-red-200"; statusText = "Unavail"; }
-                else if (isFull) { badgeColor = "bg-gray-100 text-gray-400 border-gray-200"; statusText = `0/${needed}`; }
 
-                dayContent += `<div class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${badgeColor} flex justify-between items-center"><span>${slot.sessionType}</span><span>${statusText}</span></div>`;
+                if (isCompleted) { 
+                    badgeColor = "bg-green-600 text-white border-green-600"; 
+                    statusText = "Done"; 
+                }
+                else if (isAssigned) { 
+                    badgeColor = "bg-blue-600 text-white border-blue-600"; 
+                    statusText = "Assigned"; 
+                }
+                else if (isUnavailable) { 
+                    badgeColor = "bg-red-50 text-red-600 border-red-200"; 
+                    statusText = "Unavail"; 
+                }
+                else if (slot.isLocked) { 
+                    // LOCKED & NOT ASSIGNED -> GREY
+                    badgeColor = "bg-gray-100 text-gray-500 border-gray-300"; 
+                    statusText = "Locked"; 
+                }
+                else if (isFull) { 
+                    badgeColor = "bg-gray-100 text-gray-400 border-gray-200"; 
+                    statusText = `0/${needed}`; 
+                }
+
+                dayContent += `
+                    <div class="text-[10px] font-bold px-1.5 py-0.5 rounded border ${badgeColor} flex justify-between items-center">
+                        <span>${slot.sessionType}</span>
+                        <span>${statusText}</span>
+                    </div>`;
             });
+            
             dayContent += `</div>`;
             bgClass = "bg-white hover:bg-gray-50 cursor-pointer";
         }
+        
         const dateStr = `${String(day).padStart(2,'0')}.${String(month+1).padStart(2,'0')}.${year}`;
         const clickAction = slots.length > 0 ? `onclick="openDayModal('${dateStr}', '${myEmail}')"` : "";
+        
         html += `<div class="border h-28 ${borderClass} ${bgClass} flex flex-col relative" ${clickAction}>${dayContent}</div>`;
     }
     ui.calGrid.innerHTML = html;
@@ -498,35 +559,69 @@ window.openDayModal = function(dateStr, email) {
         const isAssigned = slot.assigned.includes(email);
         const isUnavailable = isUserUnavailable(slot, email);
         const isLocked = slot.isLocked;
+        const isCompleted = slot.attendance && slot.attendance.includes(email);
+
         const t = key.split(' | ')[1].toUpperCase();
         const sessLabel = (t.includes("PM") || t.startsWith("12")) ? "AFTERNOON (AN)" : "FORENOON (FN)";
 
+        // Staff List (Same as before)
         let staffListHtml = '';
         if (slot.assigned.length > 0) {
             const listItems = slot.assigned.map(staffEmail => {
                 const s = staffData.find(st => st.email === staffEmail);
                 if (!s) return ''; 
-                return `<div class="flex justify-between items-center text-xs bg-white p-2 rounded border border-gray-100 mb-1 shadow-sm"><div><div class="font-bold text-gray-700">${s.name}</div><div class="text-[10px] text-gray-500">${s.dept}</div></div><a href="https://wa.me/${s.phone}" target="_blank" class="text-green-600 hover:text-green-800 font-medium flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.017-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>${s.phone}</a></div>`;
+                const checkMark = (slot.attendance && slot.attendance.includes(staffEmail)) ? "✅ " : "";
+                return `
+                    <div class="flex justify-between items-center text-xs bg-white p-1.5 rounded border border-gray-100 mb-1">
+                        <span class="font-bold text-gray-700">${checkMark}${s.name}</span>
+                        <a href="https://wa.me/${s.phone}" target="_blank" class="text-green-600 font-bold">✆</a>
+                    </div>`;
             }).join('');
             staffListHtml = `<div class="mt-3 pt-2 border-t border-gray-200"><div class="text-[10px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">Assigned Invigilators</div><div class="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scroll">${listItems}</div></div>`;
         }
 
+        // Buttons Logic
         let actionHtml = "";
-        if (isAssigned) {
-            if (isLocked) actionHtml = `<button onclick="cancelDuty('${key}', '${email}', true)" class="w-full bg-gray-100 text-gray-600 border border-gray-300 text-xs py-2 rounded font-bold cursor-pointer">🔒 Assigned (Locked)</button>`;
-            else actionHtml = `<button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition">✅ Assigned (Click to Cancel)</button>`;
+        
+        if (isCompleted) {
+             actionHtml = `<button disabled class="w-full bg-green-600 text-white border border-green-600 text-xs py-2 rounded font-bold cursor-default">✅ Duty Completed</button>`;
+        } else if (isAssigned) {
+            if (isLocked) {
+                 actionHtml = `<button onclick="cancelDuty('${key}', '${email}', true)" class="w-full bg-gray-100 text-gray-600 border border-gray-300 text-xs py-2 rounded font-bold cursor-pointer">🔒 Assigned (Locked)</button>`;
+            } else {
+                 actionHtml = `<button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition">✅ Assigned (Click to Cancel)</button>`;
+            }
         } else if (isUnavailable) {
              actionHtml = `<button onclick="setAvailability('${key}', '${email}', true)" class="text-xs text-blue-600 hover:underline">Undo "Unavailable"</button>`;
-        } else if (isLocked && !isAssigned) {
-            actionHtml = `<span class="text-gray-400 text-xs font-bold">🔒 Slot Locked</span>`;
+        } else if (isLocked) {
+            // Locked & Not Assigned
+            actionHtml = `<span class="text-gray-400 text-xs font-bold w-full text-center block bg-gray-100 py-2 rounded border border-gray-200">🔒 Slot Locked</span>`;
         } else {
             if (needed > 0) {
-                actionHtml = `<div class="flex gap-2 w-full"><button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700 shadow-sm">Volunteer</button><button onclick="setAvailability('${key}', '${email}', false)" class="flex-1 bg-white border border-red-300 text-red-600 text-xs py-2 rounded font-medium hover:bg-red-50">Unavailable</button></div>`;
+                actionHtml = `
+                    <div class="flex gap-2 w-full">
+                        <button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700 shadow-sm transition">Volunteer</button>
+                        <button onclick="setAvailability('${key}', '${email}', false)" class="flex-1 bg-white border border-red-300 text-red-600 text-xs py-2 rounded font-medium hover:bg-red-50">Unavailable</button>
+                    </div>`;
             } else {
-                actionHtml = `<div class="flex justify-between items-center w-full"><span class="text-xs text-gray-500 italic">Slots Full</span><button onclick="setAvailability('${key}', '${email}', false)" class="text-xs text-red-500 hover:underline">Mark Unavailable</button></div>`;
+                actionHtml = `
+                    <div class="flex justify-between items-center w-full">
+                        <span class="text-xs text-gray-500 italic">Slots Full</span>
+                        <button onclick="setAvailability('${key}', '${email}', false)" class="text-xs text-red-500 hover:underline">Mark Unavailable</button>
+                    </div>`;
             }
         }
-        container.innerHTML += `<div class="bg-gray-50 p-3 rounded border border-gray-200"><div class="flex justify-between items-center mb-2"><div><span class="font-bold text-gray-800 block text-sm">${sessLabel}</span><span class="text-[10px] text-gray-500">${key.split('|')[1]}</span></div><span class="text-xs bg-white border px-2 py-0.5 rounded ${needed > 0 ? 'text-green-600 border-green-200' : 'text-gray-400'}">${filled}/${slot.required} Filled</span></div><div class="flex items-center justify-between mt-2">${actionHtml}</div>${staffListHtml}</div>`;
+        
+        container.innerHTML += `
+            <div class="bg-gray-50 p-3 rounded border border-gray-200">
+                <div class="flex justify-between items-center mb-2">
+                    <div><span class="font-bold text-gray-800 block text-sm">${sessLabel}</span><span class="text-[10px] text-gray-500">${key.split('|')[1]}</span></div>
+                    <span class="text-xs bg-white border px-2 py-0.5 rounded ${needed > 0 ? 'text-green-600 border-green-200' : 'text-gray-400'}">${filled}/${slot.required} Filled</span>
+                </div>
+                <div class="flex items-center justify-between mt-2">${actionHtml}</div>
+                ${staffListHtml}
+            </div>
+        `;
     });
     window.openModal('day-detail-modal');
 }
