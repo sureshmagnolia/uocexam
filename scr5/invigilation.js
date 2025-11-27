@@ -367,7 +367,6 @@ window.openDayModal = function(dateStr, email) {
         const filled = slot.assigned.length;
         const needed = slot.required - filled;
         const isAssigned = slot.assigned.includes(email);
-        const isUnavailable = isUserUnavailable(slot, email);
         const isLocked = slot.isLocked;
         const t = key.split(' | ')[1].toUpperCase();
         const sessLabel = (t.includes("PM") || t.startsWith("12")) ? "AFTERNOON (AN)" : "FORENOON (FN)";
