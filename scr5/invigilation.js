@@ -254,15 +254,34 @@ function updateAdminUI() {
 function renderSlotsGridAdmin() {
     if(!ui.adminSlotsGrid) return;
     ui.adminSlotsGrid.innerHTML = '';
-    Object.keys(invigilationSlots).sort().forEach(key => {
+    
+    const sortedKeys = Object.keys(invigilationSlots).sort();
+
+    sortedKeys.forEach(key => {
         const slot = invigilationSlots[key];
         const filled = slot.assigned.length;
-        const statusColor = filled >= slot.required ? "border-green-400 bg-green-50" : "border-orange-300 bg-orange-50";
         
+        // --- UPDATED: Color Logic (Red if Locked) ---
+        let statusColor = "";
+        let statusIcon = "";
+        
+        if (slot.isLocked) {
+            statusColor = "border-red-500 bg-red-50"; // Locked = Red
+            statusIcon = "🔒";
+        } else if (filled >= slot.required) {
+            statusColor = "border-green-400 bg-green-50"; // Full = Green
+            statusIcon = "✅";
+        } else {
+            statusColor = "border-orange-300 bg-orange-50"; // Open = Orange
+            statusIcon = "🔓";
+        }
+        // --------------------------------------------
+
+        // Unavailable Button Logic
         let unavButton = "";
         if (slot.unavailable && slot.unavailable.length > 0) {
             unavButton = `
-                <button onclick="openInconvenienceModal('${key}')" class="mt-2 w-full flex items-center justify-center gap-2 bg-red-50 text-red-700 border border-red-200 px-2 py-1.5 rounded text-xs font-bold hover:bg-red-100 transition shadow-sm">
+                <button onclick="openInconvenienceModal('${key}')" class="mt-2 w-full flex items-center justify-center gap-2 bg-white text-red-700 border border-red-200 px-2 py-1.5 rounded text-xs font-bold hover:bg-red-50 transition shadow-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                     View ${slot.unavailable.length} Inconvenience(s)
                 </button>
@@ -270,28 +289,32 @@ function renderSlotsGridAdmin() {
         }
 
         ui.adminSlotsGrid.innerHTML += `
-            <div class="border-l-4 ${statusColor} bg-white p-4 rounded shadow-sm slot-card flex flex-col justify-between">
+            <div class="border-l-4 ${statusColor} bg-white p-4 rounded shadow-sm slot-card flex flex-col justify-between transition-all">
                 <div>
                     <div class="flex justify-between items-start mb-2">
-                        <h4 class="font-bold text-gray-800 text-sm w-1/2 break-words">${key}</h4>
+                        <h4 class="font-bold text-gray-800 text-sm w-1/2 break-words flex items-center gap-1">
+                            ${statusIcon} ${key}
+                        </h4>
                         
-                        <div class="flex items-center bg-white border border-gray-300 rounded text-xs">
-                            <button onclick="changeSlotReq('${key}', -1)" class="px-2 py-1 hover:bg-gray-100 border-r text-gray-600">-</button>
+                        <div class="flex items-center bg-white border border-gray-300 rounded text-xs shadow-sm">
+                            <button onclick="changeSlotReq('${key}', -1)" class="px-2 py-1 hover:bg-gray-100 border-r text-gray-600 font-bold">-</button>
                             <span class="px-2 font-bold text-gray-800" title="Filled / Required">${filled} / ${slot.required}</span>
-                            <button onclick="changeSlotReq('${key}', 1)" class="px-2 py-1 hover:bg-gray-100 border-l text-gray-600">+</button>
+                            <button onclick="changeSlotReq('${key}', 1)" class="px-2 py-1 hover:bg-gray-100 border-l text-gray-600 font-bold">+</button>
                         </div>
                     </div>
+                    
                     <div class="text-xs text-gray-600 mb-2">
                         <strong>Assigned:</strong> ${slot.assigned.map(email => getNameFromEmail(email)).join(', ') || "None"}
                     </div>
                     ${unavButton}
                 </div>
-               <div class="flex gap-2 mt-3">
-                    <button onclick="openManualAllocationModal('${key}')" class="flex-1 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded py-1 hover:bg-indigo-100 font-bold">
+                
+                <div class="flex gap-2 mt-3">
+                    <button onclick="openManualAllocationModal('${key}')" class="flex-1 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded py-1.5 hover:bg-indigo-100 font-bold transition">
                         Manual Assign
                     </button>
-                    <button onclick="toggleLock('${key}')" class="w-24 text-xs border border-gray-300 rounded py-1 hover:bg-gray-50 text-gray-700 font-medium">
-                        ${slot.isLocked ? '🔒 Unlock' : '🔓 Lock'}
+                    <button onclick="toggleLock('${key}')" class="w-24 text-xs border border-gray-300 rounded py-1.5 hover:bg-gray-50 text-gray-700 font-medium transition shadow-sm bg-white">
+                        ${slot.isLocked ? 'Unlock' : 'Lock'}
                     </button>
                 </div>
             </div>
@@ -528,6 +551,27 @@ window.toggleLock = async function(key) {
     await syncSlotsToCloud();
 }
 
+// --- NEW: Lock All Function ---
+window.lockAllSessions = async function() {
+    if (!confirm("🔒 Are you sure you want to LOCK ALL sessions?\n\nInvigilators will not be able to volunteer for any session.")) return;
+    
+    let changed = false;
+    Object.keys(invigilationSlots).forEach(key => {
+        if (!invigilationSlots[key].isLocked) {
+            invigilationSlots[key].isLocked = true;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        await syncSlotsToCloud();
+        renderSlotsGridAdmin();
+        alert("✅ All sessions have been locked.");
+    } else {
+        alert("All sessions are already locked.");
+    }
+}
+
 window.volunteer = async function(key, email) {
     const [datePart] = key.split(' | ');
     const sameDaySessions = Object.keys(invigilationSlots).filter(k => k.startsWith(datePart) && k !== key);
@@ -545,13 +589,8 @@ window.volunteer = async function(key, email) {
 window.changeSlotReq = async function(key, delta) {
     const slot = invigilationSlots[key];
     const newReq = slot.required + delta;
-    
-    if (newReq < slot.assigned.length) {
-        alert("Cannot reduce slots below the number of currently assigned staff.");
-        return;
-    }
-    if (newReq < 1) return; // Minimum 1 slot
-
+    if (newReq < slot.assigned.length) return alert("Cannot reduce slots below assigned count.");
+    if (newReq < 1) return;
     slot.required = newReq;
     await syncSlotsToCloud();
     renderSlotsGridAdmin();
@@ -1193,6 +1232,8 @@ window.addNewRoleConfig = addNewRoleConfig;
 window.deleteRoleConfig = deleteRoleConfig;
 window.saveRoleConfig = saveRoleConfig;
 window.editRoleConfig = editRoleConfig;
+window.lockAllSessions = lockAllSessions;
+window.changeSlotReq = changeSlotReq;
 window.switchAdminTab = function(tabName) {
     document.getElementById('tab-content-staff').classList.add('hidden');
     document.getElementById('tab-content-slots').classList.add('hidden');
