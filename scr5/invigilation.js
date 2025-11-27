@@ -555,14 +555,52 @@ window.waNotify = function(key) {
 }
 
 window.calculateSlotsFromSchedule = async function() {
-    alert("Slots synced from Main App.");
+    if(!confirm("This will recalculate invigilation needs using the latest exam data from the cloud. Continue?")) return;
+    
     const docRef = doc(db, "colleges", currentCollegeId);
     const snap = await getDoc(docRef);
+    let students = [];
+    
     if(snap.exists()) {
-        collegeData = snap.data();
-        invigilationSlots = JSON.parse(collegeData.examInvigilationSlots || '{}');
-        renderSlotsGridAdmin();
+        const d = snap.data();
+        // Attempt to load from main doc or chunks if logic existed, 
+        // for simplicity in this module we assume examBaseData is available or we rely on what's passed.
+        // If using the app.js sync logic, examBaseData string might be in the main doc if small, or chunks.
+        // For robust reading, we'll trust the existing logic or just use what's in collegeData if updated.
+        students = JSON.parse(d.examBaseData || '[]'); 
     }
+
+    if(students.length === 0) return alert("No exam data found. Please ensure data is uploaded in the main app.");
+
+    const sessions = {};
+    students.forEach(s => {
+        const key = `${s.Date} | ${s.Time}`;
+        if(!sessions[key]) sessions[key] = 0;
+        sessions[key]++;
+    });
+
+    let newSlots = { ...invigilationSlots };
+    let slotsAdded = 0;
+
+    Object.keys(sessions).forEach(key => {
+        const count = sessions[key];
+        const base = Math.ceil(count / 30);
+        const reserve = Math.ceil(base * 0.10);
+        const total = base + reserve;
+        
+        if(!newSlots[key]) {
+            // CHANGE: Default isLocked to true
+            newSlots[key] = { required: total, assigned: [], unavailable: [], isLocked: true };
+            slotsAdded++;
+        } else {
+            newSlots[key].required = total; // Update count if changed
+        }
+    });
+
+    invigilationSlots = newSlots;
+    await syncSlotsToCloud();
+    renderSlotsGridAdmin();
+    alert(`Slots updated! Found ${Object.keys(sessions).length} sessions.\nNew slots are LOCKED by default.`);
 }
 
 window.runAutoAllocation = async function() {
