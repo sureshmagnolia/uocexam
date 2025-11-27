@@ -527,29 +527,45 @@ function renderStaffCalendar(myEmail) {
                 const isCompleted = slot.attendance && slot.attendance.includes(myEmail);
                 
                 // STATUS LOGIC
-                let badgeColor = "bg-green-100 text-green-700 border-green-200"; // Default: Open/Green
-                let statusText = `${available}/${needed}`; 
+              // --- COLOR CODING LOGIC ---
+                let badgeColor = "";
+                let statusText = "";
 
                 if (isCompleted) { 
                     badgeColor = "bg-green-600 text-white border-green-600"; 
                     statusText = "Done"; 
                 }
+                else if (isPostedByMe) {
+                    // ORANGE: Assigned but posted (Liability)
+                    badgeColor = "bg-orange-100 text-orange-700 border-orange-300";
+                    statusText = "⏳ Posted"; // <--- CHANGED: Short & Clear
+                }
                 else if (isAssigned) { 
+                    // BLUE: Assigned & Confirmed
                     badgeColor = "bg-blue-600 text-white border-blue-600"; 
                     statusText = "Assigned"; 
+                }
+                else if (isMarketAvailable) {
+                    // PURPLE: Market Open (Someone else posted)
+                    badgeColor = "bg-purple-100 text-purple-700 border-purple-300 font-bold animate-pulse";
+                    statusText = "♻️ Market";
                 }
                 else if (isUnavailable) { 
                     badgeColor = "bg-red-50 text-red-600 border-red-200"; 
                     statusText = "Unavail"; 
                 }
                 else if (slot.isLocked) { 
-                    // LOCKED & NOT ASSIGNED -> GREY
                     badgeColor = "bg-gray-100 text-gray-500 border-gray-300"; 
                     statusText = "Locked"; 
                 }
-                else if (isFull) { 
+                else if (filled >= needed) { 
                     badgeColor = "bg-gray-100 text-gray-400 border-gray-200"; 
-                    statusText = `0/${needed}`; 
+                    statusText = "Full"; 
+                }
+                else {
+                    // GREEN: Standard Open Slot
+                    badgeColor = "bg-green-100 text-green-700 border-green-200"; 
+                    statusText = `${available}/${needed}`;
                 }
 
                 dayContent += `
@@ -1891,26 +1907,37 @@ window.postForExchange = async function(key, email) {
         slot.exchangeRequests.push(email);
         await syncSlotsToCloud();
         
-        // Refresh UI
+        // 1. Refresh Calendar (Updates background to Orange)
         renderStaffCalendar(email);
         if(typeof renderExchangeMarket === "function") renderExchangeMarket(email);
-        window.closeModal('day-detail-modal');
+
+        // 2. Refresh Modal Immediately (Updates button to Withdraw)
+        const dateStr = key.split(' | ')[0];
+        openDayModal(dateStr, email); 
     }
 }
 
 window.withdrawExchange = async function(key, email) {
+    // Optional: Add a confirm if you want, or just do it.
+    // if (!confirm("Withdraw your exchange request?")) return; 
+
     const slot = invigilationSlots[key];
     if (slot.exchangeRequests) {
         slot.exchangeRequests = slot.exchangeRequests.filter(e => e !== email);
         await syncSlotsToCloud();
         
-        // Refresh UI
+        // 1. Notification Alert
+        alert("✅ Request withdrawn. You have reclaimed this duty.");
+
+        // 2. Refresh Calendar (Updates background back to Blue)
         renderStaffCalendar(email);
         if(typeof renderExchangeMarket === "function") renderExchangeMarket(email);
-        window.closeModal('day-detail-modal');
+
+        // 3. Refresh Modal Immediately (Updates button back to Post)
+        const dateStr = key.split(' | ')[0];
+        openDayModal(dateStr, email);
     }
 }
-
 
 // --- EXPORT TO WINDOW (Final Fix) ---
 // This makes functions available to HTML onclick="" events
