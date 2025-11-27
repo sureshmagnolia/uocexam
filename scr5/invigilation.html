@@ -375,14 +375,30 @@
     <div id="add-slot-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
         <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm m-4">
             <h3 class="text-lg font-bold text-gray-800 mb-4">Add Invigilation Slot</h3>
+            
             <div class="space-y-4">
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label><input type="date" id="manual-slot-date" class="w-full p-2 border border-gray-300 rounded text-sm"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Session</label><select id="manual-slot-session" class="w-full p-2 border border-gray-300 rounded text-sm bg-white"><option value="FN">Forenoon (FN)</option><option value="AN">Afternoon (AN)</option></select></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Required Invigilators</label><input type="number" id="manual-slot-req" class="w-full p-2 border border-gray-300 rounded text-sm font-bold text-center" value="1" min="1"></div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date</label>
+                    <input type="date" id="manual-slot-date" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Time</label>
+                    <input type="time" id="manual-slot-time" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Required Invigilators</label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="manual-slot-req" class="w-full p-2 border border-gray-300 rounded text-sm font-bold text-center" value="1" min="1">
+                        <span class="text-xs text-gray-400 whitespace-nowrap">Staff Needed</span>
+                    </div>
+                </div>
             </div>
+
             <div class="mt-6 flex justify-end gap-2">
-                <button onclick="closeModal('add-slot-modal')" class="px-4 py-2 text-gray-600 bg-gray-100 rounded text-sm">Cancel</button>
-                <button onclick="saveManualSlot()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold">Add Slot</button>
+                <button onclick="closeModal('add-slot-modal')" class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded text-sm">Cancel</button>
+                <button onclick="saveManualSlot()" class="px-4 py-2 bg-indigo-600 text-white rounded text-sm font-bold hover:bg-indigo-700 shadow">Add Slot</button>
             </div>
         </div>
     </div>
