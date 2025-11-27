@@ -238,26 +238,43 @@ function calculateStaffTarget(staff) {
 }
 
 function initStaffDashboard(me) {
-    // ... existing code ...
+    ui.headerName.textContent = collegeData.examCollegeName;
+    ui.userName.textContent = me.name;
+    ui.userRole.textContent = isAdmin ? "ADMIN (View as Staff)" : "INVIGILATOR";
+    document.getElementById('auth-section').classList.remove('hidden');
+    
+    document.getElementById('staff-view-name').textContent = me.name;
+
+    // --- RESTORED CALCULATION LOGIC ---
+    // Calculates: Target - (Attended Duties)
+    const target = calculateStaffTarget(me);
+    const done = getDutiesDoneCount(me.email);
+    const pending = target - done;
+    
+    document.getElementById('staff-view-pending').textContent = pending > 0 ? pending : "0 (Done)";
+    // ----------------------------------
+
     updateHeaderButtons('staff');
     renderStaffCalendar(me.email);
     renderStaffRankList(me.email); 
     
-    // NEW: Render Market
-    renderExchangeMarket(me.email); // <--- ADD THIS CALL
+    // Render the Market Widget
+    if(typeof renderExchangeMarket === "function") {
+        renderExchangeMarket(me.email);
+    }
     
     showView('staff');
     
-    // Update listeners to refresh market on month change (optional, but good practice)
+    // Calendar Navigation Listeners
     document.getElementById('cal-prev').onclick = () => { 
         currentCalDate.setMonth(currentCalDate.getMonth()-1); 
         renderStaffCalendar(me.email); 
-        renderExchangeMarket(me.email); // Refresh market too
+        if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
     };
     document.getElementById('cal-next').onclick = () => { 
         currentCalDate.setMonth(currentCalDate.getMonth()+1); 
         renderStaffCalendar(me.email); 
-        renderExchangeMarket(me.email); // Refresh market too
+        if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
     };
 }
 // --- HELPERS ---
@@ -1862,7 +1879,37 @@ async function acceptExchange(key, buyerEmail, sellerEmail) {
     renderExchangeMarket(buyerEmail);
     initStaffDashboard(buyer); // Full Refresh to update counts
 }
+// --- EXCHANGE MARKET FUNCTIONS ---
 
+window.postForExchange = async function(key, email) {
+    if (!confirm("Post this duty for exchange?\n\nNOTE: You remain responsible (and assigned) until someone else accepts it.")) return;
+    
+    const slot = invigilationSlots[key];
+    if (!slot.exchangeRequests) slot.exchangeRequests = [];
+    
+    if (!slot.exchangeRequests.includes(email)) {
+        slot.exchangeRequests.push(email);
+        await syncSlotsToCloud();
+        
+        // Refresh UI
+        renderStaffCalendar(email);
+        if(typeof renderExchangeMarket === "function") renderExchangeMarket(email);
+        window.closeModal('day-detail-modal');
+    }
+}
+
+window.withdrawExchange = async function(key, email) {
+    const slot = invigilationSlots[key];
+    if (slot.exchangeRequests) {
+        slot.exchangeRequests = slot.exchangeRequests.filter(e => e !== email);
+        await syncSlotsToCloud();
+        
+        // Refresh UI
+        renderStaffCalendar(email);
+        if(typeof renderExchangeMarket === "function") renderExchangeMarket(email);
+        window.closeModal('day-detail-modal');
+    }
+}
 
 
 // --- EXPORT TO WINDOW (Final Fix) ---
@@ -1935,113 +1982,76 @@ window.openDayModal = function(dateStr, email) {
     
     const sessions = Object.keys(invigilationSlots).filter(k => k.startsWith(dateStr));
     
+    if (sessions.length === 0) {
+        container.innerHTML = `<p class="text-gray-400 text-sm text-center py-4">No sessions.</p>`;
+    }
+
     sessions.forEach(key => {
         const slot = invigilationSlots[key];
         const filled = slot.assigned.length;
         const needed = slot.required - filled;
+        
         const isAssigned = slot.assigned.includes(email);
         const isUnavailable = isUserUnavailable(slot, email);
-        const isLocked = slot.isLocked;
+        const isLocked = slot.isLocked; // Check this!
+        const isPostedByMe = slot.exchangeRequests && slot.exchangeRequests.includes(email);
+        const marketOffers = slot.exchangeRequests ? slot.exchangeRequests.filter(e => e !== email) : [];
 
         const t = key.split(' | ')[1].toUpperCase();
         const sessLabel = (t.includes("PM") || t.startsWith("12")) ? "AFTERNOON (AN)" : "FORENOON (FN)";
 
-        // --- 1. Assigned List ---
-        let staffListHtml = '';
-        if (slot.assigned.length > 0) {
-            const listItems = slot.assigned.map(staffEmail => {
-                const s = staffData.find(st => st.email === staffEmail);
-                if (!s) return ''; 
-                return `
-                    <div class="flex justify-between items-center text-xs bg-white p-1.5 rounded border border-gray-100 mb-1">
-                        <span class="font-bold text-gray-700">${s.name}</span>
-                        <a href="https://wa.me/${s.phone}" target="_blank" class="text-green-600 font-bold">✆</a>
-                    </div>`;
-            }).join('');
-            staffListHtml = `
-                <div class="mt-2 pt-2 border-t border-gray-200">
-                    <div class="text-[10px] font-bold text-green-700 uppercase mb-1">✅ Assigned</div>
-                    <div class="space-y-0.5 max-h-24 overflow-y-auto custom-scroll">${listItems}</div>
-                </div>`;
-        }
-
-        // --- 2. Unavailable List (NEW) ---
-        let unavListHtml = '';
-        if (slot.unavailable && slot.unavailable.length > 0) {
-             const listItems = slot.unavailable.map(u => {
-                const uEmail = (typeof u === 'string') ? u : u.email;
-                const s = staffData.find(st => st.email === uEmail);
-                if (!s) return '';
-                return `<div class="text-xs text-gray-500 truncate">• ${s.name}</div>`;
-             }).join('');
-             
-             unavListHtml = `
-                <div class="mt-2 pt-2 border-t border-gray-200">
-                    <div class="text-[10px] font-bold text-red-700 uppercase mb-1">⛔ Unavailable</div>
-                    <div class="space-y-0.5 max-h-24 overflow-y-auto custom-scroll">${listItems}</div>
-                </div>`;
-        }
-
-        // --- 3. Buttons Logic ---
         let actionHtml = "";
-        
+
+        // --- BUTTON LOGIC START ---
         if (isAssigned) {
-            if (isLocked) {
-                // Locked but assigned: Can cancel but maybe warn
-                 actionHtml = `<button onclick="cancelDuty('${key}', '${email}', true)" class="w-full bg-gray-100 text-gray-600 border border-gray-300 text-xs py-2 rounded font-bold cursor-pointer" title="Locked by Admin">🔒 Assigned (Locked)</button>`;
-            } else {
-                 actionHtml = `<button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition">✅ Assigned (Click to Cancel)</button>`;
+            if (isPostedByMe) {
+                // You posted it -> Withdraw
+                actionHtml = `<button onclick="withdrawExchange('${key}', '${email}')" class="w-full bg-orange-100 text-orange-700 border border-orange-300 text-xs py-2 rounded font-bold hover:bg-orange-200">↩️ Withdraw Request</button>`;
+            } 
+            else if (isLocked) {
+                // Assigned + Locked -> Post for Exchange
+                // THIS IS THE BUTTON YOU ARE LOOKING FOR
+                actionHtml = `<button onclick="postForExchange('${key}', '${email}')" class="w-full bg-purple-100 text-purple-700 border border-purple-300 text-xs py-2 rounded font-bold hover:bg-purple-200 transition shadow-sm">♻️ Post for Exchange</button>`;
+            } 
+            else {
+                // Assigned + Unlocked -> Cancel
+                actionHtml = `<button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold">✅ Assigned (Click to Cancel)</button>`;
             }
-        } else if (isUnavailable) {
-             actionHtml = `<button onclick="setAvailability('${key}', '${email}', true)" class="text-xs text-blue-600 hover:underline">Undo "Unavailable"</button>`;
-        } else {
-            // Not Assigned, Not Unavailable
-            const unavailableBtn = `<button onclick="setAvailability('${key}', '${email}', false)" class="flex-1 bg-white border border-red-300 text-red-600 text-xs py-2 rounded font-medium hover:bg-red-50">Unavailable</button>`;
-            
-            if (isLocked) {
-                // LOCKED: Only Show Unavailable
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <div class="flex-1 bg-gray-100 text-gray-400 text-xs py-2 rounded font-bold text-center border border-gray-200 cursor-not-allowed">🔒 Locked</div>
-                        ${unavailableBtn}
-                    </div>`;
-            } else if (needed <= 0) {
-                // FULL: Only Show Unavailable
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <div class="flex-1 bg-gray-50 text-gray-400 text-xs py-2 rounded text-center border border-gray-200">Full</div>
-                        ${unavailableBtn}
-                    </div>`;
-            } else {
-                // OPEN: Show Both
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700 shadow-sm transition">Volunteer</button>
-                        ${unavailableBtn}
-                    </div>`;
-            }
+        } 
+        // --- BUTTON LOGIC END ---
+        
+        // ... (rest of the function for Market Offers, Unavailable, Volunteer) ...
+        else if (marketOffers.length > 0) {
+             let offersHtml = marketOffers.map(seller => 
+                `<div class="flex justify-between items-center bg-purple-50 p-2 rounded border border-purple-100 mb-1">
+                    <span class="text-xs font-bold text-purple-800">${getNameFromEmail(seller)}</span>
+                    <button onclick="acceptExchange('${key}', '${email}', '${seller}')" class="bg-purple-600 text-white text-[10px] px-2 py-1 rounded font-bold">Take</button>
+                 </div>`).join('');
+             actionHtml = `<div class="w-full mb-1">${offersHtml}</div>`;
+        }
+        else if (isUnavailable) {
+             actionHtml = `<button onclick="setAvailability('${key}', '${email}', true)" class="text-xs text-blue-600 hover:underline">Undo Unavailable</button>`;
+        } 
+        else {
+             const unavBtn = `<button onclick="setAvailability('${key}', '${email}', false)" class="bg-white border border-red-200 text-red-600 text-xs py-2 px-4 rounded font-bold">Unavailable</button>`;
+             if (isLocked) {
+                 actionHtml = `<div class="flex gap-2 w-full"><div class="flex-1 bg-gray-100 text-gray-500 text-xs py-2 rounded font-bold text-center border border-gray-200">🔒 Locked</div>${unavBtn}</div>`;
+             } else if (needed <= 0) {
+                 actionHtml = `<div class="flex gap-2 w-full"><div class="flex-1 bg-gray-50 text-gray-400 text-xs py-2 rounded font-bold text-center border border-gray-200">Full</div>${unavBtn}</div>`;
+             } else {
+                 actionHtml = `<div class="flex gap-2 w-full"><button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold">Volunteer</button>${unavBtn}</div>`;
+             }
         }
 
+        // --- RENDER ---
         container.innerHTML += `
-            <div class="bg-gray-50 p-3 rounded border border-gray-200">
+            <div class="bg-gray-50 p-3 rounded border border-gray-200 mb-2">
                 <div class="flex justify-between items-center mb-2">
-                    <div>
-                        <span class="font-bold text-gray-800 block text-sm">${sessLabel}</span>
-                        <span class="text-[10px] text-gray-500">${key.split('|')[1]}</span>
-                    </div>
-                    <span class="text-xs bg-white border px-2 py-0.5 rounded ${needed > 0 ? 'text-green-600 border-green-200' : 'text-gray-400'}">${filled}/${slot.required} Filled</span>
+                    <span class="font-bold text-gray-800 text-sm">${sessLabel} <span class="text-[10px] text-gray-500 font-normal ml-1">${key.split('|')[1]}</span></span>
+                    <span class="text-xs bg-white border px-2 py-0.5 rounded">${filled}/${slot.required}</span>
                 </div>
-                
-                <div class="flex items-center justify-between mt-2 mb-2">
-                    ${actionHtml}
-                </div>
-                
-                <div class="grid grid-cols-2 gap-2">
-                    ${staffListHtml}
-                    ${unavListHtml}
-                </div>
-            </div>
-        `;
+                <div class="mt-2">${actionHtml}</div>
+            </div>`;
     });
 
     window.openModal('day-detail-modal');
