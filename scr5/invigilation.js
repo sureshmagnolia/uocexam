@@ -1356,6 +1356,7 @@ window.lockAllSessions = lockAllSessions;
 window.changeSlotReq = changeSlotReq;
 window.openAddSlotModal = openAddSlotModal;
 window.saveManualSlot = saveManualSlot;
+window.openDutyNormsModal = openDutyNormsModal;
 window.switchAdminTab = function(tabName) {
     document.getElementById('tab-content-staff').classList.add('hidden');
     document.getElementById('tab-content-slots').classList.add('hidden');
