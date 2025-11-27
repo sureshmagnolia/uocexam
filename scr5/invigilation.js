@@ -1065,12 +1065,31 @@ window.openRoleConfigModal = function() {
 
 function renderRolesList() {
     const container = document.getElementById('roles-list-container');
+    if (!container) return;
+    
     container.innerHTML = '';
     
     if (Object.keys(rolesConfig).length === 0) {
         container.innerHTML = '<p class="text-gray-400 text-xs text-center py-2">No custom roles defined.</p>';
         return;
     }
+
+    Object.entries(rolesConfig).forEach(([role, target]) => {
+        container.innerHTML += `
+            <div class="flex justify-between items-center text-xs bg-white p-2 rounded border mb-1 group">
+                <span class="font-bold text-gray-700">${role}</span>
+                <div class="flex items-center gap-3">
+                    <button onclick="editRoleConfig('${role}', ${target})" 
+                            class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-mono font-bold hover:bg-indigo-100 hover:text-indigo-900 border border-transparent hover:border-indigo-200 transition" 
+                            title="Click to Edit Target">
+                        ${target}/mo ✎
+                    </button>
+                    
+                    <button onclick="deleteRoleConfig('${role}')" class="text-red-400 hover:text-red-700 font-bold text-lg leading-none transition">&times;</button>
+                </div>
+            </div>`;
+    });
+}
 
     Object.entries(rolesConfig).forEach(([role, target]) => {
         container.innerHTML += `
@@ -1096,6 +1115,24 @@ window.addNewRoleConfig = function() {
     
     document.getElementById('new-role-name').value = '';
     document.getElementById('new-role-target').value = '';
+}
+
+window.editRoleConfig = function(role, currentTarget) {
+    const newTarget = prompt(`Update monthly duty target for "${role}":`, currentTarget);
+    
+    if (newTarget === null) return; // Cancelled
+    
+    const targetNum = parseInt(newTarget);
+    if (isNaN(targetNum) || targetNum < 0) {
+        alert("Please enter a valid number (0 or greater).");
+        return;
+    }
+    
+    // Update Config
+    rolesConfig[role] = targetNum;
+    
+    // Refresh List
+    renderRolesList();
 }
 
 window.deleteRoleConfig = function(role) {
@@ -1156,6 +1193,7 @@ window.openRoleConfigModal = openRoleConfigModal;
 window.addNewRoleConfig = addNewRoleConfig;
 window.deleteRoleConfig = deleteRoleConfig;
 window.saveRoleConfig = saveRoleConfig;
+window.editRoleConfig = editRoleConfig;
 window.switchAdminTab = function(tabName) {
     document.getElementById('tab-content-staff').classList.add('hidden');
     document.getElementById('tab-content-slots').classList.add('hidden');
