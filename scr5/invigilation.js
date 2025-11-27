@@ -1101,7 +1101,6 @@ function renderRolesList() {
                 </div>
             </div>`;
     });
-}
 
 window.addNewRoleConfig = function() {
     const name = document.getElementById('new-role-name').value.trim();
