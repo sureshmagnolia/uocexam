@@ -34,7 +34,7 @@ const ui = {
     staffSlotsGrid: document.getElementById('staff-slots-grid'),
     calGrid: document.getElementById('calendar-grid'),
     calTitle: document.getElementById('cal-month-title'),
-    staffRankList: document.getElementById('staff-rank-list')
+    staffRankList: document.getElementById('staff-rank-list'),
     attSessionSelect: document.getElementById('attendance-session-select'),
     attArea: document.getElementById('attendance-area'),
     attList: document.getElementById('attendance-list'),
