@@ -253,7 +253,40 @@
             </div>
         </div>
     </div>
+<div id="unavailable-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md m-4 transition-all transform scale-100">
+            <h3 class="text-lg font-bold text-gray-800 mb-2">Mark Unavailable</h3>
+            <p class="text-xs text-gray-500 mb-4">Please specify the reason for opting out of this session.</p>
+            
+            <input type="hidden" id="unav-key">
+            <input type="hidden" id="unav-email">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Select Reason</label>
+                    <select id="unav-reason" class="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 outline-none" onchange="toggleUnavDetails()">
+                        <option value="">-- Select Reason --</option>
+                        <option value="CL">CL (Casual Leave)</option>
+                        <option value="Commuted Leave">Commuted Leave</option>
+                        <option value="OD">OD (On Duty)</option>
+                        <option value="DL">DL (Duty Leave)</option>
+                        <option value="Medical">Medical (With CS Permission)</option>
+                    </select>
+                </div>
+                
+                <div id="unav-details-container" class="hidden bg-red-50 p-3 rounded-lg border border-red-100">
+                    <label class="block text-xs font-bold text-red-700 uppercase mb-1" id="unav-details-label">Required Details</label>
+                    <textarea id="unav-details" class="w-full p-2 border border-red-200 rounded text-sm focus:border-red-500 outline-none" rows="2" placeholder="Enter details here..."></textarea>
+                    <p class="text-[10px] text-red-500 mt-1">* This info is mandatory for the selected reason.</p>
+                </div>
+            </div>
 
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeModal('unavailable-modal')" class="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onclick="confirmUnavailable()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold shadow-md transition">Confirm Unavailability</button>
+            </div>
+        </div>
+    </div>
     <script type="module" src="invigilation.js"></script>
 </body>
 </html>
