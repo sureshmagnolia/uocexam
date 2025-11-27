@@ -734,6 +734,45 @@ window.openInconvenienceModal = function(key) {
     });
     window.openModal('inconvenience-modal');
 }
+// --- MISSING HELPER FUNCTIONS ---
+
+// 1. Get Name from Email (Fixes your console error)
+function getNameFromEmail(email) {
+    if (!staffData || staffData.length === 0) return email.split('@')[0];
+    const s = staffData.find(st => st.email === email);
+    return s ? s.name : email.split('@')[0]; // Return Name or Email prefix if not found
+}
+
+// 2. Calculate Academic Year (Needed for stats)
+function getCurrentAcademicYear() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); 
+    // Academic Year: June (5) to May (4)
+    let startYear = (month < 5) ? year - 1 : year;
+    return { 
+        label: `${startYear}-${startYear+1}`, 
+        start: new Date(startYear, 5, 1), 
+        end: new Date(startYear+1, 4, 31) 
+    };
+}
+
+// 3. Calculate Targets (Needed for sorting)
+function calculateStaffTarget(staff) {
+    const roleTarget = designationsConfig[staff.designation] || 2;
+    if (staff.roleHistory) {
+        const today = new Date();
+        const active = staff.roleHistory.find(r => new Date(r.start) <= today && new Date(r.end) >= today);
+        if(active && rolesConfig[active.role] !== undefined) return rolesConfig[active.role] * 5; 
+    }
+    return roleTarget * 5; 
+}
+
+// 4. Check Unavailability (Needed for slots)
+function isUserUnavailable(slot, email) {
+    if (!slot.unavailable) return false;
+    return slot.unavailable.some(u => (typeof u === 'string' ? u === email : u.email === email));
+}
 // --- EXPORT TO WINDOW (Final Fix) ---
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
