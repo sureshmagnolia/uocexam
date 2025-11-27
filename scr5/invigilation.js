@@ -745,16 +745,6 @@ function getCurrentAcademicYear() {
     };
 }
 
-// 3. Calculate Targets (Needed for sorting)
-function calculateStaffTarget(staff) {
-    const roleTarget = designationsConfig[staff.designation] || 2;
-    if (staff.roleHistory) {
-        const today = new Date();
-        const active = staff.roleHistory.find(r => new Date(r.start) <= today && new Date(r.end) >= today);
-        if(active && rolesConfig[active.role] !== undefined) return rolesConfig[active.role] * 5; 
-    }
-    return roleTarget * 5; 
-}
 
 // 4. Check Unavailability (Needed for slots)
 function isUserUnavailable(slot, email) {
