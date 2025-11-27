@@ -701,11 +701,32 @@ window.openInconvenienceModal = function(key) {
     });
     window.openModal('inconvenience-modal');
 }
-
+// --- EXPORT TO WINDOW (Final Fix) ---
+// This makes functions available to HTML onclick="" events
+window.toggleLock = toggleLock;
+window.waNotify = waNotify;
+window.volunteer = volunteer;
+window.cancelDuty = cancelDuty;
+window.setAvailability = setAvailability;
+window.openDayModal = openDayModal;
+window.confirmUnavailable = confirmUnavailable;
 window.toggleUnavDetails = toggleUnavDetails;
-
-window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
+window.switchToStaffView = switchToStaffView;
+window.initAdminDashboard = initAdminDashboard;
+window.calculateSlotsFromSchedule = calculateSlotsFromSchedule;
+window.runAutoAllocation = runAutoAllocation;
+window.openInconvenienceModal = openInconvenienceModal;
+window.openManualAllocationModal = openManualAllocationModal;
+window.saveManualAllocation = saveManualAllocation;
+window.updateManualCounts = updateManualCounts;
+window.saveNewStaff = saveNewStaff;
+window.deleteStaff = deleteStaff;
+window.openRoleAssignmentModal = openRoleAssignmentModal;
+window.saveRoleAssignment = saveRoleAssignment;
+window.removeRoleFromStaff = removeRoleFromStaff;
 window.closeModal = (id) => document.getElementById(id).classList.add('hidden');
+window.openModal = (id) => document.getElementById(id).classList.remove('hidden');
+window.toggleUnavDetails = toggleUnavDetails;
 window.filterStaffTable = renderStaffTable;
 window.switchAdminTab = function(tabName) {
     document.getElementById('tab-content-staff').classList.add('hidden');
