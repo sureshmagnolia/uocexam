@@ -35,6 +35,11 @@ const ui = {
     calGrid: document.getElementById('calendar-grid'),
     calTitle: document.getElementById('cal-month-title'),
     staffRankList: document.getElementById('staff-rank-list')
+    attSessionSelect: document.getElementById('attendance-session-select'),
+    attArea: document.getElementById('attendance-area'),
+    attList: document.getElementById('attendance-list'),
+    attPlaceholder: document.getElementById('attendance-placeholder'),
+    attSubSelect: document.getElementById('att-substitute-select')
 };
 
 // --- AUTHENTICATION ---
@@ -163,6 +168,18 @@ function initAdminDashboard() {
     renderSlotsGridAdmin();
     showView('admin');
 }
+// NEW: Calculate Duties Done based on ATTENDANCE MARKING
+function getDutiesDoneCount(email) {
+    let count = 0;
+    Object.values(invigilationSlots).forEach(slot => {
+        // If attendance is marked, count it
+        if (slot.attendance && slot.attendance.includes(email)) {
+            count++;
+        }
+    });
+    return count;
+}
+
 function calculateStaffTarget(staff) {
     const acYear = getCurrentAcademicYear();
     const today = new Date();
