@@ -236,25 +236,30 @@ function calculateStaffTarget(staff) {
 
     return totalTarget;
 }
+
 function initStaffDashboard(me) {
-    ui.headerName.textContent = collegeData.examCollegeName;
-    ui.userName.textContent = me.name;
-    ui.userRole.textContent = isAdmin ? "ADMIN (View as Staff)" : "INVIGILATOR";
-    document.getElementById('auth-section').classList.remove('hidden');
-    
-    document.getElementById('staff-view-name').textContent = me.name;
-    const pending = calculateStaffTarget(me) - getDutiesDoneCount(me.email);
-    document.getElementById('staff-view-pending').textContent = pending > 0 ? pending : "0 (Done)";
-    
+    // ... existing code ...
     updateHeaderButtons('staff');
     renderStaffCalendar(me.email);
     renderStaffRankList(me.email); 
+    
+    // NEW: Render Market
+    renderExchangeMarket(me.email); // <--- ADD THIS CALL
+    
     showView('staff');
     
-    document.getElementById('cal-prev').onclick = () => { currentCalDate.setMonth(currentCalDate.getMonth()-1); renderStaffCalendar(me.email); };
-    document.getElementById('cal-next').onclick = () => { currentCalDate.setMonth(currentCalDate.getMonth()+1); renderStaffCalendar(me.email); };
+    // Update listeners to refresh market on month change (optional, but good practice)
+    document.getElementById('cal-prev').onclick = () => { 
+        currentCalDate.setMonth(currentCalDate.getMonth()-1); 
+        renderStaffCalendar(me.email); 
+        renderExchangeMarket(me.email); // Refresh market too
+    };
+    document.getElementById('cal-next').onclick = () => { 
+        currentCalDate.setMonth(currentCalDate.getMonth()+1); 
+        renderStaffCalendar(me.email); 
+        renderExchangeMarket(me.email); // Refresh market too
+    };
 }
-
 // --- HELPERS ---
 function isUserUnavailable(slot, email) {
     if (!slot.unavailable) return false;
@@ -549,104 +554,265 @@ function renderStaffCalendar(myEmail) {
     ui.calGrid.innerHTML = html;
 }
 
+function renderExchangeMarket(myEmail) {
+    const list = document.getElementById('staff-market-list');
+    const badge = document.getElementById('market-count-badge');
+    if (!list) return;
+
+    list.innerHTML = '';
+    
+    // 1. Find all slots with active exchange requests
+    const marketSlots = [];
+    Object.keys(invigilationSlots).forEach(key => {
+        const slot = invigilationSlots[key];
+        if (slot.exchangeRequests && slot.exchangeRequests.length > 0) {
+            // Filter: Don't show my own requests (I can't swap with myself)
+            const othersRequests = slot.exchangeRequests.filter(reqEmail => reqEmail !== myEmail);
+            
+            othersRequests.forEach(sellerEmail => {
+                marketSlots.push({
+                    key: key,
+                    seller: sellerEmail,
+                    slotData: slot
+                });
+            });
+        }
+    });
+
+    // 2. Sort by Date (Sooner first)
+    marketSlots.sort((a, b) => {
+        // Parse date for sorting (simplified)
+        const dateA = a.key.split('|')[0].split('.').reverse().join('-');
+        const dateB = b.key.split('|')[0].split('.').reverse().join('-');
+        return dateA.localeCompare(dateB);
+    });
+
+    // 3. Update Badge
+    if (badge) badge.textContent = marketSlots.length;
+
+    // 4. Render
+    if (marketSlots.length === 0) {
+        list.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">No duties available for exchange.</p>`;
+        return;
+    }
+
+    marketSlots.forEach(item => {
+        const sellerName = getNameFromEmail(item.seller);
+        const [date, time] = item.key.split(' | ');
+        
+        // Check for conflicts
+        const sameDaySessions = Object.keys(invigilationSlots).filter(k => k.startsWith(date) && k !== item.key);
+        const hasConflict = sameDaySessions.some(k => invigilationSlots[k].assigned.includes(myEmail));
+        const amAlreadyAssigned = item.slotData.assigned.includes(myEmail);
+
+        let actionBtn = "";
+        
+        if (amAlreadyAssigned) {
+             actionBtn = `<span class="text-[10px] text-gray-400 font-medium">You are on this duty</span>`;
+        } else if (hasConflict) {
+             actionBtn = `<span class="text-[10px] text-red-400 font-medium">Time Conflict</span>`;
+        } else {
+             actionBtn = `
+                <button onclick="acceptExchange('${item.key}', '${myEmail}', '${item.seller}')" 
+                    class="bg-indigo-600 text-white text-[10px] px-3 py-1.5 rounded font-bold hover:bg-indigo-700 shadow-sm transition flex items-center gap-1">
+                    Accept
+                </button>`;
+        }
+
+        list.innerHTML += `
+            <div class="bg-white p-2.5 rounded border border-indigo-100 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start mb-1">
+                    <div class="font-bold text-gray-800 text-xs">${date}</div>
+                    <div class="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded">${time}</div>
+                </div>
+                <div class="flex justify-between items-center mt-2">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold">
+                            ${sellerName.charAt(0)}
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-gray-500 leading-none">Request by</span>
+                            <span class="text-xs font-bold text-gray-700 leading-none">${sellerName}</span>
+                        </div>
+                    </div>
+                    ${actionBtn}
+                </div>
+            </div>
+        `;
+    });
+}
+
 window.openDayModal = function(dateStr, email) {
     document.getElementById('modal-day-title').textContent = dateStr;
     const container = document.getElementById('modal-sessions-container');
     container.innerHTML = '';
     
+    // Filter sessions for the selected date
     const sessions = Object.keys(invigilationSlots).filter(k => k.startsWith(dateStr));
+    
+    if (sessions.length === 0) {
+        container.innerHTML = `<p class="text-gray-400 text-sm text-center py-4">No sessions scheduled for this date.</p>`;
+    }
+
     sessions.forEach(key => {
         const slot = invigilationSlots[key];
         const filled = slot.assigned.length;
         const needed = slot.required - filled;
+        
+        // Status Checks
         const isAssigned = slot.assigned.includes(email);
         const isUnavailable = isUserUnavailable(slot, email);
         const isLocked = slot.isLocked;
-        const isCompleted = slot.attendance && slot.attendance.includes(email);
+        const isPostedByMe = slot.exchangeRequests && slot.exchangeRequests.includes(email);
+        
+        // Find offers from OTHERS (excluding myself)
+        const marketOffers = slot.exchangeRequests ? slot.exchangeRequests.filter(e => e !== email) : [];
 
+        // Formatting
         const t = key.split(' | ')[1].toUpperCase();
         const sessLabel = (t.includes("PM") || t.startsWith("12")) ? "AFTERNOON (AN)" : "FORENOON (FN)";
 
-        // Staff List (Same as before)
+        // --- 1. ACTION BUTTONS LOGIC ---
+        let actionHtml = "";
+
+        if (isAssigned) {
+            // CASE A: User is ASSIGNED
+            if (isPostedByMe) {
+                // A1: Assigned + Posted (Liable) -> Allow Withdraw
+                actionHtml = `
+                    <div class="w-full bg-orange-50 p-2 rounded border border-orange-200">
+                        <div class="text-xs text-orange-700 font-bold mb-1 text-center">⏳ Posted for Exchange</div>
+                        <p class="text-[10px] text-orange-600 text-center mb-2 leading-tight">You are still liable until someone accepts.</p>
+                        <button onclick="withdrawExchange('${key}', '${email}')" class="w-full bg-white text-orange-700 border border-orange-300 text-xs py-2 rounded font-bold hover:bg-orange-100 shadow-sm transition">
+                            ↩️ Withdraw (Keep Duty)
+                        </button>
+                    </div>`;
+            } else if (isLocked) {
+                // A2: Assigned + Locked -> Post for Exchange
+                actionHtml = `
+                    <button onclick="postForExchange('${key}', '${email}')" class="w-full bg-purple-100 text-purple-700 border border-purple-300 text-xs py-2 rounded font-bold hover:bg-purple-200 transition shadow-sm">
+                        ♻️ Post for Exchange
+                    </button>`;
+            } else {
+                // A3: Assigned + Unlocked -> Standard Cancel
+                actionHtml = `
+                    <button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition shadow-sm">
+                        ✅ Assigned (Click to Cancel)
+                    </button>`;
+            }
+        } 
+        else if (marketOffers.length > 0) {
+            // CASE B: MARKET OPEN (Show Specific Choices)
+            let offersHtml = marketOffers.map(sellerEmail => {
+                const sellerName = getNameFromEmail(sellerEmail);
+                return `
+                    <div class="flex justify-between items-center bg-purple-50 p-2 rounded border border-purple-100 mb-1.5 shadow-sm">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-purple-600 font-medium uppercase tracking-wide">Exchange Offer</span>
+                            <span class="text-xs font-bold text-purple-900">${sellerName}</span>
+                        </div>
+                        <button onclick="acceptExchange('${key}', '${email}', '${sellerEmail}')" class="bg-purple-600 text-white text-[10px] px-3 py-1.5 rounded font-bold hover:bg-purple-700 transition shadow-sm border border-purple-700">
+                            Take Duty
+                        </button>
+                    </div>`;
+            }).join('');
+            
+            actionHtml = `
+                <div class="w-full">
+                    ${offersHtml}
+                    <button onclick="setAvailability('${key}', '${email}', false)" class="w-full mt-1 bg-white border border-gray-200 text-gray-400 text-[10px] py-1.5 rounded hover:bg-gray-50 hover:text-red-500 hover:border-red-200 transition">
+                        Mark Unavailable
+                    </button>
+                </div>`;
+        }
+        else if (isUnavailable) {
+            // CASE C: UNAVAILABLE
+             actionHtml = `
+                <button onclick="setAvailability('${key}', '${email}', true)" class="w-full text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 py-2 rounded transition">
+                    Undo "Unavailable" Status
+                </button>`;
+        } 
+        else {
+            // CASE D: STANDARD VACANCY (Volunteer)
+            const unavailableBtn = `<button onclick="setAvailability('${key}', '${email}', false)" class="flex-1 bg-white border border-red-200 text-red-600 text-xs py-2 rounded font-bold hover:bg-red-50 transition shadow-sm">Unavailable</button>`;
+            
+            if (isLocked) {
+                // Locked (No Volunteer)
+                 actionHtml = `
+                    <div class="flex gap-2 w-full">
+                        <div class="flex-1 bg-gray-100 text-gray-500 text-xs py-2 rounded font-bold text-center border border-gray-200 cursor-not-allowed flex items-center justify-center gap-1">
+                            🔒 Locked
+                        </div>
+                        ${unavailableBtn}
+                    </div>`;
+            } else if (needed <= 0) {
+                // Full (No Volunteer)
+                actionHtml = `
+                    <div class="flex gap-2 w-full">
+                        <div class="flex-1 bg-gray-50 text-gray-400 text-xs py-2 rounded font-bold text-center border border-gray-200 cursor-default">
+                            Slot Full
+                        </div>
+                        ${unavailableBtn}
+                    </div>`;
+            } else {
+                // Open for Volunteering
+                actionHtml = `
+                    <div class="flex gap-2 w-full">
+                        <button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700 shadow-sm transition flex items-center justify-center gap-1">
+                            <span>🙋‍♂️</span> Volunteer
+                        </button>
+                        ${unavailableBtn}
+                    </div>`;
+            }
+        }
+
+        // --- 2. LISTS (Assigned / Unavailable) ---
         let staffListHtml = '';
         if (slot.assigned.length > 0) {
             const listItems = slot.assigned.map(staffEmail => {
                 const s = staffData.find(st => st.email === staffEmail);
                 if (!s) return ''; 
-                const checkMark = (slot.attendance && slot.attendance.includes(staffEmail)) ? "✅ " : "";
+                // Mark if they have also posted for exchange
+                const isExchanging = slot.exchangeRequests && slot.exchangeRequests.includes(staffEmail);
+                const statusIcon = isExchanging ? "⏳" : "✅";
+                const statusClass = isExchanging ? "text-orange-500" : "text-green-600";
+                
                 return `
                     <div class="flex justify-between items-center text-xs bg-white p-1.5 rounded border border-gray-100 mb-1">
-                        <span class="font-bold text-gray-700">${checkMark}${s.name}</span>
-                        <a href="https://wa.me/${s.phone}" target="_blank" class="text-green-600 font-bold">✆</a>
+                        <span class="font-bold text-gray-700">${statusIcon} ${s.name}</span>
+                        <a href="https://wa.me/${s.phone}" target="_blank" class="text-green-600 font-bold hover:text-green-800">✆</a>
                     </div>`;
             }).join('');
-            staffListHtml = `<div class="mt-3 pt-2 border-t border-gray-200"><div class="text-[10px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">Assigned Invigilators</div><div class="space-y-1 max-h-32 overflow-y-auto pr-1 custom-scroll">${listItems}</div></div>`;
+            
+            staffListHtml = `
+                <div class="mt-3 pt-2 border-t border-gray-200">
+                    <div class="text-[10px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">Assigned Staff</div>
+                    <div class="space-y-0.5 max-h-24 overflow-y-auto custom-scroll">${listItems}</div>
+                </div>`;
         }
 
-        // Buttons Logic
-        let actionHtml = "";
-        const isPosted = slot.exchangeRequests && slot.exchangeRequests.includes(email);
-        const marketAvailable = slot.exchangeRequests && slot.exchangeRequests.length > 0;
-        
-        if (isAssigned) {
-            if (isPosted) {
-                actionHtml = `<button onclick="withdrawExchange('${key}', '${email}')" class="w-full bg-orange-100 text-orange-700 border border-orange-300 text-xs py-2 rounded font-bold hover:bg-orange-200">⏳ Withdraw Exchange Request</button>`;
-            } else if (isLocked) {
-                 // LOCKED -> Offer Exchange
-                 actionHtml = `<button onclick="postForExchange('${key}', '${email}')" class="w-full bg-purple-100 text-purple-700 border border-purple-300 text-xs py-2 rounded font-bold hover:bg-purple-200 transition">♻️ Post for Exchange</button>`;
-            } else {
-                 // UNLOCKED -> Standard Cancel
-                 actionHtml = `<button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition">✅ Assigned (Click to Cancel)</button>`;
-            }
-        } else if (isUnavailable) {
-             actionHtml = `<button onclick="setAvailability('${key}', '${email}', true)" class="text-xs text-blue-600 hover:underline">Undo "Unavailable"</button>`;
-        } else {
-            // NOT ASSIGNED
-            const unavailableBtn = `<button onclick="setAvailability('${key}', '${email}', false)" class="flex-1 bg-white border border-red-300 text-red-600 text-xs py-2 rounded font-medium hover:bg-red-50">Unavailable</button>`;
-            
-            if (marketAvailable) {
-                // MARKET OPEN -> TAKE DUTY
-                const giverEmail = slot.exchangeRequests[0];
-                const giverName = getNameFromEmail(giverEmail);
-                actionHtml = `
-                    <div class="flex flex-col gap-1 w-full">
-                        <button onclick="volunteer('${key}', '${email}')" class="w-full bg-purple-600 text-white text-xs py-2 rounded font-bold hover:bg-purple-700 shadow-sm transition animate-pulse">
-                            ♻️ Take Duty from ${giverName}
-                        </button>
-                        ${unavailableBtn}
-                    </div>`;
-            } else if (isLocked) {
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <div class="flex-1 bg-gray-100 text-gray-400 text-xs py-2 rounded font-bold text-center border border-gray-200 cursor-not-allowed">🔒 Locked</div>
-                        ${unavailableBtn}
-                    </div>`;
-            } else if (needed <= 0) {
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <div class="flex-1 bg-gray-50 text-gray-400 text-xs py-2 rounded text-center border border-gray-200">Full</div>
-                        ${unavailableBtn}
-                    </div>`;
-            } else {
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700 shadow-sm transition">Volunteer</button>
-                        ${unavailableBtn}
-                    </div>`;
-            }
-        }
-        
+        // --- 3. ASSEMBLE HTML ---
         container.innerHTML += `
-            <div class="bg-gray-50 p-3 rounded border border-gray-200">
-                <div class="flex justify-between items-center mb-2">
-                    <div><span class="font-bold text-gray-800 block text-sm">${sessLabel}</span><span class="text-[10px] text-gray-500">${key.split('|')[1]}</span></div>
-                    <span class="text-xs bg-white border px-2 py-0.5 rounded ${needed > 0 ? 'text-green-600 border-green-200' : 'text-gray-400'}">${filled}/${slot.required} Filled</span>
+            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <span class="font-bold text-gray-800 block text-sm">${sessLabel}</span>
+                        <span class="text-[10px] text-gray-500 font-mono">${key.split('|')[1]}</span>
+                    </div>
+                    <span class="text-xs font-bold px-2 py-1 rounded ${needed > 0 ? 'bg-white text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}">
+                        ${filled}/${slot.required} Filled
+                    </span>
                 </div>
-                <div class="flex items-center justify-between mt-2">${actionHtml}</div>
+                
+                <div class="mb-2">
+                    ${actionHtml}
+                </div>
+                
                 ${staffListHtml}
             </div>
         `;
     });
+
     window.openModal('day-detail-modal');
 }
 
@@ -798,14 +964,23 @@ window.volunteer = async function(key, email) {
     const [datePart] = key.split(' | ');
     const sameDaySessions = Object.keys(invigilationSlots).filter(k => k.startsWith(datePart) && k !== key);
     const conflict = sameDaySessions.some(k => invigilationSlots[k].assigned.includes(email));
+    
     if (conflict && !confirm("Whoa! You're already on duty today. Double shift? 🦸‍♂️")) return;
-    if (!conflict && !confirm("Confirm duty?")) return;
-    invigilationSlots[key].assigned.push(email);
+    
+    // REMOVED OLD EXCHANGE LOGIC FROM HERE
+
+    if (!confirm("Confirm duty?")) return;
+    
+    const slot = invigilationSlots[key];
+    slot.assigned.push(email);
+    
     const me = staffData.find(s => s.email === email);
     if(me) me.dutiesAssigned = (me.dutiesAssigned || 0) + 1;
+    
     await syncSlotsToCloud();
     await syncStaffToCloud();
     window.closeModal('day-detail-modal');
+    renderStaffCalendar(email); // Refresh
 }
 
 window.changeSlotReq = async function(key, delta) {
@@ -1647,6 +1822,48 @@ async function volunteer(key, email) {
     await syncStaffToCloud();
     window.closeModal('day-detail-modal');
 }
+async function acceptExchange(key, buyerEmail, sellerEmail) {
+    const slot = invigilationSlots[key];
+    const sellerName = getNameFromEmail(sellerEmail);
+    
+    if (!confirm(`Are you sure you want to take over ${sellerName}'s duty on ${key}?`)) return;
+
+    // 1. Validation
+    if (!slot.assigned.includes(sellerEmail)) {
+        alert("This user is no longer assigned to this slot.");
+        renderExchangeMarket(buyerEmail); // Refresh UI
+        return;
+    }
+
+    // 2. Perform Swap
+    // Remove Seller
+    slot.assigned = slot.assigned.filter(e => e !== sellerEmail);
+    slot.exchangeRequests = slot.exchangeRequests.filter(e => e !== sellerEmail);
+    
+    // Add Buyer
+    slot.assigned.push(buyerEmail);
+
+    // 3. Update Stats (Duties Assigned Count)
+    const seller = staffData.find(s => s.email === sellerEmail);
+    const buyer = staffData.find(s => s.email === buyerEmail);
+    
+    if (seller && seller.dutiesAssigned > 0) seller.dutiesAssigned--;
+    if (buyer) buyer.dutiesAssigned = (buyer.dutiesAssigned || 0) + 1;
+
+    // 4. Sync
+    await syncSlotsToCloud();
+    await syncStaffToCloud();
+
+    alert(`Success! You have accepted the duty from ${sellerName}.`);
+    
+    // 5. Refresh UI
+    window.closeModal('day-detail-modal');
+    renderStaffCalendar(buyerEmail);
+    renderExchangeMarket(buyerEmail);
+    initStaffDashboard(buyer); // Full Refresh to update counts
+}
+
+
 
 // --- EXPORT TO WINDOW (Final Fix) ---
 // This makes functions available to HTML onclick="" events
@@ -1695,6 +1912,7 @@ window.saveAttendance = saveAttendance;
 window.postForExchange = postForExchange;
 window.withdrawExchange = withdrawExchange;
 window.openDutyNormsModal = openDutyNormsModal;
+window.acceptExchange = acceptExchange;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
