@@ -2522,17 +2522,23 @@ function renderAdminTodayStats() {
     container.classList.remove('hidden');
     container.innerHTML = '';
 
-    // --- A. TODAY'S EXAMS (Print Reports) ---
+    // --- A. TODAY'S EXAMS (Print & SMS) ---
     if (todaySessions.length > 0) {
         todaySessions.sort();
         let buttonsHtml = '';
         todaySessions.forEach(key => {
             const timePart = key.split(' | ')[1];
             buttonsHtml += `
-                <button onclick="printSessionReport('${key}')" class="bg-white text-indigo-700 hover:bg-indigo-50 font-bold py-2 px-4 rounded shadow-sm text-sm flex items-center gap-2 transition border border-indigo-100">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    Print ${timePart}
-                </button>
+                <div class="flex items-center gap-1 bg-white/20 p-1 rounded">
+                    <button onclick="printSessionReport('${key}')" class="bg-white text-indigo-700 hover:bg-indigo-50 font-bold py-2 px-3 rounded shadow-sm text-sm flex items-center gap-2 transition border border-indigo-100" title="Print Report">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        ${timePart}
+                    </button>
+                    <button onclick="sendSessionSMS('${key}')" class="bg-green-600 text-white hover:bg-green-700 font-bold py-2 px-3 rounded shadow-sm text-sm flex items-center gap-1 transition border border-green-700" title="Send Bulk SMS to Invigilators">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                        SMS
+                    </button>
+                </div>
             `;
         });
 
@@ -3169,7 +3175,38 @@ window.markAsSent = function(btn) {
     // Optional: Disable click after sending to prevent double-send? 
     // User might want to re-send if it failed, so we keep it clickable but green.
 }
+window.sendSessionSMS = function(key) {
+    const slot = invigilationSlots[key];
+    if (!slot || slot.assigned.length === 0) return alert("No staff assigned to this session.");
 
+    // 1. Get Data
+    const [dateStr, timeStr] = key.split(' | ');
+    const reportTime = calculateReportTime(timeStr);
+    
+    // 2. Gather Phones (With Country Code)
+    const phones = [];
+    slot.assigned.forEach(email => {
+        const s = staffData.find(st => st.email === email);
+        if (s && s.phone) {
+            let p = s.phone.replace(/\D/g, '');
+            // Ensure 10 digit numbers get 91 prepended
+            if (p.length === 10) p = `91${p}`; 
+            phones.push(p);
+        }
+    });
+
+    if (phones.length === 0) return alert("No valid phone numbers found for assigned staff.");
+
+    // 3. Create Short Message (Optimized for 1 SMS segment if possible)
+    // Format: "Duty: DD.MM.YY HH:MM. Report: HH:MM. -CS GVC"
+    const shortDate = dateStr.slice(0, 5); // DD.MM
+    const msg = `Duty: ${dateStr} ${timeStr}. Report: ${reportTime}. -CS GVC`;
+
+    // 4. Launch Native SMS App
+    // Note: Most phones allow selecting SIM card when the app opens.
+    // Android standard: comma separated numbers
+    window.location.href = `sms:${phones.join(',')}?body=${encodeURIComponent(msg)}`;
+}
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
 window.waNotify = waNotify;
@@ -3227,6 +3264,7 @@ window.viewActivityLogs = viewActivityLogs;
 window.openWeeklyNotificationModal = openWeeklyNotificationModal;
 window.openSlotReminderModal = openSlotReminderModal;
 window.markAsSent = markAsSent;
+window.sendSessionSMS = sendSessionSMS;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
