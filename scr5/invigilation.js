@@ -1433,30 +1433,6 @@ function openManualAllocationModal(key) {
     availList.innerHTML = '';
     let selectedCount = 0;
 
-    rankedStaff.forEach(s => {
-        const isAssigned = slot.assigned.includes(s.email);
-        if (isUserUnavailable(slot, s.email)) return; // Skip unavailable
-        
-        if (isAssigned) selectedCount++;
-        const checkState = isAssigned ? 'checked' : '';
-        const rowClass = isAssigned ? 'bg-indigo-50' : 'hover:bg-gray-50';
-        const pendingColor = s.pending > 0 ? 'text-red-600' : 'text-green-600';
-
-        availList.innerHTML += `
-            <tr class="${rowClass} border-b last:border-0 transition">
-                <td class="px-3 py-2 text-center w-10">
-                    <input type="checkbox" class="manual-chk w-4 h-4 text-indigo-600" value="${s.email}" ${checkState} onchange="window.updateManualCounts()">
-                </td>
-                <td class="px-3 py-2">
-                    <div class="font-bold text-gray-800">${s.name}</div>
-                    <div class="text-[10px] text-gray-500">${s.dept}</div>
-                </td>
-                <td class="px-3 py-2 text-center font-mono font-bold ${pendingColor} w-16">
-                    ${s.pending}
-                </td>
-            </tr>
-        `;
-    });
 
     // 3. Render Unavailable
     const unavList = document.getElementById('manual-unavailable-list');
@@ -1917,7 +1893,6 @@ window.runAutoAllocation = runAutoAllocation;
 window.openInconvenienceModal = openInconvenienceModal;
 window.openManualAllocationModal = openManualAllocationModal;
 window.saveManualAllocation = saveManualAllocation;
-window.updateManualCounts = updateManualCounts;
 window.saveNewStaff = saveNewStaff;
 window.deleteStaff = deleteStaff;
 window.openRoleAssignmentModal = openRoleAssignmentModal;
@@ -1928,8 +1903,6 @@ window.openModal = (id) => document.getElementById(id).classList.remove('hidden'
 window.toggleUnavDetails = toggleUnavDetails;
 window.filterStaffTable = renderStaffTable;
 window.changeSlotReq = changeSlotReq;
-window.openManualAllocationModal = openManualAllocationModal;
-window.saveManualAllocation = saveManualAllocation;
 window.updateManualCounts = updateManualCounts;
 window.openRoleConfigModal = openRoleConfigModal;
 window.addNewRoleConfig = addNewRoleConfig;
