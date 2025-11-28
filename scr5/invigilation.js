@@ -422,10 +422,11 @@ function renderStaffTable() {
         ui.staffTableBody.appendChild(row);
     });
 }
-
 function renderStaffRankList(myEmail) {
     const list = document.getElementById('staff-rank-list');
     if (!list) return;
+    
+    // 1. Calculate and Sort
     const rankedStaff = staffData.map(s => ({ 
         ...s, 
         pending: calculateStaffTarget(s) - getDutiesDoneCount(s.email) 
@@ -433,14 +434,43 @@ function renderStaffRankList(myEmail) {
         if (b.pending !== a.pending) return b.pending - a.pending;
         return a.name.localeCompare(b.name);
     });
+
+    // 2. Render List
     list.innerHTML = rankedStaff.map((s, i) => {
         const isMe = s.email === myEmail;
         const bgClass = isMe ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-transparent hover:bg-gray-100";
         const textClass = isMe ? "text-indigo-700 font-bold" : "text-gray-700";
         const rankBadge = i < 3 ? `text-orange-500 font-black` : `text-gray-400 font-medium`;
-        return `<div class="flex items-center justify-between p-2 rounded border ${bgClass} text-xs transition"><div class="flex items-center gap-2 overflow-hidden"><span class="${rankBadge} w-4 text-center">${i + 1}</span><div class="flex flex-col min-w-0"><span class="truncate ${textClass}">${s.name}</span><span class="text-[9px] text-gray-400 truncate">${s.dept}</span></div></div><span class="font-mono font-bold ${s.pending > 0 ? 'text-red-600' : 'text-green-600'}">${s.pending}</span></div>`;
+        
+        // --- NEW: Active Role Logic ---
+        let roleBadge = "";
+        if (s.roleHistory) {
+            const today = new Date();
+            const activeRole = s.roleHistory.find(r => new Date(r.start) <= today && new Date(r.end) >= today);
+            if (activeRole) {
+                // Small purple badge for the role
+                roleBadge = `<span class="ml-1 text-[8px] uppercase font-bold bg-purple-100 text-purple-700 px-1 py-0.5 rounded border border-purple-200">${activeRole.role}</span>`;
+            }
+        }
+        // ------------------------------
+
+        return `
+            <div class="flex items-center justify-between p-2 rounded border ${bgClass} text-xs transition mb-1">
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <span class="${rankBadge} w-4 text-center shrink-0">${i + 1}</span>
+                    <div class="flex flex-col min-w-0">
+                        <div class="flex items-center gap-1">
+                            <span class="truncate ${textClass}">${s.name}</span>
+                            ${roleBadge}
+                        </div>
+                        <span class="text-[9px] text-gray-400 truncate">${s.dept}</span>
+                    </div>
+                </div>
+                <span class="font-mono font-bold ${s.pending > 0 ? 'text-red-600' : 'text-green-600'} ml-2">${s.pending}</span>
+            </div>`;
     }).join('');
 }
+
 function renderStaffCalendar(myEmail) {
     const year = currentCalDate.getFullYear();
     const month = currentCalDate.getMonth();
