@@ -97,7 +97,7 @@
                             Calculating AY...
                         </div>
                     </div>
-                    <button onclick="openModal('add-staff-modal')" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg shadow-sm hover:bg-indigo-700 font-medium text-sm flex justify-center gap-2">
+                    <button onclick="openAddStaffModal()" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg shadow-sm hover:bg-indigo-700 font-medium text-sm flex justify-center gap-2">
                         <span>+</span> Add Staff
                     </button>
                     <div class="mt-4 pt-4 border-t border-gray-200">
@@ -374,14 +374,14 @@
 
     <div id="add-staff-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
         <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg m-4">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">Add New Invigilator</h3>
+            <h3 id="staff-modal-title" class="text-lg font-bold text-gray-800 mb-4">Add New Invigilator</h3>
             <div class="space-y-3">
-                <input type="text" id="stf-name" placeholder="Full Name" class="w-full p-2 border rounded text-sm">
+                <input type="hidden" id="stf-edit-index"> <input type="text" id="stf-name" placeholder="Full Name" class="w-full p-2 border rounded text-sm">
                 <input type="email" id="stf-email" placeholder="Gmail ID" class="w-full p-2 border rounded text-sm">
                 <input type="text" id="stf-phone" placeholder="WhatsApp (91xxxxx)" class="w-full p-2 border rounded text-sm">
                 <select id="stf-dept" class="w-full p-2 border rounded text-sm bg-white">
-    <option value="">Select Department...</option>
-</select>
+                    <option value="">Select Department...</option>
+                </select>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="text-xs text-gray-500">Designation</label><select id="stf-designation" class="w-full p-2 border rounded text-sm bg-white"></select></div>
                     <div><label class="text-xs text-gray-500">Joining Date</label><input type="date" id="stf-join" class="w-full p-2 border rounded text-sm"></div>
