@@ -323,6 +323,27 @@ function isUserUnavailable(slot, email, key) {
     }
     return false;
 }
+// --- DATE HELPERS ---
+function parseDate(key) {
+    try {
+        const [dStr, tStr] = key.split(' | ');
+        const [d, m, y] = dStr.split('.');
+        let [time, mod] = tStr.split(' ');
+        let [h, min] = time.split(':');
+        h = parseInt(h);
+        if (mod === 'PM' && h !== 12) h += 12;
+        if (mod === 'AM' && h === 12) h = 0;
+        return new Date(y, m - 1, d, h, parseInt(min));
+    } catch (e) { return new Date(0); }
+}
+
+function getWeekOfMonth(date) {
+    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+    const dayOfWeek = firstDay.getDay(); // 0 (Sun) to 6 (Sat)
+    const startOffset = dayOfWeek;
+    const dayOfMonth = date.getDate();
+    return Math.ceil((dayOfMonth + startOffset) / 7);
+}
 function updateAdminUI() {
     document.getElementById('stat-total-staff').textContent = staffData.length;
     const acYear = getCurrentAcademicYear();
@@ -337,35 +358,12 @@ function updateAdminUI() {
     
     renderStaffTable(); 
 }
-// --- RENDER ADMIN SLOTS (Sorted Newest to Oldest) ---
 // --- RENDER ADMIN SLOTS (Grouped by Month & Week) ---
+// --- RENDER ADMIN SLOTS (With Weekly Controls) ---
 function renderSlotsGridAdmin() {
     if(!ui.adminSlotsGrid) return;
     ui.adminSlotsGrid.innerHTML = '';
     
-    // Helper: Parse Date from Key
-    const parseDate = (key) => {
-        try {
-            const [dStr, tStr] = key.split(' | ');
-            const [d, m, y] = dStr.split('.');
-            let [time, mod] = tStr.split(' ');
-            let [h, min] = time.split(':');
-            h = parseInt(h);
-            if (mod === 'PM' && h !== 12) h += 12;
-            if (mod === 'AM' && h === 12) h = 0;
-            return new Date(y, m - 1, d, h, parseInt(min));
-        } catch (e) { return new Date(0); }
-    };
-
-    // Helper: Get Week Number of Month
-    const getWeekOfMonth = (date) => {
-        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
-        const dayOfWeek = firstDay.getDay(); // 0 (Sun) to 6 (Sat)
-        const startOffset = dayOfWeek;
-        const dayOfMonth = date.getDate();
-        return Math.ceil((dayOfMonth + startOffset) / 7);
-    };
-
     // 1. Prepare Data & Sort
     const slotItems = Object.keys(invigilationSlots).map(key => ({
         key,
@@ -405,13 +403,23 @@ function renderSlotsGridAdmin() {
             lastWeek = ""; // Reset week trigger for new month
         }
 
-        // Week Header
+        // Week Header (Now with Buttons)
         if (uniqueWeekStr !== lastWeek) {
             ui.adminSlotsGrid.innerHTML += `
-                <div class="col-span-full mt-2 mb-2">
-                    <span class="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
-                        Week ${weekNum}
+                <div class="col-span-full mt-3 mb-2 flex justify-between items-center bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100 shadow-sm">
+                    <span class="text-indigo-900 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                        <span class="bg-white px-2 py-0.5 rounded border border-indigo-100">Week ${weekNum}</span>
                     </span>
+                    <div class="flex gap-2">
+                        <button onclick="toggleWeekLock('${monthStr}', ${weekNum}, true)" 
+                            class="text-[10px] bg-white border border-red-200 text-red-600 px-3 py-1 rounded hover:bg-red-50 font-bold transition shadow-sm flex items-center gap-1">
+                            🔒 Lock Week
+                        </button>
+                        <button onclick="toggleWeekLock('${monthStr}', ${weekNum}, false)" 
+                            class="text-[10px] bg-white border border-green-200 text-green-600 px-3 py-1 rounded hover:bg-green-50 font-bold transition shadow-sm flex items-center gap-1">
+                            🔓 Unlock Week
+                        </button>
+                    </div>
                 </div>`;
             lastWeek = uniqueWeekStr;
         }
@@ -437,8 +445,7 @@ function renderSlotsGridAdmin() {
                 <button onclick="openInconvenienceModal('${key}')" class="mt-2 w-full flex items-center justify-center gap-2 bg-white text-red-700 border border-red-200 px-2 py-1.5 rounded text-xs font-bold hover:bg-red-50 transition shadow-sm">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                     View ${slot.unavailable.length} Inconvenience(s)
-                </button>
-            `;
+                </button>`;
         }
 
         ui.adminSlotsGrid.innerHTML += `
@@ -2263,6 +2270,33 @@ function updateLockIcon(btnId, isLocked) {
         ? "text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-200 transition"
         : "text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-200 hover:bg-red-100 transition font-bold";
 }
+window.toggleWeekLock = async function(monthStr, weekNum, lockState) {
+    if (!confirm(`${lockState ? '🔒 Lock' : '🔓 Unlock'} all slots in ${monthStr} - Week ${weekNum}?`)) return;
+
+    let changed = false;
+    Object.keys(invigilationSlots).forEach(key => {
+        const date = parseDate(key);
+        const mStr = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const wNum = getWeekOfMonth(date);
+        
+        // Check if slot belongs to the target Week & Month
+        if (mStr === monthStr && wNum === weekNum) {
+            // Only update if state is different
+            if (invigilationSlots[key].isLocked !== lockState) {
+                invigilationSlots[key].isLocked = lockState;
+                changed = true;
+            }
+        }
+    });
+
+    if (changed) {
+        await syncSlotsToCloud();
+        renderSlotsGridAdmin();
+        alert(`Week ${weekNum} has been ${lockState ? 'LOCKED' : 'UNLOCKED'}.`);
+    } else {
+        alert("No slots needed updating in this week.");
+    }
+}
 
 // --- EXPORT TO WINDOW (Final Fix) ---
 // This makes functions available to HTML onclick="" events
@@ -2312,6 +2346,7 @@ window.toggleWholeDay = toggleWholeDay;
 window.addNewDepartment = addNewDepartment;
 window.deleteDepartment = deleteDepartment;
 window.toggleAttendanceLock = toggleAttendanceLock;
+window.toggleWeekLock = toggleWeekLock;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
