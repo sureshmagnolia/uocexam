@@ -3238,6 +3238,83 @@ window.sendSessionSMS = function(key) {
     // Android standard: comma separated numbers
     window.location.href = `sms:${phones.join(',')}?body=${encodeURIComponent(msg)}`;
 }
+
+// --- YEARLY ATTENDANCE CSV EXPORT ---
+window.downloadAttendanceCSV = function() {
+    if (!confirm("Download the full attendance register for the current Academic Year?")) return;
+
+    const acYear = getCurrentAcademicYear();
+    const rows = [];
+    
+    // Header Row
+    rows.push(['Date', 'Session', 'Exam Name', 'Faculty Name', 'Department', 'Designation', 'Duty Status', 'Phone']);
+
+    // 1. Get Sorted Sessions
+    const sortedKeys = Object.keys(invigilationSlots).sort((a, b) => {
+        const dateA = parseDate(a);
+        const dateB = parseDate(b);
+        return dateA - dateB;
+    });
+
+    sortedKeys.forEach(key => {
+        const slot = invigilationSlots[key];
+        const dateObj = parseDate(key);
+
+        // Filter by Academic Year
+        if (dateObj < acYear.start || dateObj > acYear.end) return;
+        
+        // Only process if attendance is marked
+        if (!slot.attendance || slot.attendance.length === 0) return;
+
+        const [dateStr, timeStr] = key.split(' | ');
+        const sessionType = (timeStr.includes("PM") || timeStr.startsWith("12")) ? "AN" : "FN";
+        const examName = slot.examName || "University Examination";
+        
+        // Identify Supervision
+        const csEmail = slot.supervision ? slot.supervision.cs : "";
+        const sasEmail = slot.supervision ? slot.supervision.sas : "";
+
+        slot.attendance.forEach(email => {
+            const staff = staffData.find(s => s.email === email);
+            const name = staff ? staff.name : getNameFromEmail(email);
+            const dept = staff ? staff.dept : "N/A";
+            const desig = staff ? staff.designation : "N/A";
+            const phone = staff ? (staff.phone || "") : "";
+
+            // Determine Role
+            let status = "Invigilator";
+            if (email === csEmail) status = "Chief Superintendent";
+            else if (email === sasEmail) status = "Senior Asst. Supt.";
+
+            // Add Row
+            rows.push([
+                dateStr,
+                sessionType,
+                `"${examName}"`, // Quote to handle commas
+                `"${name}"`,
+                `"${dept}"`,
+                `"${desig}"`,
+                status,
+                phone
+            ]);
+        });
+    });
+
+    if (rows.length <= 1) {
+        return alert("No attendance records found for this Academic Year.");
+    }
+
+    // Generate CSV
+    const csvContent = rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Attendance_Register_${acYear.label}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
 window.waNotify = waNotify;
@@ -3296,6 +3373,7 @@ window.openWeeklyNotificationModal = openWeeklyNotificationModal;
 window.openSlotReminderModal = openSlotReminderModal;
 window.markAsSent = markAsSent;
 window.sendSessionSMS = sendSessionSMS;
+window.downloadAttendanceCSV = downloadAttendanceCSV;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
