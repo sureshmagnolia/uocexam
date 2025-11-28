@@ -1863,6 +1863,7 @@ function populateAttendanceSessions() {
         ui.attSessionSelect.appendChild(opt);
     });
 }
+
 window.loadSessionAttendance = function() {
     const key = ui.attSessionSelect.value;
     if (!key) {
@@ -1879,26 +1880,31 @@ window.loadSessionAttendance = function() {
     ui.attList.innerHTML = '';
     
     // --- 1. SUPERVISION LOGIC (CS & SAS) ---
-    // A. Find Default Holders (Active Roles)
+    // A. Find Default Holders (Active Roles in Staff Data)
     const today = new Date();
     let defaultCS = "";
     let defaultSAS = "";
     
     staffData.forEach(s => {
         if (s.roleHistory) {
+            // Check for active roles on today's date
             const activeRole = s.roleHistory.find(r => 
                 new Date(r.start) <= today && new Date(r.end) >= today && 
                 (r.role === "Chief Superintendent" || r.role === "Exam Chief" || r.role === "Senior Asst. Superintendent")
             );
+            
             if (activeRole) {
-                if (activeRole.role === "Chief Superintendent" || activeRole.role === "Exam Chief") defaultCS = s.email;
-                if (activeRole.role === "Senior Asst. Superintendent") defaultSAS = s.email;
+                if (activeRole.role === "Chief Superintendent" || activeRole.role === "Exam Chief") {
+                    defaultCS = s.email;
+                }
+                if (activeRole.role === "Senior Asst. Superintendent") {
+                    defaultSAS = s.email;
+                }
             }
         }
     });
 
-    // B. Determine Current Selection (Saved > Default)
-    // We check if specific CS/SAS were saved for this session
+    // B. Determine Current Selection (Saved Value takes priority over Default)
     const savedSup = slot.supervision || {};
     const currentCS = savedSup.cs || defaultCS;
     const currentSAS = savedSup.sas || defaultSAS;
@@ -1907,7 +1913,6 @@ window.loadSessionAttendance = function() {
     const csSelect = document.getElementById('att-cs-select');
     const sasSelect = document.getElementById('att-sas-select');
     
-    // Helper to populate
     const populateSup = (select, selectedVal) => {
         select.innerHTML = '<option value="">-- Select --</option>';
         staffData.forEach(s => {
@@ -1925,14 +1930,14 @@ window.loadSessionAttendance = function() {
 
     // --- 2. ATTENDANCE LIST RENDERING ---
     
-    // Start with the assigned invigilators
+    // Start with assigned staff
     let presentSet = new Set(slot.attendance || slot.assigned || []);
     
-    // AUTO-MARK: Ensure CS and SAS are in the "Present" list
+    // AUTO-MARK: Ensure CS and SAS are marked "Present"
     if (currentCS && !presentSet.has(currentCS)) presentSet.add(currentCS);
     if (currentSAS && !presentSet.has(currentSAS)) presentSet.add(currentSAS);
     
-    // Render
+    // Render Rows
     presentSet.forEach(email => {
         addAttendanceRow(email, isLocked);
     });
@@ -1990,7 +1995,6 @@ window.loadSessionAttendance = function() {
     updateAttCount();
 }
 
-
 function addAttendanceRow(email, isLocked) {
     const s = staffData.find(st => st.email === email);
     if(!s) return;
@@ -2036,22 +2040,27 @@ window.updateAttCount = function() {
     const count = document.querySelectorAll('.att-chk:checked').length;
     document.getElementById('att-count-display').textContent = `${count} Present`;
 }
-
 window.saveAttendance = async function() {
     const key = ui.attSessionSelect.value;
     if (!key) return;
+    
+    // --- VALIDATION: CS & SAS ARE MANDATORY ---
+    const csVal = document.getElementById('att-cs-select').value;
+    const sasVal = document.getElementById('att-sas-select').value;
+
+    if (!csVal || !sasVal) {
+        alert("⚠️ Mandatory Fields Missing\n\nPlease select both a Chief Superintendent (CS) and a Senior Assistant Superintendent (SAS) before saving attendance.");
+        return;
+    }
+    // ------------------------------------------
     
     if(!confirm(`Confirm attendance for ${key}?\n\nThis will update the 'Duties Done' count for all checked staff.`)) return;
     
     const presentEmails = Array.from(document.querySelectorAll('.att-chk:checked')).map(c => c.value);
     
-    // Capture Supervision
-    const csVal = document.getElementById('att-cs-select').value;
-    const sasVal = document.getElementById('att-sas-select').value;
-
     // Update Cloud Data
     invigilationSlots[key].attendance = presentEmails;
-    invigilationSlots[key].supervision = { cs: csVal, sas: sasVal }; // <--- NEW
+    invigilationSlots[key].supervision = { cs: csVal, sas: sasVal }; 
     
     await syncSlotsToCloud();
     
@@ -2060,6 +2069,7 @@ window.saveAttendance = async function() {
     renderStaffTable(); 
     alert("Attendance & Supervision Saved!");
 }
+
 window.toggleAttendanceLock = async function(key, lockState) {
     if (lockState && !confirm("Lock this attendance register? \n\nNo further changes will be allowed unless you unlock it.")) return;
     
