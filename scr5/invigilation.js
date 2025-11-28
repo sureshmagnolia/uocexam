@@ -175,12 +175,18 @@ function setupLiveSync(collegeId, mode) {
                     if (document.getElementById('view-staff').classList.contains('hidden')) {
                         initStaffDashboard(me);
                     } else {
+                        // LIVE REFRESH
                         renderStaffCalendar(me.email);
                         renderStaffRankList(me.email);
                         if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
                         
-                        const pending = calculateStaffTarget(me) - getDutiesDoneCount(me.email);
+                        // --- UPDATE STATS LIVE ---
+                        const done = getDutiesDoneCount(me.email);
+                        const pending = calculateStaffTarget(me) - done;
+                        
                         document.getElementById('staff-view-pending').textContent = pending > 0 ? pending : "0 (Done)";
+                        const completedEl = document.getElementById('staff-view-completed');
+                        if(completedEl) completedEl.textContent = done;
                     }
                 } else {
                     alert("Your staff profile was removed.");
@@ -273,7 +279,6 @@ function calculateStaffTarget(staff) {
 
     return totalTarget;
 }
-
 function initStaffDashboard(me) {
     ui.headerName.textContent = collegeData.examCollegeName;
     ui.userName.textContent = me.name;
@@ -282,20 +287,20 @@ function initStaffDashboard(me) {
     
     document.getElementById('staff-view-name').textContent = me.name;
 
-    // --- RESTORED CALCULATION LOGIC ---
-    // Calculates: Target - (Attended Duties)
+    // --- CALCULATE STATS ---
     const target = calculateStaffTarget(me);
-    const done = getDutiesDoneCount(me.email);
+    const done = getDutiesDoneCount(me.email); // Counts confirmed attendance
     const pending = target - done;
     
+    // Update UI
     document.getElementById('staff-view-pending').textContent = pending > 0 ? pending : "0 (Done)";
-    // ----------------------------------
-
+    const completedEl = document.getElementById('staff-view-completed');
+    if(completedEl) completedEl.textContent = done;
+    
     updateHeaderButtons('staff');
     renderStaffCalendar(me.email);
     renderStaffRankList(me.email); 
     
-    // Render the Market Widget
     if(typeof renderExchangeMarket === "function") {
         renderExchangeMarket(me.email);
     }
@@ -314,6 +319,7 @@ function initStaffDashboard(me) {
         if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
     };
 }
+
 // --- HELPERS ---
 function isUserUnavailable(slot, email, key) {
     // 1. Check Slot Specific Unavailability
