@@ -29,6 +29,8 @@ let isAdmin = false;
 let cloudUnsubscribe = null;
 let advanceUnavailability = {}; // Stores { "DD.MM.YYYY": { FN: [], AN: [] } }
 let globalDutyTarget = 2; // Default
+let isRoleLocked = true;
+let isDeptLocked = true;
 
 // --- DOM ELEMENTS ---
 const views = { login: document.getElementById('view-login'), admin: document.getElementById('view-admin'), staff: document.getElementById('view-staff') };
@@ -1669,15 +1671,21 @@ async function saveManualAllocation() {
 // --- ROLE EDITOR FUNCTIONS ---
 
 window.openRoleConfigModal = function() {
-    // 1. Load Global Target
-    const targetInput = document.getElementById('global-duty-target');
-    if(targetInput) targetInput.value = globalDutyTarget;
+    // 1. Reset Locks
+    isRoleLocked = true;
+    isDeptLocked = true;
+    
+    // 2. Update UI for Locks
+    updateLockIcon('role-lock-btn', true);
+    updateLockIcon('dept-lock-btn', true);
+    toggleInputVisibility('role-input-row', true);
+    toggleInputVisibility('dept-input-row', true);
 
-    // 2. Render Lists
+    // 3. Load Data & Render
+    document.getElementById('global-duty-target').value = globalDutyTarget;
     renderRolesList();
     if(typeof renderDepartmentsList === "function") renderDepartmentsList();
 
-    // 3. Show Modal
     window.openModal('role-config-modal');
 }
 
@@ -1686,8 +1694,6 @@ function renderRolesList() {
     if (!container) return;
     
     container.innerHTML = '';
-    
-    // Sort roles alphabetically for better UX
     const sortedRoles = Object.entries(rolesConfig).sort((a,b) => a[0].localeCompare(b[0]));
 
     if (sortedRoles.length === 0) {
@@ -1696,17 +1702,19 @@ function renderRolesList() {
     }
 
     sortedRoles.forEach(([role, target]) => {
+        // If Locked: Hide Edit/Delete buttons
+        const actionButtons = isRoleLocked ? '' : `
+            <div class="flex items-center gap-2">
+                <button onclick="editRoleConfig('${role}', ${target})" class="text-indigo-600 hover:text-indigo-900 text-[10px] font-bold bg-indigo-50 px-2 py-0.5 rounded">✎</button>
+                <button onclick="deleteRoleConfig('${role}')" class="text-red-500 hover:text-red-700 font-bold px-1.5">&times;</button>
+            </div>`;
+
         container.innerHTML += `
-            <div class="flex justify-between items-center text-xs bg-white p-2 rounded border mb-1 group">
+            <div class="flex justify-between items-center text-xs bg-white p-2 rounded border mb-1 border-gray-100">
                 <span class="font-bold text-gray-700">${role}</span>
-                <div class="flex items-center gap-2">
-                    <button onclick="editRoleConfig('${role}', ${target})" 
-                            class="bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-mono font-bold hover:bg-indigo-100 border border-indigo-100 transition text-[10px]" 
-                            title="Click to Edit Target">
-                        ${target}/mo ✎
-                    </button>
-                    
-                    <button onclick="deleteRoleConfig('${role}')" class="text-red-400 hover:text-red-600 font-bold px-1.5 py-0.5 rounded hover:bg-red-50 transition" title="Delete Role">&times;</button>
+                <div class="flex items-center gap-3">
+                    <span class="bg-gray-50 text-gray-600 px-2 py-0.5 rounded font-mono font-bold text-[10px]">${target}/mo</span>
+                    ${actionButtons}
                 </div>
             </div>`;
     });
@@ -2088,10 +2096,14 @@ function renderDepartmentsList() {
     container.innerHTML = '';
     
     departmentsConfig.sort().forEach(dept => {
+        // If Locked: Hide 'x' button
+        const deleteBtn = isDeptLocked ? '' : 
+            `<button onclick="deleteDepartment('${dept}')" class="text-red-400 hover:text-red-600 font-bold ml-1 hover:bg-red-50 rounded px-1">&times;</button>`;
+            
         container.innerHTML += `
-            <div class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-xs border border-gray-200">
+            <div class="flex items-center gap-1 bg-white px-2 py-1 rounded text-xs border border-gray-200 shadow-sm">
                 <span class="font-bold text-gray-700">${dept}</span>
-                <button onclick="deleteDepartment('${dept}')" class="text-red-400 hover:text-red-600 font-bold ml-1">&times;</button>
+                ${deleteBtn}
             </div>`;
     });
 }
@@ -2112,7 +2124,32 @@ window.deleteDepartment = function(name) {
         renderDepartmentsList();
     }
 }
+window.toggleRoleLock = function() {
+    isRoleLocked = !isRoleLocked;
+    renderRolesList(); // Re-render list
+    toggleInputVisibility('role-input-row', isRoleLocked); // Hide/Show Inputs
+    updateLockIcon('role-lock-btn', isRoleLocked); // Update Icon
+}
 
+window.toggleDeptLock = function() {
+    isDeptLocked = !isDeptLocked;
+    renderDepartmentsList();
+    toggleInputVisibility('dept-input-row', isDeptLocked);
+    updateLockIcon('dept-lock-btn', isDeptLocked);
+}
+
+function toggleInputVisibility(id, isLocked) {
+    const el = document.getElementById(id);
+    if(el) isLocked ? el.classList.add('hidden') : el.classList.remove('hidden');
+}
+
+function updateLockIcon(btnId, isLocked) {
+    const btn = document.getElementById(btnId);
+    if(btn) btn.textContent = isLocked ? "🔒 Locked" : "🔓 Editing";
+    if(btn) btn.className = isLocked 
+        ? "text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded border border-gray-200 hover:bg-gray-200 transition"
+        : "text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-200 hover:bg-red-100 transition font-bold";
+}
 
 // --- EXPORT TO WINDOW (Final Fix) ---
 // This makes functions available to HTML onclick="" events
