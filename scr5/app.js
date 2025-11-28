@@ -1552,21 +1552,16 @@ function getRoomCapacitiesFromStorage() {
 // This function performs the *original* (non-scribe) allotment and assigns
 // a definitive seat number to every student.
 // --- *** CENTRAL ALLOCATION FUNCTION (Manual Only) *** ---
+// --- *** CENTRAL ALLOCATION FUNCTION (Manual Only - Fixed Seat Numbers) *** ---
 function performOriginalAllocation(data) {
     const allAllotments = JSON.parse(localStorage.getItem(ROOM_ALLOTMENT_KEY) || '{}');
     const scribeRegNos = new Set((JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]')).map(s => s.regNo));
     
-    // Helper to track seat numbers per room
-    const sessionRoomOccupancy = {}; 
-
     const processed_rows_with_rooms = [];
     
     data.forEach(row => {
-        const sessionKey = `${row.Date}_${row.Time}`;
         const sessionKeyPipe = `${row.Date} | ${row.Time}`;
         const isScribe = scribeRegNos.has(row['Register Number']);
-
-        if (!sessionRoomOccupancy[sessionKey]) sessionRoomOccupancy[sessionKey] = {};
 
         let assignedRoomName = "Unallotted";
         let seatNumber = "N/A";
@@ -1575,13 +1570,12 @@ function performOriginalAllocation(data) {
         const manualAllotment = allAllotments[sessionKeyPipe];
         if (manualAllotment) {
             for (const room of manualAllotment) {
-                // Check if student is in this room's list
-                if (room.students.includes(row['Register Number'])) {
+                // FIX: Get the exact index from the room array to match student.html
+                const studentIndex = room.students.indexOf(row['Register Number']);
+                
+                if (studentIndex !== -1) {
                     assignedRoomName = room.roomName;
-                    
-                    // Generate Seat Number
-                    sessionRoomOccupancy[sessionKey][assignedRoomName] = (sessionRoomOccupancy[sessionKey][assignedRoomName] || 0) + 1;
-                    seatNumber = sessionRoomOccupancy[sessionKey][assignedRoomName];
+                    seatNumber = studentIndex + 1; // 0-based index to 1-based seat
                     break;
                 }
             }
