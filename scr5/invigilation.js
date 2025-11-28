@@ -1897,7 +1897,36 @@ window.postForExchange = async function(key, email) {
     }
 }
 
+window.withdrawExchange = async function(key, email) {
+    // 1. ADDED CONFIRMATION CHECK
+    if (!confirm("Are you sure you want to withdraw this request and keep the duty?")) return;
 
+    const slot = invigilationSlots[key];
+    if (slot.exchangeRequests) {
+        // 2. Update Local Data
+        slot.exchangeRequests = slot.exchangeRequests.filter(e => e !== email);
+        
+        // 3. FORCE UI UPDATE (Immediate)
+        try {
+            // Update Calendar Background
+            renderStaffCalendar(email);
+
+            // Update Sidebar Market Widget
+            if(typeof renderExchangeMarket === "function") renderExchangeMarket(email);
+            
+            // CRITICAL: Refresh the Modal Button Instantly
+            const dateStr = key.split('|')[0].trim();
+            openDayModal(dateStr, email);
+
+        } catch(e) { console.error("UI Update Error:", e); }
+
+        // 4. Notification
+        // alert("✅ Request withdrawn."); // Optional: Removed to make it faster/smoother
+
+        // 5. Save to Cloud
+        await syncSlotsToCloud();
+    }
+}
 
 
 // --- EXPORT TO WINDOW (Final Fix) ---
