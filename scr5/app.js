@@ -500,10 +500,14 @@ function syncDataFromCloud(collegeId) {
             currentCollegeData = mainData; 
 
             // Admin Permission Check
-            if (currentCollegeData.admins && currentUser && currentCollegeData.admins.includes(currentUser.email)) {
+            const isAdminUser = currentCollegeData.admins && currentUser && currentCollegeData.admins.includes(currentUser.email);
+            
+            if (isAdminUser) {
                 if(adminBtn) adminBtn.classList.remove('hidden');
+                if(btnInvigilation) btnInvigilation.classList.remove('hidden'); // <--- SHOW PORTAL BUTTON
             } else {
                 if(adminBtn) adminBtn.classList.add('hidden');
+                if(btnInvigilation) btnInvigilation.classList.add('hidden'); // <--- HIDE PORTAL BUTTON
             }
 
             // === TIMESTAMP CHECK ===
@@ -10363,7 +10367,8 @@ window.real_disable_all_report_buttons = function(disabled) {
     const btn = document.getElementById('generate-room-summary-button');
     if(btn) btn.disabled = disabled;
 };
-
+// ==========================================
+const btnInvigilation = document.getElementById('btn-invigilation-portal');
 // ==========================================
 // ☢️ NUKE & SETTINGS MANAGER
 // ==========================================
