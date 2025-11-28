@@ -1684,69 +1684,6 @@ function getCurrentAcademicYear() {
         end: new Date(startYear+1, 4, 31) 
     };
 }
-// --- NEW: MANUAL ALLOCATION LOGIC ---
-
-function openManualAllocationModal(key) {
-    const slot = invigilationSlots[key];
-    if (!slot.isLocked) {
-        alert("⚠️ Please LOCK this slot first.\n\nManual allocation is only allowed in Locked mode to prevent conflicts.");
-        return;
-    }
-
-    document.getElementById('manual-session-key').value = key;
-    document.getElementById('manual-modal-title').textContent = key;
-    document.getElementById('manual-modal-req').textContent = slot.required;
-    
-    // 1. Sort Staff by Pending Duty
-    const rankedStaff = staffData.map(s => ({
-        ...s,
-        pending: calculateStaffTarget(s) - (s.dutiesDone || 0)
-    })).sort((a, b) => b.pending - a.pending);
-
-    // 2. Render List
-    const availList = document.getElementById('manual-available-list');
-    availList.innerHTML = '';
-    let selectedCount = 0;
-
-
-    // 3. Render Unavailable
-    const unavList = document.getElementById('manual-unavailable-list');
-    unavList.innerHTML = '';
-    if (slot.unavailable && slot.unavailable.length > 0) {
-        slot.unavailable.forEach(u => {
-            const email = (typeof u === 'string') ? u : u.email;
-            const reason = (typeof u === 'object' && u.reason) ? u.reason : "N/A";
-            const s = staffData.find(st => st.email === email) || { name: email };
-            unavList.innerHTML += `
-                <div class="bg-white p-2 rounded border border-red-200 text-xs shadow-sm mb-1">
-                    <div class="font-bold text-red-700">${s.name}</div>
-                    <div class="text-gray-600 font-medium mt-0.5">${reason}</div>
-                </div>`;
-        });
-    } else {
-        unavList.innerHTML = `<div class="text-center text-gray-400 text-xs py-4 italic">No requests.</div>`;
-    }
-
-    document.getElementById('manual-sel-count').textContent = selectedCount;
-    window.openModal('manual-allocation-modal');
-}
-
-function updateManualCounts() {
-    const count = document.querySelectorAll('.manual-chk:checked').length;
-    document.getElementById('manual-sel-count').textContent = count;
-}
-
-async function saveManualAllocation() {
-    const key = document.getElementById('manual-session-key').value;
-    const selectedEmails = Array.from(document.querySelectorAll('.manual-chk:checked')).map(c => c.value);
-    
-    if (invigilationSlots[key]) {
-        invigilationSlots[key].assigned = selectedEmails;
-        await syncSlotsToCloud();
-        window.closeModal('manual-allocation-modal');
-        renderSlotsGridAdmin();
-    }
-}
 // --- ROLE EDITOR FUNCTIONS ---
 
 window.openRoleConfigModal = function() {
