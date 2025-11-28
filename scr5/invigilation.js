@@ -2946,8 +2946,7 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
     subtitle.textContent = "Send weekly schedule to faculty via WhatsApp.";
     list.innerHTML = '';
     
-    // 1. Find all duties for this week per faculty
-    const facultyDuties = {}; // email -> [{date, session, key}]
+    const facultyDuties = {}; 
 
     Object.keys(invigilationSlots).forEach(key => {
         const date = parseDate(key);
@@ -2959,7 +2958,7 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
             const [dStr, tStr] = key.split(' | ');
             const isAN = (tStr.includes("PM") || tStr.startsWith("12"));
             const sessionCode = isAN ? "AN" : "FN";
-            const dayName = date.toLocaleString('en-us', { weekday: 'short' }); // Mon, Tue...
+            const dayName = date.toLocaleString('en-us', { weekday: 'short' }); 
             
             slot.assigned.forEach(email => {
                 if (!facultyDuties[email]) facultyDuties[email] = [];
@@ -2978,17 +2977,15 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
         return;
     }
 
-    // 2. Generate Preview Text (Sample)
+    // Generate Preview
     const sampleName = "Abdul Raheem MK";
     const sampleTime = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
-    preview.innerHTML = `🟡🟡🟡 ${sampleName}: Your invigilation duties updated now (${sampleTime}), details below.\n\nDate/s and Session/s: *(01/12/25-Mon-FN), (03/12/25-Wed-AN)*.\n\n🟢 Kindly check...`;
+    preview.innerHTML = `🟡🟡🟡 ${sampleName}: Your invigilation duties updated now (${sampleTime})...\n\nDate/s and Session/s: *(01/12/25-Mon-FN)*...`;
 
-    // 3. Render List
     const sortedEmails = Object.keys(facultyDuties).sort((a, b) => getNameFromEmail(a).localeCompare(getNameFromEmail(b)));
 
     sortedEmails.forEach(email => {
         const duties = facultyDuties[email];
-        // Sort duties chronologically
         duties.sort((a, b) => {
             const da = a.date.split('.').reverse().join('');
             const db = b.date.split('.').reverse().join('');
@@ -2998,13 +2995,17 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
         const dutyString = duties.map(d => `(${d.date}-${d.day}-${d.session})`).join(', ');
         const staff = staffData.find(s => s.email === email);
         const name = staff ? staff.name : email;
-        const phone = staff ? staff.phone : "";
+        
+        // --- PHONE NUMBER FIX ---
+        let phone = staff ? (staff.phone || "") : "";
+        phone = phone.replace(/\D/g, ''); // Remove non-digits
+        if (phone.length === 10) phone = "91" + phone; // Add Country Code if missing
+        // ------------------------
         
         const msg = generateWeeklyMessage(name, dutyString);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : "#";
         
         const btnColor = "bg-blue-600 hover:bg-blue-700";
-        const btnText = "Send WhatsApp";
         const disabledAttr = phone ? "" : "disabled";
         const noPhoneWarning = phone ? "" : `<span class="text-red-500 text-xs ml-2">(No Phone)</span>`;
 
@@ -3041,20 +3042,24 @@ window.openSlotReminderModal = function(key) {
     subtitle.textContent = "Send previous-day reminder to report on time.";
     list.innerHTML = '';
 
-    // 1. Calculate Reporting Time (30 mins prior)
     const [dateStr, timeStr] = key.split(' | ');
-    const reportTime = calculateReportTime(timeStr); // e.g. "09:00 AM"
+    const reportTime = calculateReportTime(timeStr); 
 
-    // 2. Preview
-    preview.innerHTML = `🔔 REMINDER: Exam Duty Tomorrow (${dateStr})\nSession: ${timeStr}\n\nPlease report to the office of the CS by *${reportTime}* (30 min prior to start).\n\n- Chief Supt.`;
+    // Generate Preview using first staff name or placeholder
+    const sampleName = slot.assigned.length > 0 ? getNameFromEmail(slot.assigned[0]) : "Faculty Name";
+    preview.textContent = generateDailyMessage(sampleName, dateStr, timeStr, reportTime);
 
-    // 3. Render List
     slot.assigned.forEach(email => {
         const staff = staffData.find(s => s.email === email);
         const name = staff ? staff.name : email;
-        const phone = staff ? staff.phone : "";
         
-        const msg = generateDailyMessage(dateStr, timeStr, reportTime);
+        // --- PHONE NUMBER FIX ---
+        let phone = staff ? (staff.phone || "") : "";
+        phone = phone.replace(/\D/g, ''); // Remove non-digits
+        if (phone.length === 10) phone = "91" + phone; // Add Country Code if missing
+        // ------------------------
+        
+        const msg = generateDailyMessage(name, dateStr, timeStr, reportTime);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : "#";
         
         const disabledAttr = phone ? "" : "disabled";
