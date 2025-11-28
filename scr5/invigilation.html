@@ -304,7 +304,9 @@
                 <input type="text" id="stf-name" placeholder="Full Name" class="w-full p-2 border rounded text-sm">
                 <input type="email" id="stf-email" placeholder="Gmail ID" class="w-full p-2 border rounded text-sm">
                 <input type="text" id="stf-phone" placeholder="WhatsApp (91xxxxx)" class="w-full p-2 border rounded text-sm">
-                <input type="text" id="stf-dept" placeholder="Department" class="w-full p-2 border rounded text-sm">
+                <select id="stf-dept" class="w-full p-2 border rounded text-sm bg-white">
+    <option value="">Select Department...</option>
+</select>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="text-xs text-gray-500">Designation</label><select id="stf-designation" class="w-full p-2 border rounded text-sm bg-white"></select></div>
                     <div><label class="text-xs text-gray-500">Joining Date</label><input type="date" id="stf-join" class="w-full p-2 border rounded text-sm"></div>
@@ -430,6 +432,13 @@
                     <span class="text-xs text-blue-600">for staff without specific roles.</span>
                 </div>
             </div>
+            <h4 class="text-xs font-bold text-indigo-600 uppercase border-b pb-1 mb-2 mt-4">Departments</h4>
+            <div id="dept-list-container" class="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto custom-scroll p-1"></div>
+            <div class="flex gap-2 mb-6">
+                <input type="text" id="new-dept-name" placeholder="Add Department" class="flex-1 p-2 border rounded text-xs">
+                <button onclick="addNewDepartment()" class="bg-green-600 text-white px-3 rounded text-xs font-bold hover:bg-green-700">+</button>
+            </div>
+            
             <h4 class="text-xs font-bold text-indigo-600 uppercase border-b pb-1 mb-2">Role Configuration</h4>
             <div id="roles-list-container" class="space-y-2 max-h-48 overflow-y-auto mb-4 custom-scroll border border-gray-100 rounded p-2 bg-gray-50"></div>
             <div class="flex gap-2 mb-4">
