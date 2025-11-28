@@ -338,36 +338,85 @@ function updateAdminUI() {
     renderStaffTable(); 
 }
 // --- RENDER ADMIN SLOTS (Sorted Newest to Oldest) ---
+// --- RENDER ADMIN SLOTS (Grouped by Month & Week) ---
 function renderSlotsGridAdmin() {
     if(!ui.adminSlotsGrid) return;
     ui.adminSlotsGrid.innerHTML = '';
     
-    // 1. Sort Keys: Date Descending (Newest First)
-    const sortedKeys = Object.keys(invigilationSlots).sort((a, b) => {
-        const parseDate = (key) => {
-            try {
-                const [dStr, tStr] = key.split(' | ');
-                const [d, m, y] = dStr.split('.');
-                
-                let [time, mod] = tStr.split(' ');
-                let [h, min] = time.split(':');
-                h = parseInt(h);
-                if (mod === 'PM' && h !== 12) h += 12;
-                if (mod === 'AM' && h === 12) h = 0;
-                
-                return new Date(y, m - 1, d, h, parseInt(min));
-            } catch (e) { return new Date(0); }
-        };
-        // b - a = Descending (Newest to Oldest)
-        // a - b = Ascending (Oldest to Newest)
-        return parseDate(b) - parseDate(a);
-    });
+    // Helper: Parse Date from Key
+    const parseDate = (key) => {
+        try {
+            const [dStr, tStr] = key.split(' | ');
+            const [d, m, y] = dStr.split('.');
+            let [time, mod] = tStr.split(' ');
+            let [h, min] = time.split(':');
+            h = parseInt(h);
+            if (mod === 'PM' && h !== 12) h += 12;
+            if (mod === 'AM' && h === 12) h = 0;
+            return new Date(y, m - 1, d, h, parseInt(min));
+        } catch (e) { return new Date(0); }
+    };
 
-    sortedKeys.forEach(key => {
-        const slot = invigilationSlots[key];
+    // Helper: Get Week Number of Month
+    const getWeekOfMonth = (date) => {
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+        const dayOfWeek = firstDay.getDay(); // 0 (Sun) to 6 (Sat)
+        const startOffset = dayOfWeek;
+        const dayOfMonth = date.getDate();
+        return Math.ceil((dayOfMonth + startOffset) / 7);
+    };
+
+    // 1. Prepare Data & Sort
+    const slotItems = Object.keys(invigilationSlots).map(key => ({
+        key,
+        date: parseDate(key),
+        slot: invigilationSlots[key]
+    }));
+
+    // Sort: Date Descending (Newest First)
+    slotItems.sort((a, b) => b.date - a.date);
+
+    let lastMonth = "";
+    let lastWeek = "";
+
+    if (slotItems.length === 0) {
+        ui.adminSlotsGrid.innerHTML = `<div class="col-span-full text-center text-gray-400 py-10 italic">No exam slots available. Add a slot to begin.</div>`;
+        return;
+    }
+
+    slotItems.forEach(item => {
+        const { key, date, slot } = item;
         const filled = slot.assigned.length;
         
-        // Color Logic
+        // 2. Generate Headers
+        const monthStr = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const weekNum = getWeekOfMonth(date);
+        const uniqueWeekStr = `${monthStr}-W${weekNum}`;
+
+        // Month Header
+        if (monthStr !== lastMonth) {
+            ui.adminSlotsGrid.innerHTML += `
+                <div class="col-span-full mt-6 mb-1 border-b border-gray-300 pb-2">
+                    <h3 class="text-lg font-bold text-gray-700 flex items-center gap-2">
+                        📅 ${monthStr}
+                    </h3>
+                </div>`;
+            lastMonth = monthStr;
+            lastWeek = ""; // Reset week trigger for new month
+        }
+
+        // Week Header
+        if (uniqueWeekStr !== lastWeek) {
+            ui.adminSlotsGrid.innerHTML += `
+                <div class="col-span-full mt-2 mb-2">
+                    <span class="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
+                        Week ${weekNum}
+                    </span>
+                </div>`;
+            lastWeek = uniqueWeekStr;
+        }
+
+        // 3. Render Slot Card
         let statusColor = "";
         let statusIcon = "";
         
@@ -382,7 +431,6 @@ function renderSlotsGridAdmin() {
             statusIcon = "🔓";
         }
 
-        // Unavailable Button Logic
         let unavButton = "";
         if (slot.unavailable && slot.unavailable.length > 0) {
             unavButton = `
