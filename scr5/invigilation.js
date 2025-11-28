@@ -21,7 +21,8 @@ let designationsConfig = {};
 let rolesConfig = {};
 let currentCalDate = new Date(); 
 let isAdmin = false; 
-let cloudUnsubscribe = null; 
+let cloudUnsubscribe = null;
+let advanceUnavailability = {}; // Stores { "DD.MM.YYYY": { FN: [], AN: [] } }
 let globalDutyTarget = 2; // Default
 
 // --- DOM ELEMENTS ---
@@ -120,12 +121,18 @@ function setupLiveSync(collegeId, mode) {
     cloudUnsubscribe = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
             collegeData = docSnap.data();
-            // Parse all configs
+            
+            // CONFIGS
             designationsConfig = JSON.parse(collegeData.invigDesignations || JSON.stringify(DEFAULT_DESIGNATIONS));
             rolesConfig = JSON.parse(collegeData.invigRoles || JSON.stringify(DEFAULT_ROLES));
             globalDutyTarget = parseInt(collegeData.invigGlobalTarget || 2);
+            
+            // DATA
             staffData = JSON.parse(collegeData.examStaffData || '[]');
             invigilationSlots = JSON.parse(collegeData.examInvigilationSlots || '{}');
+            
+            // NEW: Load Advance Unavailability
+            advanceUnavailability = JSON.parse(collegeData.invigAdvanceUnavailability || '{}');
             
             if (mode === 'admin') {
                 if (document.getElementById('view-admin').classList.contains('hidden') && 
@@ -139,7 +146,6 @@ function setupLiveSync(collegeId, mode) {
                          if(me) { 
                              renderStaffCalendar(me.email); 
                              renderStaffRankList(me.email);
-                             // ADDED: Keep Admin's "View as Staff" market in sync too
                              if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
                          }
                     }
@@ -151,11 +157,8 @@ function setupLiveSync(collegeId, mode) {
                     if (document.getElementById('view-staff').classList.contains('hidden')) {
                         initStaffDashboard(me);
                     } else {
-                        // LIVE REFRESH: Update all parts of the dashboard
                         renderStaffCalendar(me.email);
                         renderStaffRankList(me.email);
-                        
-                        // --- FIX: Update Market Widget on Cloud Change ---
                         if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
                         
                         const pending = calculateStaffTarget(me) - getDutiesDoneCount(me.email);
@@ -290,9 +293,28 @@ function initStaffDashboard(me) {
     };
 }
 // --- HELPERS ---
-function isUserUnavailable(slot, email) {
-    if (!slot.unavailable) return false;
-    return slot.unavailable.some(u => (typeof u === 'string' ? u === email : u.email === email));
+function isUserUnavailable(slot, email, key) {
+    // 1. Check Slot Specific Unavailability
+    if (slot && slot.unavailable && slot.unavailable.some(u => (typeof u === 'string' ? u === email : u.email === email))) return true;
+
+    // 2. Check Advance Unavailability (if key is provided)
+    if (key) {
+        const [dateStr, timeStr] = key.split(' | ');
+        if (advanceUnavailability[dateStr]) {
+            // Determine Session (FN or AN)
+            let session = "FN";
+            const t = timeStr ? timeStr.toUpperCase() : "";
+            // Logic: PM is AN, unless it is 12:xx PM which is usually AN, but let's stick to standard logic
+            // Standard: If it has PM and is not 12:xx AM (invalid), it is AN. 
+            // Simple check: 12:00 PM onwards is AN.
+            if (t.includes("PM") || t.startsWith("12:") || t.startsWith("12.")) session = "AN";
+            
+            if (advanceUnavailability[dateStr][session] && advanceUnavailability[dateStr][session].includes(email)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 function updateAdminUI() {
     document.getElementById('stat-total-staff').textContent = staffData.length;
@@ -476,13 +498,12 @@ function renderStaffCalendar(myEmail) {
     const month = currentCalDate.getMonth();
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     
-    // Update Title
     if(ui.calTitle) ui.calTitle.textContent = `${monthNames[month]} ${year}`;
 
     const firstDayIndex = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    // Group Slots by Date
+    // Group Slots
     const slotsByDate = {};
     Object.keys(invigilationSlots).forEach(key => {
         const [dStr, tStr] = key.split(' | ');
@@ -490,7 +511,6 @@ function renderStaffCalendar(myEmail) {
         if (parseInt(mm) === month + 1 && parseInt(yyyy) === year) {
             const dayNum = parseInt(dd);
             if (!slotsByDate[dayNum]) slotsByDate[dayNum] = [];
-            
             let sessionType = "FN";
             const t = tStr.toUpperCase();
             if (t.includes("PM") || t.startsWith("12:") || t.startsWith("12.")) sessionType = "AN";
@@ -498,22 +518,21 @@ function renderStaffCalendar(myEmail) {
         }
     });
 
-    // Generate Calendar HTML
     let html = "";
-    // Empty cells for days before the 1st
     for (let i = 0; i < firstDayIndex; i++) {
         html += `<div class="bg-gray-50 border border-gray-100 min-h-[5rem] md:min-h-[7rem]"></div>`;
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${String(day).padStart(2,'0')}.${String(month+1).padStart(2,'0')}.${year}`;
         const slots = slotsByDate[day] || [];
-        // COMPACT DATE HEADER: Reduced padding (p-0.5)
+        
         let dayContent = `<div class="text-right font-bold text-xs md:text-sm p-0.5 text-gray-400">${day}</div>`;
         let bgClass = "bg-white"; 
         let borderClass = "border-gray-200";
 
+        // --- RENDER SLOTS ---
         if (slots.length > 0) {
-            // COMPACT WRAPPER: Reduced gap and margin
             dayContent += `<div class="flex flex-col gap-0.5 px-0.5 pb-0.5">`;
             slots.sort((a, b) => a.sessionType === "FN" ? -1 : 1);
             
@@ -522,64 +541,58 @@ function renderStaffCalendar(myEmail) {
                 const needed = slot.required;
                 const available = Math.max(0, needed - filled);
                 
+                // Pass slot.key to isUserUnavailable
+                const isUnavailable = isUserUnavailable(slot, myEmail, slot.key);
                 const isAssigned = slot.assigned.includes(myEmail);
                 const isPostedByMe = slot.exchangeRequests && slot.exchangeRequests.includes(myEmail);
                 const isMarketAvailable = slot.exchangeRequests && slot.exchangeRequests.length > 0 && !isAssigned;
                 const isCompleted = slot.attendance && slot.attendance.includes(myEmail);
-                const isUnavailable = isUserUnavailable(slot, myEmail);
                 
-                let badgeColor = "";
-                let statusText = "";
+                let badgeColor = "bg-green-100 text-green-700 border-green-200";
+                let statusText = `${available}/${needed}`;
 
-                if (isCompleted) { 
-                    badgeColor = "bg-green-600 text-white border-green-600"; 
-                    statusText = "Done"; 
-                }
-                else if (isPostedByMe) {
-                    badgeColor = "bg-orange-100 text-orange-700 border-orange-300";
-                    statusText = "⏳ Posted"; 
-                }
-                else if (isAssigned) { 
-                    badgeColor = "bg-blue-600 text-white border-blue-600"; 
-                    statusText = "Assigned"; 
-                }
-                else if (isMarketAvailable) {
-                    badgeColor = "bg-purple-100 text-purple-700 border-purple-300 font-bold animate-pulse";
-                    statusText = "♻️ Market";
-                }
-                else if (isUnavailable) { 
-                    badgeColor = "bg-red-50 text-red-600 border-red-200"; 
-                    statusText = "Unavail"; 
-                }
-                else if (slot.isLocked) { 
-                    badgeColor = "bg-gray-100 text-gray-500 border-gray-300"; 
-                    statusText = "Locked"; 
-                }
-                else if (filled >= needed) { 
-                    badgeColor = "bg-gray-100 text-gray-400 border-gray-200"; 
-                    statusText = "Full"; 
-                }
-                else {
-                    badgeColor = "bg-green-100 text-green-700 border-green-200"; 
-                    statusText = `${available}/${needed}`;
-                }
+                if (isCompleted) { badgeColor = "bg-green-600 text-white border-green-600"; statusText = "Done"; }
+                else if (isPostedByMe) { badgeColor = "bg-orange-100 text-orange-700 border-orange-300"; statusText = "⏳ Posted"; }
+                else if (isAssigned) { badgeColor = "bg-blue-600 text-white border-blue-600"; statusText = "Assigned"; }
+                else if (isMarketAvailable) { badgeColor = "bg-purple-100 text-purple-700 border-purple-300 animate-pulse"; statusText = "♻️ Market"; }
+                else if (isUnavailable) { badgeColor = "bg-red-50 text-red-600 border-red-200"; statusText = "Unavail"; }
+                else if (slot.isLocked) { badgeColor = "bg-gray-100 text-gray-500 border-gray-300"; statusText = "Locked"; }
+                else if (filled >= needed) { badgeColor = "bg-gray-100 text-gray-400 border-gray-200"; statusText = "Full"; }
 
-                // COMPACT BADGE: Smaller text (text-[8px]), tighter padding (p-0.5), leading-none
                 dayContent += `
                     <div class="text-[8px] md:text-[10px] font-bold p-0.5 rounded border ${badgeColor} flex flex-col md:flex-row justify-between items-center text-center md:text-left h-auto gap-0.5 shadow-sm leading-none">
                         <span>${slot.sessionType}</span>
                         <span class="whitespace-nowrap">${statusText}</span>
                     </div>`;
             });
-            
             dayContent += `</div>`;
             bgClass = "bg-white hover:bg-gray-50 cursor-pointer transition";
+        } 
+        else {
+            // --- NO SLOTS: CHECK ADVANCE UNAVAILABILITY ---
+            const adv = advanceUnavailability[dateStr];
+            let advBadges = "";
+            
+            if (adv) {
+                if (adv.FN && adv.FN.includes(myEmail)) {
+                    advBadges += `<div class="text-[8px] font-bold p-0.5 rounded bg-red-50 text-red-600 border border-red-200 text-center mb-0.5">FN: Unavail</div>`;
+                }
+                if (adv.AN && adv.AN.includes(myEmail)) {
+                    advBadges += `<div class="text-[8px] font-bold p-0.5 rounded bg-red-50 text-red-600 border border-red-200 text-center">AN: Unavail</div>`;
+                }
+            }
+            
+            if (advBadges) {
+                 dayContent += `<div class="flex flex-col px-0.5 mt-1">${advBadges}</div>`;
+                 bgClass = "bg-red-50 hover:bg-red-100 cursor-pointer transition"; // Highlight day
+            } else {
+                 // Empty day, but still clickable to add OD/DL
+                 bgClass = "bg-white hover:bg-gray-50 cursor-pointer transition";
+            }
         }
         
-        const dateStr = `${String(day).padStart(2,'0')}.${String(month+1).padStart(2,'0')}.${year}`;
-        const clickAction = slots.length > 0 ? `onclick="openDayModal('${dateStr}', '${myEmail}')"` : "";
-        
-        // CONTAINER: Ensures cell grows with content (h-auto)
+        // Always clickable now
+        const clickAction = `onclick="openDayModal('${dateStr}', '${myEmail}')"`;
         html += `<div class="border min-h-[5rem] md:min-h-[7rem] h-auto ${borderClass} ${bgClass} flex flex-col relative" ${clickAction}>${dayContent}</div>`;
     }
     if(ui.calGrid) ui.calGrid.innerHTML = html;
@@ -678,172 +691,99 @@ window.openDayModal = function(dateStr, email) {
     const container = document.getElementById('modal-sessions-container');
     container.innerHTML = '';
     
-    // 1. Get Sessions for this Date
+    // 1. Existing Sessions
     const sessions = Object.keys(invigilationSlots).filter(k => k.startsWith(dateStr));
     
     if (sessions.length === 0) {
-        container.innerHTML = `<p class="text-gray-400 text-sm text-center py-4">No sessions scheduled.</p>`;
+        container.innerHTML = `<p class="text-gray-400 text-sm text-center py-4 bg-gray-50 rounded border border-gray-100 mb-4">No exam sessions scheduled yet.</p>`;
+    } else {
+        sessions.forEach(key => {
+            const slot = invigilationSlots[key];
+            const filled = slot.assigned.length;
+            const needed = slot.required - filled;
+            
+            // Pass key to check advance status
+            const isUnavailable = isUserUnavailable(slot, email, key);
+            const isAssigned = slot.assigned.includes(email);
+            const isLocked = slot.isLocked;
+            const isPostedByMe = slot.exchangeRequests && slot.exchangeRequests.includes(email);
+            const marketOffers = slot.exchangeRequests ? slot.exchangeRequests.filter(e => e !== email) : [];
+
+            const t = key.split(' | ')[1].toUpperCase();
+            const sessLabel = (t.includes("PM") || t.startsWith("12")) ? "AFTERNOON (AN)" : "FORENOON (FN)";
+
+            let actionHtml = "";
+            // ... (Keep existing button logic, using new isUnavailable variable) ...
+            if (isAssigned) {
+                if (isPostedByMe) {
+                    actionHtml = `<div class="w-full bg-orange-50 p-2 rounded border border-orange-200"><div class="text-xs text-orange-700 font-bold mb-1 text-center">⏳ Posted for Exchange</div><p class="text-[10px] text-orange-600 text-center mb-2 leading-tight">You remain liable until accepted.</p><button onclick="withdrawExchange('${key}', '${email}')" class="w-full bg-white text-orange-700 border border-orange-300 text-xs py-2 rounded font-bold hover:bg-orange-100 shadow-sm transition">↩️ Withdraw Request</button></div>`;
+                } else if (isLocked) {
+                    actionHtml = `<button onclick="postForExchange('${key}', '${email}')" class="w-full bg-purple-100 text-purple-700 border border-purple-300 text-xs py-2 rounded font-bold hover:bg-purple-200 transition shadow-sm">♻️ Post for Exchange</button>`;
+                } else {
+                    actionHtml = `<button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold">✅ Assigned (Click to Cancel)</button>`;
+                }
+            } else if (marketOffers.length > 0) {
+                 let offersHtml = marketOffers.map(seller => `<div class="flex justify-between items-center bg-purple-50 p-2 rounded border border-purple-100 mb-1"><span class="text-xs font-bold text-purple-800">${getNameFromEmail(seller)}</span><button onclick="acceptExchange('${key}', '${email}', '${seller}')" class="bg-purple-600 text-white text-[10px] px-2 py-1 rounded font-bold">Take</button></div>`).join('');
+                 actionHtml = `<div class="w-full mb-1">${offersHtml}</div>`;
+            } else if (isUnavailable) {
+                 // Check if it's advance or slot specific? 
+                 // If advance, we can't "undo" via slot. 
+                 // So we show a generic message or rely on the bottom section.
+                 actionHtml = `<div class="text-center text-xs text-red-500 font-bold py-2">Marked Unavailable</div>`;
+            } else {
+                 const unavBtn = `<button onclick="setAvailability('${key}', '${email}', false)" class="bg-white border border-red-200 text-red-600 text-xs py-2 px-4 rounded font-bold">Unavailable</button>`;
+                 if (isLocked) actionHtml = `<div class="flex gap-2 w-full"><div class="flex-1 bg-gray-100 text-gray-500 text-xs py-2 rounded font-bold text-center border border-gray-200">🔒 Locked</div>${unavBtn}</div>`;
+                 else if (needed <= 0) actionHtml = `<div class="flex gap-2 w-full"><div class="flex-1 bg-gray-50 text-gray-400 text-xs py-2 rounded font-bold text-center border border-gray-200">Full</div>${unavBtn}</div>`;
+                 else actionHtml = `<div class="flex gap-2 w-full"><button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold">Volunteer</button>${unavBtn}</div>`;
+            }
+
+            // Staff List
+            let staffListHtml = '';
+            if (slot.assigned.length > 0) {
+                const listItems = slot.assigned.map(st => {
+                    const s = staffData.find(sd => sd.email === st);
+                    if (!s) return ''; 
+                    const isExchanging = slot.exchangeRequests && slot.exchangeRequests.includes(st);
+                    const statusIcon = isExchanging ? "⏳" : "✅";
+                    return `<div class="flex justify-between items-center text-xs bg-white p-1.5 rounded border border-gray-100 mb-1"><span class="font-bold text-gray-700">${statusIcon} ${s.name}</span></div>`;
+                }).join('');
+                staffListHtml = `<div class="mt-3 pt-2 border-t border-gray-200"><div class="text-[10px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">Assigned Staff</div><div class="space-y-0.5 max-h-24 overflow-y-auto custom-scroll">${listItems}</div></div>`;
+            }
+
+            container.innerHTML += `<div class="bg-gray-50 p-3 rounded border border-gray-200 mb-2"><div class="flex justify-between items-center mb-2"><span class="font-bold text-gray-800 text-sm">${sessLabel} <span class="text-[10px] text-gray-500 font-normal ml-1">${key.split('|')[1]}</span></span><span class="text-xs bg-white border px-2 py-0.5 rounded">${filled}/${slot.required}</span></div><div class="mt-2">${actionHtml}</div>${staffListHtml}</div>`;
+        });
     }
 
-    sessions.forEach(key => {
-        const slot = invigilationSlots[key];
-        const filled = slot.assigned.length;
-        const needed = slot.required - filled;
-        
-        // --- STATUS FLAGS ---
-        const isAssigned = slot.assigned.includes(email);
-        const isUnavailable = isUserUnavailable(slot, email);
-        const isLocked = slot.isLocked;
-        const isPostedByMe = slot.exchangeRequests && slot.exchangeRequests.includes(email);
-        
-        // Filter offers from OTHERS (remove my own requests from the market view)
-        const marketOffers = slot.exchangeRequests ? slot.exchangeRequests.filter(e => e !== email) : [];
+    // 2. ADVANCE UNAVAILABILITY SECTION (Always Visible)
+    const adv = advanceUnavailability[dateStr] || { FN: [], AN: [] };
+    const fnUnavail = adv.FN && adv.FN.includes(email);
+    const anUnavail = adv.AN && adv.AN.includes(email);
 
-        // Formatting
-        const t = key.split(' | ')[1].toUpperCase();
-        const sessLabel = (t.includes("PM") || t.startsWith("12")) ? "AFTERNOON (AN)" : "FORENOON (FN)";
-
-        // --- 2. ACTION BUTTON LOGIC ---
-        let actionHtml = "";
-
-        if (isAssigned) {
-            // CASE A: YOU ARE ASSIGNED
-            if (isPostedByMe) {
-                // A1: Posted for Exchange (You are liable) -> Show Withdraw
-                actionHtml = `
-                    <div class="w-full bg-orange-50 p-2 rounded border border-orange-200">
-                        <div class="text-xs text-orange-700 font-bold mb-1 text-center">⏳ Posted for Exchange</div>
-                        <p class="text-[10px] text-orange-600 text-center mb-2 leading-tight">You remain liable until accepted.</p>
-                        <button onclick="withdrawExchange('${key}', '${email}')" class="w-full bg-white text-orange-700 border border-orange-300 text-xs py-2 rounded font-bold hover:bg-orange-100 shadow-sm transition">
-                            ↩️ Withdraw Request
-                        </button>
-                    </div>`;
-            } else if (isLocked) {
-                // A2: Locked & Assigned -> Show Post for Exchange
-                actionHtml = `
-                    <button onclick="postForExchange('${key}', '${email}')" class="w-full bg-purple-100 text-purple-700 border border-purple-300 text-xs py-2 rounded font-bold hover:bg-purple-200 transition shadow-sm">
-                        ♻️ Post for Exchange
-                    </button>`;
-            } else {
-                // A3: Unlocked -> Standard Cancel
-                actionHtml = `
-                    <button onclick="cancelDuty('${key}', '${email}', false)" class="w-full bg-green-100 text-green-700 border border-green-300 text-xs py-2 rounded font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition shadow-sm">
-                        ✅ Assigned (Click to Cancel)
-                    </button>`;
-            }
-        } 
-        else if (marketOffers.length > 0) {
-            // CASE B: MARKET OPEN (Show Specific Offers)
-            let offersHtml = marketOffers.map(sellerEmail => {
-                const sellerName = getNameFromEmail(sellerEmail);
-                return `
-                    <div class="flex justify-between items-center bg-purple-50 p-2 rounded border border-purple-100 mb-1.5 shadow-sm">
-                        <div class="flex flex-col">
-                            <span class="text-[10px] text-purple-600 font-medium uppercase tracking-wide">Exchange Offer</span>
-                            <span class="text-xs font-bold text-purple-900">${sellerName}</span>
-                        </div>
-                        <button onclick="acceptExchange('${key}', '${email}', '${sellerEmail}')" class="bg-purple-600 text-white text-[10px] px-3 py-1.5 rounded font-bold hover:bg-purple-700 transition shadow-sm border border-purple-700">
-                            Take Duty
-                        </button>
-                    </div>`;
-            }).join('');
-            
-            actionHtml = `
-                <div class="w-full">
-                    ${offersHtml}
-                    <button onclick="setAvailability('${key}', '${email}', false)" class="w-full mt-1 text-center text-[10px] text-gray-400 hover:text-red-500 py-1">
-                        Mark Unavailable
+    container.innerHTML += `
+        <div class="mt-6 pt-4 border-t border-gray-200">
+            <h4 class="text-xs font-bold text-indigo-900 uppercase mb-2 flex items-center gap-2">
+                <span>🗓️</span> Advance Unavailability
+            </h4>
+            <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                <p class="text-[10px] text-gray-600 mb-3">
+                    Use this to mark OD / DL / Leave for the <b>entire session</b>, even if exams are not scheduled yet.
+                </p>
+                <div class="flex gap-3">
+                    <button onclick="toggleAdvance('${dateStr}', '${email}', 'FN')" 
+                        class="flex-1 py-2.5 text-xs font-bold rounded shadow-sm border transition flex items-center justify-center gap-2
+                        ${fnUnavail ? 'bg-red-600 text-white border-red-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}">
+                        ${fnUnavail ? '🚫 FN Unavailable' : 'Mark FN Unavailable'}
                     </button>
-                </div>`;
-        }
-        else if (isUnavailable) {
-            // CASE C: UNAVAILABLE
-             actionHtml = `
-                <button onclick="setAvailability('${key}', '${email}', true)" class="w-full text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 py-2 rounded transition">
-                    Undo "Unavailable" Status
-                </button>`;
-        } 
-        else {
-            // CASE D: STANDARD VACANCY
-            const unavailableBtn = `<button onclick="setAvailability('${key}', '${email}', false)" class="bg-white border border-red-200 text-red-600 text-xs py-2 px-3 rounded font-bold hover:bg-red-50 transition shadow-sm">Unavailable</button>`;
-            
-            if (isLocked) {
-                // Locked
-                 actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <div class="flex-1 bg-gray-100 text-gray-500 text-xs py-2 rounded font-bold text-center border border-gray-200 cursor-not-allowed flex items-center justify-center gap-1">
-                            🔒 Locked
-                        </div>
-                        ${unavailableBtn}
-                    </div>`;
-            } else if (needed <= 0) {
-                // Full
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <div class="flex-1 bg-gray-50 text-gray-400 text-xs py-2 rounded font-bold text-center border border-gray-200 cursor-default">
-                            Slot Full
-                        </div>
-                        ${unavailableBtn}
-                    </div>`;
-            } else {
-                // Open to Volunteer
-                actionHtml = `
-                    <div class="flex gap-2 w-full">
-                        <button onclick="volunteer('${key}', '${email}')" class="flex-1 bg-indigo-600 text-white text-xs py-2 rounded font-bold hover:bg-indigo-700 shadow-sm transition flex items-center justify-center gap-1">
-                            <span>🙋‍♂️</span> Volunteer
-                        </button>
-                        ${unavailableBtn}
-                    </div>`;
-            }
-        }
-
-        // --- 3. STAFF LIST (With Status Icons) ---
-        let staffListHtml = '';
-        if (slot.assigned.length > 0) {
-            const listItems = slot.assigned.map(staffEmail => {
-                const s = staffData.find(st => st.email === staffEmail);
-                if (!s) return ''; 
-                
-                // Icon Logic: Green check vs Orange hourglass
-                const isExchanging = slot.exchangeRequests && slot.exchangeRequests.includes(staffEmail);
-                const statusIcon = isExchanging ? "⏳" : "✅";
-                const statusClass = isExchanging ? "text-orange-600" : "text-gray-700";
-                
-                return `
-                    <div class="flex justify-between items-center text-xs bg-white p-1.5 rounded border border-gray-100 mb-1">
-                        <span class="font-bold ${statusClass}">${statusIcon} ${s.name}</span>
-                        <a href="https://wa.me/${s.phone}" target="_blank" class="text-green-600 font-bold hover:text-green-800">✆</a>
-                    </div>`;
-            }).join('');
-            
-            staffListHtml = `
-                <div class="mt-3 pt-2 border-t border-gray-200">
-                    <div class="text-[10px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">Assigned Staff</div>
-                    <div class="space-y-0.5 max-h-24 overflow-y-auto custom-scroll">${listItems}</div>
-                </div>`;
-        }
-
-        // --- 4. ASSEMBLE HTML ---
-        container.innerHTML += `
-            <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm mb-2">
-                <div class="flex justify-between items-center mb-3">
-                    <div>
-                        <span class="font-bold text-gray-800 block text-sm">${sessLabel}</span>
-                        <span class="text-[10px] text-gray-500 font-mono">${key.split('|')[1]}</span>
-                    </div>
-                    <span class="text-xs font-bold px-2 py-1 rounded ${needed > 0 ? 'bg-white text-green-600 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}">
-                        ${filled}/${slot.required} Filled
-                    </span>
+                    
+                    <button onclick="toggleAdvance('${dateStr}', '${email}', 'AN')" 
+                        class="flex-1 py-2.5 text-xs font-bold rounded shadow-sm border transition flex items-center justify-center gap-2
+                        ${anUnavail ? 'bg-red-600 text-white border-red-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}">
+                        ${anUnavail ? '🚫 AN Unavailable' : 'Mark AN Unavailable'}
+                    </button>
                 </div>
-                
-                <div class="mb-2">
-                    ${actionHtml}
-                </div>
-                
-                ${staffListHtml}
             </div>
-        `;
-    });
+        </div>
+    `;
 
     window.openModal('day-detail-modal');
 }
@@ -963,7 +903,40 @@ async function saveManualSlot() {
     window.closeModal('add-slot-modal');
     renderSlotsGridAdmin();
 }
+// --- NEW: Toggle Advance Unavailability ---
+window.toggleAdvance = async function(dateStr, email, session) {
+    // 1. Init date object if missing
+    if (!advanceUnavailability[dateStr]) advanceUnavailability[dateStr] = { FN: [], AN: [] };
+    if (!advanceUnavailability[dateStr][session]) advanceUnavailability[dateStr][session] = [];
 
+    const list = advanceUnavailability[dateStr][session];
+    const isMarked = list.includes(email);
+
+    if (isMarked) {
+        // Remove
+        if(confirm(`Remove 'Unavailable' status for ${session}?`)) {
+            advanceUnavailability[dateStr][session] = list.filter(e => e !== email);
+            await saveAdvanceUnavailability();
+            renderStaffCalendar(email); // Refresh Grid
+            openDayModal(dateStr, email); // Refresh Modal
+        }
+    } else {
+        // Add
+        const reason = prompt("Enter Reason (e.g., OD, DL, Leave):", "OD");
+        if (reason) {
+            advanceUnavailability[dateStr][session].push(email);
+            // Optionally store reason? Currently simplified to just email list.
+            await saveAdvanceUnavailability();
+            renderStaffCalendar(email); // Refresh Grid
+            openDayModal(dateStr, email); // Refresh Modal
+        }
+    }
+}
+
+async function saveAdvanceUnavailability() {
+    const ref = doc(db, "colleges", currentCollegeId);
+    await updateDoc(ref, { invigAdvanceUnavailability: JSON.stringify(advanceUnavailability) });
+}
 
 // --- STANDARD EXPORTS ---
 window.toggleLock = async function(key) {
@@ -1273,7 +1246,7 @@ window.runAutoAllocation = async function() {
         for (let i = 0; i < needed; i++) {
             const candidate = eligibleStaff.find(s => {
                 if (slot.assigned.includes(s.email)) return false;
-                if (isUserUnavailable(slot, s.email)) return false;
+                if (isUserUnavailable(slot, s.email, sessionKey)) return false;
                 if (s.designation === "Guest Lecturer" && s.preferredDays && !s.preferredDays.includes(dayOfWeek)) return false;
                 return true;
             });
@@ -1363,7 +1336,7 @@ window.openManualAllocationModal = function(key) {
     let selectedCount = 0;
     rankedStaff.forEach(s => {
         const isAssigned = slot.assigned.includes(s.email);
-        if (isUserUnavailable(slot, s.email)) return; 
+        if (isUserUnavailable(slot, s.email, key)) return; 
         if (isAssigned) selectedCount++;
         const checkState = isAssigned ? 'checked' : '';
         const rowClass = isAssigned ? 'bg-indigo-50' : 'hover:bg-gray-50';
@@ -1973,6 +1946,7 @@ window.updateAttCount = updateAttCount;
 window.saveAttendance = saveAttendance;
 window.openDutyNormsModal = openDutyNormsModal;
 window.acceptExchange = acceptExchange;
+window.toggleAdvance = toggleAdvance;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
