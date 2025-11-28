@@ -289,13 +289,20 @@ function initStaffDashboard(me) {
 
     // --- CALCULATE STATS ---
     const target = calculateStaffTarget(me);
-    const done = getDutiesDoneCount(me.email); // Counts confirmed attendance
+    const done = getDutiesDoneCount(me.email); 
     const pending = target - done;
     
     // Update UI
     document.getElementById('staff-view-pending').textContent = pending > 0 ? pending : "0 (Done)";
     const completedEl = document.getElementById('staff-view-completed');
     if(completedEl) completedEl.textContent = done;
+
+    // --- NEW: Attach Click Handler for History ---
+    const completedCard = document.getElementById('staff-completed-card');
+    if(completedCard) {
+        completedCard.onclick = () => window.openCompletedDutiesModal(me.email);
+    }
+    // ---------------------------------------------
     
     updateHeaderButtons('staff');
     renderStaffCalendar(me.email);
@@ -2512,6 +2519,63 @@ function renderAdminTodayStats() {
         </div>
     `;
 }
+window.openCompletedDutiesModal = function(email) {
+    const list = document.getElementById('completed-duties-list');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    const history = [];
+    
+    // 1. Scan for completed duties
+    Object.keys(invigilationSlots).forEach(key => {
+        const slot = invigilationSlots[key];
+        if (slot.attendance && slot.attendance.includes(email)) {
+            // Determine Role (Invigilator vs CS/SAS)
+            let role = "Invigilator";
+            if (slot.supervision) {
+                if (slot.supervision.cs === email) role = "Chief Supt.";
+                else if (slot.supervision.sas === email) role = "Senior Asst.";
+            }
+            history.push({ key, role });
+        }
+    });
+
+    // 2. Sort (Newest First)
+    history.sort((a, b) => {
+        // Reuse existing parseDate helper
+        const dateA = parseDate(a.key);
+        const dateB = parseDate(b.key);
+        return dateB - dateA;
+    });
+
+    // 3. Render
+    if (history.length === 0) {
+        list.innerHTML = `<div class="text-center text-gray-400 text-xs py-8 italic bg-gray-50 rounded border border-gray-100">No completed duties found yet.</div>`;
+    } else {
+        history.forEach(item => {
+            const [date, time] = item.key.split(' | ');
+            // Color coding for roles
+            const isSup = item.role !== "Invigilator";
+            const bgClass = isSup ? "bg-purple-50 border-purple-100" : "bg-green-50 border-green-100";
+            const textClass = isSup ? "text-purple-900" : "text-green-900";
+            const badgeClass = isSup ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-white text-green-600 border-green-200";
+
+            list.innerHTML += `
+                <div class="flex justify-between items-center p-3 rounded border ${bgClass} hover:shadow-sm transition">
+                    <div>
+                        <div class="text-sm font-bold ${textClass}">${date}</div>
+                        <div class="text-[10px] text-gray-500 font-medium">${time}</div>
+                    </div>
+                    <span class="text-[10px] font-bold uppercase px-2 py-1 rounded border ${badgeClass}">
+                        ${item.role}
+                    </span>
+                </div>`;
+        });
+    }
+
+    window.openModal('completed-duties-modal');
+}
+
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
 window.waNotify = waNotify;
@@ -2562,6 +2626,7 @@ window.toggleAttendanceLock = toggleAttendanceLock;
 window.toggleWeekLock = toggleWeekLock;
 window.printSessionReport = printSessionReport;
 window.renderAdminTodayStats = renderAdminTodayStats;
+window.openCompletedDutiesModal = openCompletedDutiesModal;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
