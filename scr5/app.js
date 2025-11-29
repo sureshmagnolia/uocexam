@@ -7792,7 +7792,6 @@ async function findAvailableRooms(sessionKey) {
 window.openScribeRoomModal = async function(regNo, studentName) {
     studentToAllotScribeRoom = regNo;
     scribeRoomModalTitle.textContent = `Select Room for ${studentName} (${regNo})`;
-    NEW: Clear previous search
     const searchInput = document.getElementById('scribe-room-search');
     if(searchInput) searchInput.value = "";
     const sessionKey = allotmentSessionSelect.value; // MODIFIED: Use main allotment selector
