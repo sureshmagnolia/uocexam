@@ -6517,6 +6517,7 @@ function render_qp_code_list(sessionKey) {
     } else {
         saveQpCodesButton.classList.remove('opacity-50', 'cursor-not-allowed');
     }
+    }
 
 // V89: NEW SAVE STRATEGY
 saveQpCodesButton.addEventListener('click', () => {
