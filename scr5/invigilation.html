@@ -238,9 +238,16 @@
 
                 <div class="mt-4 pt-4 border-t border-gray-200">
                     <label class="block text-xs font-bold text-indigo-600 uppercase mb-2">Add Substitute / Replacement</label>
-                    <div class="flex gap-2">
-                        <select id="att-substitute-select" class="flex-1 p-2 border rounded text-sm bg-white"></select>
-                        <button id="btn-att-add" onclick="addSubstituteToAttendance()" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded text-xs font-bold hover:bg-indigo-200 transition">+ Add</button>
+                    <div class="flex gap-2 relative">
+                        <div class="flex-1 relative">
+                            <input type="text" id="att-substitute-search" placeholder="Type 3+ chars to search faculty..." 
+                                class="w-full p-2 border border-gray-300 rounded text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none" autocomplete="off">
+                            
+                            <div id="att-substitute-results" class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto custom-scroll hidden"></div>
+                        </div>
+                        <button id="btn-att-add" onclick="addSubstituteToAttendance()" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded text-xs font-bold hover:bg-indigo-200 transition flex items-center gap-1">
+                            <span>+</span> Add
+                        </button>
                     </div>
                 </div>
             </div>
