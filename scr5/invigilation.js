@@ -4374,12 +4374,11 @@ window.handleAttendanceCSVUpload = function(input) {
 }
 
 // 3. Process CSV
+// 3. Process CSV (Smart Validation)
 async function processAttendanceCSV(csvText) {
     const lines = csvText.split('\n');
     if (lines.length < 2) return alert("CSV is empty or invalid.");
 
-    // Headers: Date, Session, Email, Role
-    // We assume standard order or simple checking
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     const dateIdx = headers.findIndex(h => h.includes('date'));
     const sessIdx = headers.findIndex(h => h.includes('session'));
@@ -4392,6 +4391,7 @@ async function processAttendanceCSV(csvText) {
 
     let updatedCount = 0;
     let errorCount = 0;
+    const unknownEmails = new Set(); // Track missing staff
 
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -4399,13 +4399,19 @@ async function processAttendanceCSV(csvText) {
         
         const row = line.split(',').map(v => v.trim());
         const rawDate = row[dateIdx];
-        const sessionType = row[sessIdx].toUpperCase(); // FN or AN
+        const sessionType = row[sessIdx].toUpperCase(); 
         const email = row[emailIdx];
         const role = roleIdx !== -1 ? row[roleIdx].toUpperCase() : "INVIGILATOR";
 
         if (!rawDate || !sessionType || !email) continue;
 
-        // 1. Normalize Date (DD-MM-YY -> DD.MM.YYYY)
+        // Validate Staff Existence
+        const staffExists = staffData.some(s => s.email.toLowerCase() === email.toLowerCase());
+        if (!staffExists) {
+            unknownEmails.add(email);
+        }
+
+        // 1. Normalize Date
         let dateStr = "";
         try {
             let cleanStr = rawDate.replace(/[./]/g, '-');
@@ -4417,7 +4423,6 @@ async function processAttendanceCSV(csvText) {
         } catch (e) { continue; }
 
         // 2. Find Matching Slot
-        // We look for a slot starting with "DD.MM.YYYY" and matching Session Type
         const matchingKey = Object.keys(invigilationSlots).find(key => {
             if (!key.startsWith(dateStr)) return false;
             const tStr = key.split(' | ')[1].toUpperCase();
@@ -4428,12 +4433,10 @@ async function processAttendanceCSV(csvText) {
 
         if (matchingKey) {
             const slot = invigilationSlots[matchingKey];
-            
-            // Initialize arrays if missing
             if (!slot.attendance) slot.attendance = [];
             if (!slot.supervision) slot.supervision = { cs: "", sas: "" };
 
-            // Add to Attendance
+            // Add to Attendance (Avoid duplicates)
             if (!slot.attendance.includes(email)) {
                 slot.attendance.push(email);
             }
@@ -4445,16 +4448,26 @@ async function processAttendanceCSV(csvText) {
             updatedCount++;
         } else {
             errorCount++;
-            console.warn(`Slot not found for ${dateStr} ${sessionType}`);
         }
     }
 
     if (updatedCount > 0) {
         await syncSlotsToCloud();
-        alert(`✅ Bulk Upload Complete.\nUpdated records for ${updatedCount} staff.\n(Skipped/Errors: ${errorCount})`);
-        populateAttendanceSessions(); // Refresh dropdown
         
-        // Refresh list if a session is currently selected
+        let msg = `✅ Bulk Upload Complete.\nUpdated records for ${updatedCount} staff.`;
+        
+        // ALERT FOR UNKNOWN STAFF
+        if (unknownEmails.size > 0) {
+            msg += `\n\n⚠️ WARNING: ${unknownEmails.size} emails were not found in your Staff Database:\n` + 
+                   Array.from(unknownEmails).slice(0, 5).join("\n") + 
+                   (unknownEmails.size > 5 ? "\n...and others." : "") +
+                   `\n\nThey have been marked present, but please add them to "Staff Management" for full details.`;
+        }
+
+        if (errorCount > 0) msg += `\n\n(Skipped ${errorCount} rows due to date mismatch)`;
+
+        alert(msg);
+        populateAttendanceSessions();
         if (ui.attSessionSelect && ui.attSessionSelect.value) {
             loadSessionAttendance();
         }
