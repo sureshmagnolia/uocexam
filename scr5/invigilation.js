@@ -2183,18 +2183,19 @@ window.openDutyNormsModal = function() {
 function populateAttendanceSessions() {
     if(!ui.attSessionSelect) return;
     
-    // Sort Sessions (Newest First)
+    // Sort Sessions: Latest Date/Time First (Descending)
     const sortedKeys = Object.keys(invigilationSlots).sort((a, b) => {
-        // Simple string sort is usually enough if format is consistent, 
-        // but for robustness we rely on your existing compare logic or just simple sort for now.
-        return b.localeCompare(a); 
+        const dateA = parseDate(a); // Uses the helper to get full Date object with time
+        const dateB = parseDate(b);
+        return dateB - dateA; // Descending (B - A)
     });
 
     ui.attSessionSelect.innerHTML = '<option value="">-- Select Session --</option>';
+    
     sortedKeys.forEach(key => {
         const slot = invigilationSlots[key];
-        // Add checkmark if attendance was already saved
-        const mark = slot.attendance ? "✅ " : "";
+        // Add checkmark if attendance has been marked (array exists and not empty)
+        const mark = (slot.attendance && slot.attendance.length > 0) ? "✅ " : "";
         
         const opt = document.createElement('option');
         opt.value = key;
