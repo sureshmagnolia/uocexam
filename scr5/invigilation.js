@@ -643,8 +643,22 @@ function renderStaffTable() {
 
         const row = document.createElement('tr');
         row.className = "hover:bg-gray-50 transition border-b border-gray-100";
+        
+        // *** UPDATED HTML: Added ${staff.dept} ***
         row.innerHTML = `
-            <td class="px-6 py-3"><div class="flex items-center"><div class="h-8 w-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-xs mr-3">${staff.name.charAt(0)}</div><div><div class="text-sm font-bold text-gray-800">${staff.name}</div><div class="text-xs text-gray-500">${staff.designation} ${activeRoleLabel}</div></div></div></td>
+            <td class="px-6 py-3">
+                <div class="flex items-center">
+                    <div class="h-8 w-8 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-xs mr-3">
+                        ${staff.name.charAt(0)}
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-gray-800">${staff.name}</div>
+                        <div class="text-xs text-gray-500">
+                            <span class="font-semibold text-gray-600">${staff.dept}</span> | ${staff.designation} ${activeRoleLabel}
+                        </div>
+                    </div>
+                </div>
+            </td>
             <td class="px-6 py-3 text-center font-mono text-sm text-gray-600">${target}</td>
             <td class="px-6 py-3 text-center font-mono text-sm font-bold">${done}</td>
             <td class="px-6 py-3 text-center font-mono text-sm ${statusColor}">${pending}</td>
