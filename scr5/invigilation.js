@@ -20,7 +20,18 @@ const DEFAULT_ROLES = {
     "Senior Asst. Superintendent": 0 // <--- NEW
 };
 // Add with other defaults
-const DEFAULT_DEPARTMENTS = ["English", "Malayalam", "Commerce", "Mathematics", "Physics", "Computer Science", "Botany", "Zoology", "History", "Economics"];
+const DEFAULT_DEPARTMENTS = [
+    { name: "English", email: "" }, 
+    { name: "Malayalam", email: "" }, 
+    { name: "Commerce", email: "" }, 
+    { name: "Mathematics", email: "" }, 
+    { name: "Physics", email: "" }, 
+    { name: "Computer Science", email: "" }, 
+    { name: "Botany", email: "" }, 
+    { name: "Zoology", email: "" }, 
+    { name: "History", email: "" }, 
+    { name: "Economics", email: "" }
+];
 
 // Add with other state variables
 let departmentsConfig = [];
@@ -2414,11 +2425,12 @@ function populateDepartmentSelect() {
     const select = document.getElementById('stf-dept');
     if (!select) return;
     
-    // Sort alphabetically
-    departmentsConfig.sort();
+    // Convert & Sort
+    const cleanDepts = departmentsConfig.map(d => (typeof d === 'string') ? { name: d, email: "" } : d);
+    cleanDepts.sort((a, b) => a.name.localeCompare(b.name));
     
     select.innerHTML = `<option value="">Select Department...</option>` + 
-        departmentsConfig.map(d => `<option value="${d}">${d}</option>`).join('');
+        cleanDepts.map(d => `<option value="${d.name}">${d.name}</option>`).join('');
 }
 
 function renderDepartmentsList() {
@@ -2427,32 +2439,54 @@ function renderDepartmentsList() {
     
     container.innerHTML = '';
     
-    departmentsConfig.sort().forEach(dept => {
+    // Handle legacy string data (convert to object on fly if needed)
+    const cleanDepts = departmentsConfig.map(d => (typeof d === 'string') ? { name: d, email: "" } : d);
+    
+    cleanDepts.sort((a, b) => a.name.localeCompare(b.name));
+    
+    cleanDepts.forEach(dept => {
         // If Locked: Hide 'x' button
         const deleteBtn = isDeptLocked ? '' : 
-            `<button onclick="deleteDepartment('${dept}')" class="text-red-400 hover:text-red-600 font-bold ml-1 hover:bg-red-50 rounded px-1">&times;</button>`;
-            
+            `<button onclick="deleteDepartment('${dept.name}')" class="text-red-400 hover:text-red-600 font-bold ml-1 hover:bg-red-50 rounded px-1">&times;</button>`;
+        
+        const emailBadge = dept.email ? `<span class="text-[9px] text-gray-400 ml-1">&lt;${dept.email}&gt;</span>` : "";
+
         container.innerHTML += `
-            <div class="flex items-center gap-1 bg-white px-2 py-1 rounded text-xs border border-gray-200 shadow-sm">
-                <span class="font-bold text-gray-700">${dept}</span>
+            <div class="flex items-center gap-1 bg-white px-2 py-1 rounded text-xs border border-gray-200 shadow-sm" title="${dept.email || 'No Email'}">
+                <span class="font-bold text-gray-700">${dept.name}</span>
+                ${emailBadge}
                 ${deleteBtn}
             </div>`;
     });
 }
 
 window.addNewDepartment = function() {
-    const name = document.getElementById('new-dept-name').value.trim();
-    if (!name) return alert("Enter department name");
-    if (departmentsConfig.includes(name)) return alert("Department already exists");
+    const nameInput = document.getElementById('new-dept-name');
+    const emailInput = document.getElementById('new-dept-email');
     
-    departmentsConfig.push(name);
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    
+    if (!name) return alert("Enter department name");
+    
+    // Convert legacy strings if present
+    departmentsConfig = departmentsConfig.map(d => (typeof d === 'string') ? { name: d, email: "" } : d);
+
+    if (departmentsConfig.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+        return alert("Department already exists");
+    }
+    
+    departmentsConfig.push({ name: name, email: email });
     renderDepartmentsList();
-    document.getElementById('new-dept-name').value = '';
+    
+    nameInput.value = '';
+    emailInput.value = '';
 }
 
 window.deleteDepartment = function(name) {
     if (confirm(`Delete department "${name}"?`)) {
-        departmentsConfig = departmentsConfig.filter(d => d !== name);
+        departmentsConfig = departmentsConfig.map(d => (typeof d === 'string') ? { name: d, email: "" } : d);
+        departmentsConfig = departmentsConfig.filter(d => d.name !== name);
         renderDepartmentsList();
     }
 }
@@ -3125,12 +3159,13 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
     const preview = document.getElementById('notif-message-preview');
     
     title.textContent = `📢 Notify Week ${weekNum} (${monthStr})`;
-    subtitle.textContent = "Send detailed professional emails & instant alerts.";
+    subtitle.textContent = "Send detailed professional emails (Faculty + Dept CC) & instant alerts.";
     list.innerHTML = '';
     
     // Clear Queue
     currentEmailQueue = [];
 
+    // 1. Gather Duties for this Week
     const facultyDuties = {}; 
 
     Object.keys(invigilationSlots).forEach(key => {
@@ -3151,7 +3186,7 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
                     date: dStr,
                     day: dayName,
                     session: sessionCode,
-                    time: tStr // Added time for template
+                    time: tStr
                 });
             });
         }
@@ -3167,10 +3202,13 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
     const sampleName = "Abdul Raheem MK";
     preview.textContent = generateWeeklyMessage(sampleName, "(01/12-Mon-FN)...");
 
-    // ADD BULK BUTTON
+    // 2. Add Bulk Send Button
     list.innerHTML = `
         <div class="mb-4 pb-4 border-b border-gray-100 flex justify-between items-center">
-            <div class="text-xs text-gray-500">Queue: <b>${Object.keys(facultyDuties).length}</b> faculty members.</div>
+            <div class="text-xs text-gray-500">
+                Queue will include Faculty + Dept Copies.<br>
+                <strong>${Object.keys(facultyDuties).length}</strong> faculty in list.
+            </div>
             <button id="btn-bulk-email-week" onclick="sendBulkEmails('btn-bulk-email-week')" 
                 class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded shadow-md transition flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -3179,68 +3217,94 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
         </div>
     `;
 
+    // 3. Process Each Faculty
     const sortedEmails = Object.keys(facultyDuties).sort((a, b) => getNameFromEmail(a).localeCompare(getNameFromEmail(b)));
 
     sortedEmails.forEach((email, index) => {
         const duties = facultyDuties[email];
+        // Sort Chronologically
         duties.sort((a, b) => a.date.split('.').reverse().join('').localeCompare(b.date.split('.').reverse().join('')));
 
-        // String for WhatsApp
         const dutyString = duties.map(d => `(${d.date}-${d.day}-${d.session})`).join(', ');
         
-        // Data for Email
         const staff = staffData.find(s => s.email === email);
         const fullName = staff ? staff.name : email;
         const firstName = getFirstName(fullName);
         const staffEmail = staff ? staff.email : "";
         
+        // Phone
         let phone = staff ? (staff.phone || "") : "";
         phone = phone.replace(/\D/g, ''); 
         if (phone.length === 10) phone = "91" + phone;
 
-        // 1. Prepare Professional Email
-        const emailSubject = `Invigilation Duty Schedule: Week ${weekNum} (${monthStr})`;
+        // --- EMAIL PREPARATION ---
+        const emailSubject = `Invigilation Duty: Week ${weekNum} (${monthStr})`;
         const emailBody = generateProfessionalEmail(fullName, duties, "Upcoming Invigilation Duties");
-        
-        // 2. Add to Queue
         const btnId = `email-btn-${index}`;
+
+        // A. Add Faculty to Queue
         if (staffEmail) {
             currentEmailQueue.push({
                 email: staffEmail,
                 name: fullName,
                 subject: emailSubject,
                 body: emailBody,
-                btnId: btnId
+                btnId: btnId // Link to button for visual feedback
             });
         }
 
-        // 3. WhatsApp/SMS Links (Existing Logic)
+        // B. Add Dept CC to Queue (NEW LOGIC)
+        if (staff && staff.dept) {
+            // Handle both string array (old) and object array (new)
+            const cleanDepts = departmentsConfig.map(d => (typeof d === 'string') ? { name: d, email: "" } : d);
+            const deptObj = cleanDepts.find(d => d.name === staff.dept);
+            
+            if (deptObj && deptObj.email) {
+                const deptSubject = `[COPY] ${fullName} - Duty Week ${weekNum}`;
+                const deptBody = `<div style="background:#f9fafb; padding:10px; border-bottom:1px solid #ccc; color:#555; font-size:12px;">
+                                    <b>Department Copy</b><br>
+                                    This is a copy of the notification sent to ${fullName} (${staff.dept}).
+                                  </div>` + emailBody;
+
+                currentEmailQueue.push({
+                    email: deptObj.email,
+                    name: `HOD ${staff.dept}`,
+                    subject: deptSubject,
+                    body: deptBody,
+                    btnId: null // No button for this, it sends silently with bulk
+                });
+            }
+        }
+
+        // --- WHATSAPP / SMS PREPARATION ---
         const waMsg = generateWeeklyMessage(fullName, dutyString);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(waMsg)}` : "#";
+        
         const shortDutyStr = dutyString.length > 100 ? dutyString.substring(0, 97) + "..." : dutyString;
         const smsMsg = `${firstName}: Duty ${shortDutyStr}. Check Portal. -CS GVC`;
         const smsLink = phone ? `sms:${phone}?body=${encodeURIComponent(smsMsg)}` : "#";
 
-        // UI Props
+        // UI Flags
         const phoneDisabled = phone ? "" : "disabled";
         const emailDisabled = staffEmail ? "" : "disabled";
         const noEmailWarning = staffEmail ? "" : `<span class="text-red-500 text-xs ml-2">(No Email)</span>`;
 
-        // Escape for Onclick
+        // Escape for HTML Onclick
         const safeName = fullName.replace(/'/g, "\\'");
         const safeSubject = emailSubject.replace(/'/g, "\\'");
-        // For single button, we pass the HTML body. We must escape it properly.
         const safeBody = emailBody.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ''); 
 
+        // Render Row
         list.innerHTML += `
             <div class="flex justify-between items-center bg-white border border-gray-200 p-3 rounded-lg shadow-sm hover:shadow-md transition mt-2">
                 <div class="flex-1 min-w-0 pr-2">
                     <div class="font-bold text-gray-800 truncate">${fullName} ${noEmailWarning}</div>
                     <div class="text-xs text-gray-500 mt-1 font-mono truncate">${dutyString}</div>
+                    ${staff && staff.dept ? `<div class="text-[9px] text-gray-400">${staff.dept}</div>` : ''}
                 </div>
                 <div class="flex gap-2 shrink-0">
                     <button id="${btnId}" onclick="sendSingleEmail(this, '${staffEmail}', '${safeName}', '${safeSubject}', '${safeBody}')" ${emailDisabled}
-                       class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded shadow transition flex items-center gap-1" title="Send Professional Email">
+                       class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded shadow transition flex items-center gap-1" title="Send Individual Email">
                        Mail
                     </button>
                     <a href="${smsLink}" target="_blank" ${phoneDisabled} class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded shadow transition">SMS</a>
