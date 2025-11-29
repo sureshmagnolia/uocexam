@@ -3720,15 +3720,14 @@ window.handleStaffCSVUpload = function(input) {
     reader.readAsText(file);
 }
 
-// 4. Parse & Analyze CSV
-// 4. Parse & Analyze CSV (Improved Date Handling)
+// 4. Parse & Analyze CSV (Robust Date Fix)
 function processStaffCSV(csvText) {
     const lines = csvText.split('\n');
     if (lines.length < 2) return alert("CSV is empty or invalid.");
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]+/g, ''));
     
-    // Robust Column Mapping
+    // Column Mapping
     const getIndex = (possibleNames) => headers.findIndex(h => possibleNames.some(name => h.includes(name)));
 
     const nameIdx = getIndex(['name', 'staff name', 'faculty']);
@@ -3736,7 +3735,6 @@ function processStaffCSV(csvText) {
     const phoneIdx = getIndex(['phone', 'mobile', 'whatsapp']);
     const deptIdx = getIndex(['dept', 'department']);
     const desigIdx = getIndex(['designation', 'role']);
-    // Look for various date headers
     const joinIdx = getIndex(['joining date', 'join date', 'doj', 'date of joining']);
 
     if (nameIdx === -1 || emailIdx === -1 || deptIdx === -1) {
@@ -3746,19 +3744,37 @@ function processStaffCSV(csvText) {
 
     const parsedData = [];
     
-    // Helper to format date to YYYY-MM-DD
+    // --- FIXED DATE HELPER ---
     const formatDate = (dateStr) => {
-        if (!dateStr) return new Date().toISOString().split('T')[0]; // Default to Today
+        if (!dateStr) return new Date().toISOString().split('T')[0]; 
         try {
-            // Handle DD-MM-YYYY or DD/MM/YYYY
-            if (dateStr.includes('-') || dateStr.includes('/')) {
-                const parts = dateStr.replace(/\//g, '-').split('-');
-                // If starts with Year (YYYY-MM-DD)
-                if (parts[0].length === 4) return dateStr;
-                // If ends with Year (DD-MM-YYYY)
-                if (parts[2].length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            // Normalize separators
+            let cleanStr = dateStr.replace(/\//g, '-').trim();
+            let parts = cleanStr.split('-');
+            
+            let y, m, d;
+
+            // Case 1: YYYY-MM-DD (e.g. 2025-06-01)
+            if (parts[0].length === 4) {
+                y = parts[0];
+                m = parts[1];
+                d = parts[2];
+            } 
+            // Case 2: DD-MM-YYYY (e.g. 01-06-2025)
+            else if (parts[2].length === 4) {
+                y = parts[2];
+                m = parts[1];
+                d = parts[0];
+            } else {
+                // Fallback for unknown formats
+                return new Date(dateStr).toISOString().split('T')[0];
             }
-            return new Date(dateStr).toISOString().split('T')[0];
+
+            // STRICT PADDING (The Fix)
+            m = m.padStart(2, '0');
+            d = d.padStart(2, '0');
+
+            return `${y}-${m}-${d}`;
         } catch (e) {
             return new Date().toISOString().split('T')[0];
         }
@@ -3769,7 +3785,7 @@ function processStaffCSV(csvText) {
         const line = lines[i].trim();
         if (!line) continue;
         
-        // Handle quoted values logic
+        // Handle quoted values
         const regex = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
         const row = line.split(regex).map(val => val.trim().replace(/^"|"$/g, '')); 
         
