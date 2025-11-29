@@ -13,12 +13,14 @@ const DEFAULT_DESIGNATIONS = { "Assistant Professor": 2, "Associate Professor": 
 const DEFAULT_ROLES = { 
     "Vice Principal": 0, 
     "HOD": 1, 
-    "NSS Officer": 1, 
     "Warden": 0, 
-    "Exam Chief": 0,
     "Chief Superintendent": 0,       // <--- NEW
     "Senior Asst. Superintendent": 0 // <--- NEW
 };
+
+// Protected Roles (Cannot be deleted)
+const SYSTEM_ROLES = ["Chief Superintendent", "Senior Asst. Superintendent", "Principal"];
+
 // Add with other defaults
 const DEFAULT_DEPARTMENTS = [
     { name: "English", email: "" }, 
@@ -1978,16 +1980,31 @@ function renderRolesList() {
     }
 
     sortedRoles.forEach(([role, target]) => {
-        // If Locked: Hide Edit/Delete buttons
-        const actionButtons = isRoleLocked ? '' : `
-            <div class="flex items-center gap-2">
-                <button onclick="editRoleConfig('${role}', ${target})" class="text-indigo-600 hover:text-indigo-900 text-[10px] font-bold bg-indigo-50 px-2 py-0.5 rounded">✎</button>
-                <button onclick="deleteRoleConfig('${role}')" class="text-red-500 hover:text-red-700 font-bold px-1.5">&times;</button>
-            </div>`;
+        const isSystemRole = SYSTEM_ROLES.includes(role);
+        
+        // Lock Logic:
+        // 1. If Global Lock is ON -> Hide All Buttons
+        // 2. If Global Lock is OFF -> Show Buttons (But hide DELETE for System Roles)
+        
+        let actionButtons = '';
+        
+        if (!isRoleLocked) {
+            const deleteBtn = isSystemRole 
+                ? `<span class="text-gray-300 text-[10px] cursor-not-allowed" title="System Default">🚫</span>` 
+                : `<button onclick="deleteRoleConfig('${role}')" class="text-red-500 hover:text-red-700 font-bold px-1.5">&times;</button>`;
+                
+            actionButtons = `
+                <div class="flex items-center gap-2">
+                    <button onclick="editRoleConfig('${role}', ${target})" class="text-indigo-600 hover:text-indigo-900 text-[10px] font-bold bg-indigo-50 px-2 py-0.5 rounded">✎</button>
+                    ${deleteBtn}
+                </div>`;
+        }
+
+        const tag = isSystemRole ? `<span class="ml-1 text-[8px] bg-gray-100 text-gray-500 px-1 rounded border">Sys</span>` : "";
 
         container.innerHTML += `
             <div class="flex justify-between items-center text-xs bg-white p-2 rounded border mb-1 border-gray-100">
-                <span class="font-bold text-gray-700">${role}</span>
+                <span class="font-bold text-gray-700 flex items-center">${role} ${tag}</span>
                 <div class="flex items-center gap-3">
                     <span class="bg-gray-50 text-gray-600 px-2 py-0.5 rounded font-mono font-bold text-[10px]">${target}/mo</span>
                     ${actionButtons}
@@ -2029,6 +2046,9 @@ window.editRoleConfig = function(role, currentTarget) {
 }
 
 window.deleteRoleConfig = function(role) {
+    if (SYSTEM_ROLES.includes(role)) {
+        return alert("⚠️ Cannot delete System Default roles (CS, SAS, Principal).");
+    }
     if(confirm(`Delete role "${role}"? This will affect calculations for staff assigned this role.`)) {
         delete rolesConfig[role];
         renderRolesList();
@@ -2147,33 +2167,43 @@ window.loadSessionAttendance = function() {
     if (searchResults) searchResults.classList.add('hidden');
     currentSubstituteCandidate = null;
 
-    // --- 1. SUPERVISION LOGIC (Date-Aware) ---
-    // Calculate the exact date of this session to find who was active THEN
+    // --- 1. SUPERVISION LOGIC (Robust Defaulting) ---
+    // Calculate session date range (Whole Day)
     const sessionDate = parseDate(key);
-    sessionDate.setHours(0, 0, 0, 0); // Normalize to midnight
+    const startOfDay = new Date(sessionDate); startOfDay.setHours(0,0,0,0);
+    const endOfDay = new Date(sessionDate); endOfDay.setHours(23,59,59,999);
 
     let defaultCS = "";
     let defaultSAS = "";
     
     staffData.forEach(s => {
         if (s.roleHistory) {
-            // Check if role was active ON THE SESSION DATE
+            // Find role active ON THAT DAY
             const activeRole = s.roleHistory.find(r => {
-                const start = new Date(r.start); start.setHours(0,0,0,0);
-                const end = new Date(r.end); end.setHours(23,59,59,999); // End of that day
+                const rStart = new Date(r.start); rStart.setHours(0,0,0,0);
+                const rEnd = new Date(r.end); rEnd.setHours(23,59,59,999);
                 
-                return start <= sessionDate && end >= sessionDate && 
-                       (r.role === "Chief Superintendent" || r.role === "Exam Chief" || r.role === "Senior Asst. Superintendent");
+                // Check Date Overlap
+                if (rStart <= endOfDay && rEnd >= startOfDay) {
+                    // Check Role Name (Case Insensitive for safety)
+                    const roleName = r.role.toLowerCase();
+                    return roleName === "chief superintendent" || 
+                           roleName === "exam chief" || 
+                           roleName === "senior asst. superintendent" ||
+                           roleName === "sas"; 
+                }
+                return false;
             });
             
             if (activeRole) {
-                if (activeRole.role === "Chief Superintendent" || activeRole.role === "Exam Chief") defaultCS = s.email;
-                if (activeRole.role === "Senior Asst. Superintendent") defaultSAS = s.email;
+                const rName = activeRole.role.toLowerCase();
+                if (rName === "chief superintendent" || rName === "exam chief") defaultCS = s.email;
+                if (rName === "senior asst. superintendent" || rName === "sas") defaultSAS = s.email;
             }
         }
     });
 
-    // Determine Current Selection (Saved > Default)
+    // Determine Current Selection (Saved takes priority, then Default)
     const savedSup = slot.supervision || {};
     const currentCS = savedSup.cs || defaultCS;
     const currentSAS = savedSup.sas || defaultSAS;
@@ -2208,6 +2238,7 @@ window.loadSessionAttendance = function() {
     });
 
     // --- 3. LOCK STATE UI ---
+    // (Keep existing lock logic...)
     const addBtn = document.getElementById('btn-att-add');
     const saveBtn = document.getElementById('btn-att-save');
     const lockBtn = document.getElementById('btn-att-lock');
@@ -2215,29 +2246,24 @@ window.loadSessionAttendance = function() {
 
     if (isLocked) {
         if(addBtn) { addBtn.disabled = true; addBtn.classList.add('opacity-50', 'cursor-not-allowed'); }
-        
         if(saveBtn) {
             saveBtn.disabled = true;
             saveBtn.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
             saveBtn.innerHTML = `<span>✅ Saved & Locked</span>`;
         }
-
         if(lockBtn) {
             lockBtn.innerHTML = `<span>🔓</span> Unlock Register`;
             lockBtn.className = "bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded shadow-sm hover:bg-red-100 font-bold text-sm flex items-center gap-2 transition";
             lockBtn.onclick = () => window.toggleAttendanceLock(key, false);
         }
         if(statusText) statusText.textContent = "Attendance is finalized and locked.";
-
     } else {
         if(addBtn) { addBtn.disabled = false; addBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
-
         if(saveBtn) {
             saveBtn.disabled = false;
             saveBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
             saveBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Confirm & Update Counts`;
         }
-
         if(lockBtn) {
             lockBtn.innerHTML = `<span>🔒</span> Lock Register`;
             lockBtn.className = "bg-gray-100 text-gray-600 border border-gray-300 px-4 py-2 rounded shadow-sm hover:bg-gray-200 font-bold text-sm flex items-center gap-2 transition";
