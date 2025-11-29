@@ -1857,8 +1857,7 @@ window.removeRoleFromStaff = async function(sIdx, rIdx) {
     window.closeModal('role-assignment-modal');
     renderStaffTable();
 }
-
-// --- MANUAL ALLOCATION (Auto-Select Top N Candidates) ---
+// --- MANUAL ALLOCATION (Fixed: Auto-Select Top N) ---
 window.openManualAllocationModal = function(key) {
     const slot = invigilationSlots[key];
     
@@ -1878,13 +1877,11 @@ window.openManualAllocationModal = function(key) {
     document.getElementById('manual-session-key').value = key;
     document.getElementById('manual-modal-title').textContent = key;
     
-    // Safe Integer Parsing
-    const requiredCount = parseInt(slot.required || 0);
+    // Force Integer for Requirement
+    const requiredCount = parseInt(slot.required) || 0; 
     document.getElementById('manual-modal-req').textContent = requiredCount;
 
     // --- 4. SMART SORTING & SCORING ---
-    
-    // Context for penalties
     const targetDate = parseDate(key);
     const monthStr = targetDate.toLocaleString('default', { month: 'long', year: 'numeric' });
     const weekNum = getWeekOfMonth(targetDate);
@@ -1898,7 +1895,7 @@ window.openManualAllocationModal = function(key) {
     staffData.forEach(s => staffContext[s.email] = { weekCount: 0, hasSameDay: false, hasAdjacent: false });
 
     Object.keys(invigilationSlots).forEach(k => {
-        if (k === key) return; // Skip current
+        if (k === key) return; 
         const sSlot = invigilationSlots[k];
         const sDate = parseDate(k);
         const sDateString = sDate.toDateString();
@@ -1909,7 +1906,7 @@ window.openManualAllocationModal = function(key) {
         const isSameDay = (sDateString === targetDateString);
         const isAdjacent = (sDateString === prevDateStr || sDateString === nextDateStr);
 
-        sSlot.assigned.forEach(email => {
+        (sSlot.assigned || []).forEach(email => {
             if (staffContext[email]) {
                 if (isSameWeek) staffContext[email].weekCount++;
                 if (isSameDay) staffContext[email].hasSameDay = true;
@@ -1918,54 +1915,45 @@ window.openManualAllocationModal = function(key) {
         });
     });
 
-    // Score Staff
     const rankedStaff = staffData
         .filter(s => s.status !== 'archived')
         .map(s => {
             const done = getDutiesDoneCount(s.email);
             const target = calculateStaffTarget(s);
             const pending = Math.max(0, target - done);
-            
             const ctx = staffContext[s.email] || { weekCount: 0, hasSameDay: false, hasAdjacent: false };
             
-            // Base Score: Pending Duty Priority
             let score = pending * 100; 
             let badges = [];
 
-            // Penalties (Push to bottom)
             if (ctx.weekCount >= 3) { score -= 5000; badges.push("Max 3/wk"); }
             if (ctx.hasSameDay) { score -= 2000; badges.push("Same Day"); }
             if (ctx.hasAdjacent) { score -= 1000; badges.push("Adjacent"); }
             
             return { ...s, pending, score, badges };
         })
-        .sort((a, b) => b.score - a.score); // Highest Score First
+        .sort((a, b) => b.score - a.score); 
 
     // --- 5. RENDER & AUTO-SELECT ---
-    
     const availList = document.getElementById('manual-available-list');
     availList.innerHTML = '';
     
-    // AUTO-SELECT LOGIC
     const assignedList = slot.assigned || [];
     const isFreshAllocation = (assignedList.length === 0);
     let slotsToFill = isFreshAllocation ? requiredCount : 0;
     let currentSelectionCount = 0;
 
     rankedStaff.forEach(s => {
-        // 1. Check Availability (If unavailable, skip)
         if (isUserUnavailable(slot, s.email, key)) return; 
         
         let isChecked = false;
         
         if (isFreshAllocation) {
-            // Fill up to the required count
             if (slotsToFill > 0) {
                 isChecked = true;
                 slotsToFill--;
             }
         } else {
-            // Keep existing assignments checked
             if (assignedList.includes(s.email)) {
                 isChecked = true;
             }
@@ -2044,6 +2032,7 @@ window.openManualAllocationModal = function(key) {
     
     window.openModal('manual-allocation-modal');
 }
+
 
 window.saveManualAllocation = async function() {
     const key = document.getElementById('manual-session-key').value;
