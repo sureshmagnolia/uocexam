@@ -1676,7 +1676,6 @@ window.runAutoAllocation = async function() {
     }
     await syncSlotsToCloud();
 }
-
 window.saveNewStaff = async function() {
     const indexStr = document.getElementById('stf-edit-index').value;
     const isEditMode = (indexStr !== "");
@@ -1702,20 +1701,88 @@ window.saveNewStaff = async function() {
                 return alert("This email is already used by another staff member.");
             }
             
-            if (!confirm(`Change email from ${oldEmail} to ${email}?\n\nThis will update their system access.`)) return;
+            if (!confirm(`Change email from ${oldEmail} to ${email}?\n\nThis will update their system access AND migrate all their past records.`)) return;
 
-            // Swap Permissions in Cloud
+            // 1. Swap Permissions in Cloud
             await removeStaffAccess(oldEmail);
             await addStaffAccess(email);
+
+            // 2. MIGRATE HISTORY (Deep Find & Replace)
+            let slotsChanged = false;
+            
+            Object.keys(invigilationSlots).forEach(key => {
+                const slot = invigilationSlots[key];
+
+                // A. Assignments
+                if (slot.assigned.includes(oldEmail)) {
+                    slot.assigned = slot.assigned.map(e => e === oldEmail ? email : e);
+                    slotsChanged = true;
+                }
+
+                // B. Attendance
+                if (slot.attendance && slot.attendance.includes(oldEmail)) {
+                    slot.attendance = slot.attendance.map(e => e === oldEmail ? email : e);
+                    slotsChanged = true;
+                }
+
+                // C. Exchange Requests
+                if (slot.exchangeRequests && slot.exchangeRequests.includes(oldEmail)) {
+                    slot.exchangeRequests = slot.exchangeRequests.map(e => e === oldEmail ? email : e);
+                    slotsChanged = true;
+                }
+
+                // D. Supervision (CS/SAS)
+                if (slot.supervision) {
+                    if (slot.supervision.cs === oldEmail) { slot.supervision.cs = email; slotsChanged = true; }
+                    if (slot.supervision.sas === oldEmail) { slot.supervision.sas = email; slotsChanged = true; }
+                }
+
+                // E. Slot Unavailability (Handle both strings and objects)
+                if (slot.unavailable) {
+                    let unavChanged = false;
+                    slot.unavailable = slot.unavailable.map(u => {
+                        if (typeof u === 'string' && u === oldEmail) { 
+                            unavChanged = true; 
+                            return email; 
+                        }
+                        if (typeof u === 'object' && u.email === oldEmail) { 
+                            unavChanged = true; 
+                            return { ...u, email: email }; 
+                        }
+                        return u;
+                    });
+                    if (unavChanged) slotsChanged = true;
+                }
+            });
+
+            if (slotsChanged) await syncSlotsToCloud();
+
+            // 3. MIGRATE ADVANCE UNAVAILABILITY
+            let advanceChanged = false;
+            Object.keys(advanceUnavailability).forEach(dateKey => {
+                ['FN', 'AN'].forEach(sess => {
+                    if (advanceUnavailability[dateKey] && advanceUnavailability[dateKey][sess]) {
+                        advanceUnavailability[dateKey][sess] = advanceUnavailability[dateKey][sess].map(u => {
+                            if (u.email === oldEmail) {
+                                advanceChanged = true;
+                                return { ...u, email: email };
+                            }
+                            return u;
+                        });
+                    }
+                });
+            });
+
+            if (advanceChanged) await saveAdvanceUnavailability();
         }
 
-        // Update Array
+        // Update Local Array
         staffData[index] = {
             ...oldData,
             name, email, phone, dept, designation, joiningDate: date
         };
 
-        alert("Staff profile updated successfully.");
+        alert("Staff profile and records updated successfully.");
 
     } else {
         // --- ADD NEW STAFF ---
@@ -1742,6 +1809,7 @@ window.saveNewStaff = async function() {
         updateAdminUI();
     }
 }
+
 
 window.deleteStaff = async function(index) {
     const staff = staffData[index];
