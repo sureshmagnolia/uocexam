@@ -41,6 +41,7 @@ let globalDutyTarget = 2; // Default
 let googleScriptUrl = "";
 let isRoleLocked = true;
 let isDeptLocked = true;
+let currentEmailQueue = []; // Stores the list for bulk sending
 
 // --- DOM ELEMENTS ---
 const views = { login: document.getElementById('view-login'), admin: document.getElementById('view-admin'), staff: document.getElementById('view-staff') };
@@ -3783,6 +3784,81 @@ function generateProfessionalEmail(name, dutiesArray, title) {
     </div>
     `;
 }
+// --- HELPER: Convert WhatsApp Text to HTML for Email ---
+function formatMessageForEmail(text) {
+    if (!text) return "";
+    let html = text
+        .replace(/\n/g, '<br>')
+        .replace(/\*(.*?)\*/g, '<b>$1</b>')       // Bold *text*
+        .replace(/_(.*?)_/g, '<i>$1</i>');       // Italic _text_
+    return html;
+}
+
+// --- BULK EMAIL SENDER ---
+window.sendBulkEmails = async function(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    if (currentEmailQueue.length === 0) return alert("No valid emails found to send.");
+    if (!confirm(`Send detailed emails to ${currentEmailQueue.length} faculty members?`)) return;
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    let sentCount = 0;
+
+    // Process Queue
+    for (let i = 0; i < currentEmailQueue.length; i++) {
+        const item = currentEmailQueue[i];
+        
+        // Update Button Progress
+        btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending ${i + 1}/${currentEmailQueue.length}...`;
+
+        // Find the individual button to update its status too
+        const indBtn = document.getElementById(item.btnId);
+        if (indBtn) {
+            indBtn.innerHTML = "Sending...";
+            indBtn.classList.add('bg-gray-400');
+        }
+
+        try {
+            // Send via Google Script
+            await fetch(googleScriptUrl, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: item.email,
+                    subject: item.subject,
+                    body: item.body
+                })
+            });
+
+            // Success Update (Individual)
+            if (indBtn) {
+                indBtn.innerHTML = "Sent";
+                indBtn.classList.remove('bg-gray-400', 'bg-gray-700');
+                indBtn.classList.add('bg-green-600', 'cursor-default');
+            }
+            sentCount++;
+            
+            // Small delay to prevent rate limiting
+            await new Promise(r => setTimeout(r, 500));
+
+        } catch (e) {
+            console.error(`Failed to send to ${item.email}`, e);
+            if (indBtn) indBtn.innerHTML = "Failed";
+        }
+    }
+
+    // Final Button State
+    btn.innerHTML = `✅ Sent ${sentCount} Emails`;
+    btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+    btn.classList.add('bg-green-600', 'cursor-default');
+    
+    if(typeof logActivity === 'function') logActivity("Bulk Email", `Sent ${sentCount} automated emails to faculty.`);
+    alert(`Batch Complete! ${sentCount} emails sent.`);
+}
+
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
 window.waNotify = waNotify;
@@ -3848,6 +3924,7 @@ window.clearOldData = clearOldData;
 window.openAddStaffModal = openAddStaffModal;
 window.editStaff = editStaff;
 window.sendSingleEmail = sendSingleEmail;
+window.sendBulkEmails = sendBulkEmails;
 window.getFirstName = getFirstName;
 window.switchAdminTab = function(tabName) {
     // Hide All
