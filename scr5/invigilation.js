@@ -4442,7 +4442,7 @@ window.handleAttendanceCSVUpload = function(input) {
     reader.readAsText(file);
 }
 
-// 3. Process CSV (Robust Date & Conflict Handling)
+// 3. Process CSV (Auto-Create Slots for Past Duties)
 async function processAttendanceCSV(csvText) {
     const lines = csvText.split('\n');
     if (lines.length < 2) return alert("CSV is empty or invalid.");
@@ -4459,23 +4459,21 @@ async function processAttendanceCSV(csvText) {
 
     tempAttendanceBatch = {}; // Reset batch
     let totalRecords = 0;
-    let skippedCount = 0;
+    let createdSlots = 0;
     const unknownEmails = new Set();
 
-    // --- ROBUST DATE PARSER (Target: DD.MM.YYYY) ---
+    // --- DATE PARSER ---
     const parseDateKey = (dateStr) => {
         if (!dateStr) return null;
         try {
-            // Handle YYYY-MM-DD, DD-MM-YYYY, DD/MM/YY
             let clean = dateStr.replace(/[./]/g, '-').trim();
             let parts = clean.split('-');
-            
             let d, m, y;
             if (parts.length !== 3) return null;
 
-            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } // YYYY-MM-DD
-            else if (parts[2].length === 4) { d = parts[0]; m = parts[1]; y = parts[2]; } // DD-MM-YYYY
-            else if (parts[2].length === 2) { d = parts[0]; m = parts[1]; y = "20" + parts[2]; } // DD-MM-YY
+            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } 
+            else if (parts[2].length === 4) { d = parts[0]; m = parts[1]; y = parts[2]; } 
+            else if (parts[2].length === 2) { d = parts[0]; m = parts[1]; y = "20" + parts[2]; } 
             else return null;
 
             d = d.padStart(2, '0');
@@ -4490,18 +4488,17 @@ async function processAttendanceCSV(csvText) {
         
         const row = line.split(',').map(v => v.trim());
         const rawDate = row[dateIdx];
-        const sessionType = row[sessIdx] ? row[sessIdx].toUpperCase() : ""; 
+        const sessionType = row[sessIdx] ? row[sessIdx].toUpperCase() : "FN"; 
         const email = row[emailIdx];
         const role = roleIdx !== -1 ? row[roleIdx].toUpperCase() : "INVIGILATOR";
 
-        if (!rawDate || !sessionType || !email) continue;
+        if (!rawDate || !email) continue;
 
-        // 1. Find Session Key
         const dateStr = parseDateKey(rawDate);
-        if (!dateStr) { skippedCount++; continue; }
+        if (!dateStr) continue;
 
-        // Find matching slot in system
-        const matchingKey = Object.keys(invigilationSlots).find(key => {
+        // 1. Try to Find Existing Slot
+        let matchingKey = Object.keys(invigilationSlots).find(key => {
             if (!key.startsWith(dateStr)) return false;
             const tStr = key.split(' | ')[1].toUpperCase();
             const isAN = (tStr.includes("PM") || tStr.startsWith("12"));
@@ -4509,39 +4506,63 @@ async function processAttendanceCSV(csvText) {
             return slotSession === sessionType;
         });
 
-        if (matchingKey) {
-            if (!tempAttendanceBatch[matchingKey]) {
-                tempAttendanceBatch[matchingKey] = { attendance: [], supervision: { cs: "", sas: "" } };
-            }
+        // 2. If Not Found, CREATE VIRTUAL SLOT
+        if (!matchingKey) {
+            // Default Times: FN = 09:30 AM, AN = 01:30 PM
+            const defaultTime = (sessionType === "AN" || sessionType.includes("PM")) ? "01:30 PM" : "09:30 AM";
+            matchingKey = `${dateStr} | ${defaultTime}`;
             
-            // Add to batch
-            tempAttendanceBatch[matchingKey].attendance.push(email);
-            if (role === "CS" || role === "CHIEF") tempAttendanceBatch[matchingKey].supervision.cs = email;
-            if (role === "SAS" || role === "SENIOR") tempAttendanceBatch[matchingKey].supervision.sas = email;
-            
-            // Check Staff Existence
-            if (!staffData.some(s => s.email.toLowerCase() === email.toLowerCase())) {
-                unknownEmails.add(email);
+            // Add to System immediately (so next row finds it)
+            if (!invigilationSlots[matchingKey]) {
+                invigilationSlots[matchingKey] = {
+                    required: 0, // No requirement, just a record
+                    assigned: [],
+                    attendance: [], // Will fill below
+                    unavailable: [],
+                    isLocked: true,
+                    isVirtual: true, // Mark as auto-created
+                    examName: "Previous Duty Record"
+                };
+                createdSlots++;
             }
-
-            totalRecords++;
-        } else {
-            skippedCount++;
         }
+
+        // 3. Add to Batch
+        if (!tempAttendanceBatch[matchingKey]) {
+            tempAttendanceBatch[matchingKey] = { attendance: [], supervision: { cs: "", sas: "" } };
+        }
+        
+        tempAttendanceBatch[matchingKey].attendance.push(email);
+        if (role === "CS" || role === "CHIEF") tempAttendanceBatch[matchingKey].supervision.cs = email;
+        if (role === "SAS" || role === "SENIOR") tempAttendanceBatch[matchingKey].supervision.sas = email;
+        
+        if (!staffData.some(s => s.email.toLowerCase() === email.toLowerCase())) {
+            unknownEmails.add(email);
+        }
+
+        totalRecords++;
     }
 
     if (totalRecords === 0) {
-        return alert(`No matching sessions found.\n(Skipped ${skippedCount} rows due to date/session mismatch).`);
+        return alert("No valid records found in CSV.");
     }
 
-    // Alert about unknown staff immediately (optional)
     if (unknownEmails.size > 0) {
-        alert(`⚠️ Warning: ${unknownEmails.size} emails in CSV are not in your Staff Database.\nExample: ${Array.from(unknownEmails)[0]}\nThey will still be added to attendance.`);
+        alert(`⚠️ Warning: ${unknownEmails.size} emails are not in your Staff Database.\nThey will be marked present, but details will be missing in reports.`);
     }
 
     // Show Conflict Modal
     document.getElementById('att-csv-count').textContent = totalRecords;
     document.getElementById('att-session-count').textContent = Object.keys(tempAttendanceBatch).length;
+    
+    // Add note about created slots
+    if (createdSlots > 0) {
+        const note = document.createElement('p');
+        note.className = "text-xs text-indigo-600 font-bold mt-2";
+        note.textContent = `ℹ️ ${createdSlots} new 'Virtual Slots' will be created for past dates.`;
+        document.getElementById('att-session-count').parentNode.appendChild(note);
+    }
+
     window.openModal('att-conflict-modal');
 }
 
