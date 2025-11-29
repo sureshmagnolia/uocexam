@@ -56,6 +56,7 @@ let isDeptLocked = true;
 let isStaffListLocked = true; // Default to Locked
 let currentSubstituteCandidate = null; // Stores selected staff for substitution
 let isGlobalTargetLocked = true; // <--- NEW
+let tempAttendanceBatch = {}; // Stores parsed CSV data grouped by session key
 let currentEmailQueue = []; // Stores the list for bulk sending
 
 // --- DOM ELEMENTS ---
@@ -4441,8 +4442,7 @@ window.handleAttendanceCSVUpload = function(input) {
     reader.readAsText(file);
 }
 
-// 3. Process CSV
-// 3. Process CSV (Smart Validation)
+// 3. Process CSV (Robust Date & Conflict Handling)
 async function processAttendanceCSV(csvText) {
     const lines = csvText.split('\n');
     if (lines.length < 2) return alert("CSV is empty or invalid.");
@@ -4457,9 +4457,32 @@ async function processAttendanceCSV(csvText) {
         return alert("Error: CSV must have Date, Session, and Staff Email columns.");
     }
 
-    let updatedCount = 0;
-    let errorCount = 0;
-    const unknownEmails = new Set(); // Track missing staff
+    tempAttendanceBatch = {}; // Reset batch
+    let totalRecords = 0;
+    let skippedCount = 0;
+    const unknownEmails = new Set();
+
+    // --- ROBUST DATE PARSER (Target: DD.MM.YYYY) ---
+    const parseDateKey = (dateStr) => {
+        if (!dateStr) return null;
+        try {
+            // Handle YYYY-MM-DD, DD-MM-YYYY, DD/MM/YY
+            let clean = dateStr.replace(/[./]/g, '-').trim();
+            let parts = clean.split('-');
+            
+            let d, m, y;
+            if (parts.length !== 3) return null;
+
+            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } // YYYY-MM-DD
+            else if (parts[2].length === 4) { d = parts[0]; m = parts[1]; y = parts[2]; } // DD-MM-YYYY
+            else if (parts[2].length === 2) { d = parts[0]; m = parts[1]; y = "20" + parts[2]; } // DD-MM-YY
+            else return null;
+
+            d = d.padStart(2, '0');
+            m = m.padStart(2, '0');
+            return `${d}.${m}.${y}`;
+        } catch (e) { return null; }
+    };
 
     for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
@@ -4467,30 +4490,17 @@ async function processAttendanceCSV(csvText) {
         
         const row = line.split(',').map(v => v.trim());
         const rawDate = row[dateIdx];
-        const sessionType = row[sessIdx].toUpperCase(); 
+        const sessionType = row[sessIdx] ? row[sessIdx].toUpperCase() : ""; 
         const email = row[emailIdx];
         const role = roleIdx !== -1 ? row[roleIdx].toUpperCase() : "INVIGILATOR";
 
         if (!rawDate || !sessionType || !email) continue;
 
-        // Validate Staff Existence
-        const staffExists = staffData.some(s => s.email.toLowerCase() === email.toLowerCase());
-        if (!staffExists) {
-            unknownEmails.add(email);
-        }
+        // 1. Find Session Key
+        const dateStr = parseDateKey(rawDate);
+        if (!dateStr) { skippedCount++; continue; }
 
-        // 1. Normalize Date
-        let dateStr = "";
-        try {
-            let cleanStr = rawDate.replace(/[./]/g, '-');
-            let parts = cleanStr.split('-');
-            if (parts.length === 3) {
-                let y = parts[2].length === 2 ? "20" + parts[2] : parts[2];
-                dateStr = `${parts[0].padStart(2,'0')}.${parts[1].padStart(2,'0')}.${y}`;
-            }
-        } catch (e) { continue; }
-
-        // 2. Find Matching Slot
+        // Find matching slot in system
         const matchingKey = Object.keys(invigilationSlots).find(key => {
             if (!key.startsWith(dateStr)) return false;
             const tStr = key.split(' | ')[1].toUpperCase();
@@ -4500,47 +4510,97 @@ async function processAttendanceCSV(csvText) {
         });
 
         if (matchingKey) {
-            const slot = invigilationSlots[matchingKey];
-            if (!slot.attendance) slot.attendance = [];
-            if (!slot.supervision) slot.supervision = { cs: "", sas: "" };
-
-            // Add to Attendance (Avoid duplicates)
-            if (!slot.attendance.includes(email)) {
-                slot.attendance.push(email);
+            if (!tempAttendanceBatch[matchingKey]) {
+                tempAttendanceBatch[matchingKey] = { attendance: [], supervision: { cs: "", sas: "" } };
+            }
+            
+            // Add to batch
+            tempAttendanceBatch[matchingKey].attendance.push(email);
+            if (role === "CS" || role === "CHIEF") tempAttendanceBatch[matchingKey].supervision.cs = email;
+            if (role === "SAS" || role === "SENIOR") tempAttendanceBatch[matchingKey].supervision.sas = email;
+            
+            // Check Staff Existence
+            if (!staffData.some(s => s.email.toLowerCase() === email.toLowerCase())) {
+                unknownEmails.add(email);
             }
 
-            // Update Role
-            if (role === "CS" || role === "CHIEF") slot.supervision.cs = email;
-            if (role === "SAS" || role === "SENIOR") slot.supervision.sas = email;
-
-            updatedCount++;
+            totalRecords++;
         } else {
-            errorCount++;
+            skippedCount++;
         }
     }
 
-    if (updatedCount > 0) {
-        await syncSlotsToCloud();
-        
-        let msg = `✅ Bulk Upload Complete.\nUpdated records for ${updatedCount} staff.`;
-        
-        // ALERT FOR UNKNOWN STAFF
-        if (unknownEmails.size > 0) {
-            msg += `\n\n⚠️ WARNING: ${unknownEmails.size} emails were not found in your Staff Database:\n` + 
-                   Array.from(unknownEmails).slice(0, 5).join("\n") + 
-                   (unknownEmails.size > 5 ? "\n...and others." : "") +
-                   `\n\nThey have been marked present, but please add them to "Staff Management" for full details.`;
-        }
+    if (totalRecords === 0) {
+        return alert(`No matching sessions found.\n(Skipped ${skippedCount} rows due to date/session mismatch).`);
+    }
 
-        if (errorCount > 0) msg += `\n\n(Skipped ${errorCount} rows due to date mismatch)`;
+    // Alert about unknown staff immediately (optional)
+    if (unknownEmails.size > 0) {
+        alert(`⚠️ Warning: ${unknownEmails.size} emails in CSV are not in your Staff Database.\nExample: ${Array.from(unknownEmails)[0]}\nThey will still be added to attendance.`);
+    }
 
-        alert(msg);
-        populateAttendanceSessions();
-        if (ui.attSessionSelect && ui.attSessionSelect.value) {
-            loadSessionAttendance();
-        }
-    } else {
-        alert("No matching sessions found to update.");
+    // Show Conflict Modal
+    document.getElementById('att-csv-count').textContent = totalRecords;
+    document.getElementById('att-session-count').textContent = Object.keys(tempAttendanceBatch).length;
+    window.openModal('att-conflict-modal');
+}
+
+// 4. Merge Logic (Add Missing)
+document.getElementById('btn-att-merge').addEventListener('click', async () => {
+    let updatedCount = 0;
+    
+    Object.keys(tempAttendanceBatch).forEach(key => {
+        const slot = invigilationSlots[key];
+        const batch = tempAttendanceBatch[key];
+        
+        if (!slot.attendance) slot.attendance = [];
+        if (!slot.supervision) slot.supervision = { cs: "", sas: "" };
+
+        // Add unique emails
+        batch.attendance.forEach(email => {
+            if (!slot.attendance.includes(email)) {
+                slot.attendance.push(email);
+                updatedCount++;
+            }
+        });
+
+        // Update Supervision (Overwrite if present in CSV)
+        if (batch.supervision.cs) slot.supervision.cs = batch.supervision.cs;
+        if (batch.supervision.sas) slot.supervision.sas = batch.supervision.sas;
+    });
+
+    await finishAttendanceUpload(updatedCount, "Merged");
+});
+
+// 5. Replace Logic (Overwrite Lists)
+document.getElementById('btn-att-replace').addEventListener('click', async () => {
+    if(!confirm("⚠️ This will OVERWRITE the attendance lists for the affected sessions with data from the CSV.\n\nAre you sure?")) return;
+
+    let updatedCount = 0;
+    
+    Object.keys(tempAttendanceBatch).forEach(key => {
+        const slot = invigilationSlots[key];
+        const batch = tempAttendanceBatch[key];
+        
+        // Overwrite
+        slot.attendance = batch.attendance; // Replaces entire array
+        updatedCount += batch.attendance.length;
+
+        if (!slot.supervision) slot.supervision = { cs: "", sas: "" };
+        if (batch.supervision.cs) slot.supervision.cs = batch.supervision.cs;
+        if (batch.supervision.sas) slot.supervision.sas = batch.supervision.sas;
+    });
+
+    await finishAttendanceUpload(updatedCount, "Replaced");
+});
+
+async function finishAttendanceUpload(count, action) {
+    await syncSlotsToCloud();
+    window.closeModal('att-conflict-modal');
+    alert(`✅ Success! ${action} attendance records for ${count} entries.`);
+    populateAttendanceSessions();
+    if (ui.attSessionSelect && ui.attSessionSelect.value) {
+        loadSessionAttendance();
     }
 }
 // This makes functions available to HTML onclick="" events
