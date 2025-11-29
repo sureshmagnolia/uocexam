@@ -1876,7 +1876,10 @@ window.openManualAllocationModal = function(key) {
     // 3. Setup Modal Header
     document.getElementById('manual-session-key').value = key;
     document.getElementById('manual-modal-title').textContent = key;
-    document.getElementById('manual-modal-req').textContent = slot.required || 0;
+    
+    // Safe Integer Parsing
+    const requiredCount = parseInt(slot.required || 0);
+    document.getElementById('manual-modal-req').textContent = requiredCount;
 
     // --- 4. SMART SORTING & SCORING ---
     
@@ -1935,7 +1938,7 @@ window.openManualAllocationModal = function(key) {
             
             return { ...s, pending, score, badges };
         })
-        .sort((a, b) => b.score - a.score); // Highest Score (Best Candidate) First
+        .sort((a, b) => b.score - a.score); // Highest Score First
 
     // --- 5. RENDER & AUTO-SELECT ---
     
@@ -1943,26 +1946,26 @@ window.openManualAllocationModal = function(key) {
     availList.innerHTML = '';
     
     // AUTO-SELECT LOGIC
-    // If nobody is assigned yet, we auto-select the top 'Required' count
-    const isFreshAllocation = (slot.assigned.length === 0);
-    let slotsToFill = isFreshAllocation ? (slot.required || 0) : 0;
+    const assignedList = slot.assigned || [];
+    const isFreshAllocation = (assignedList.length === 0);
+    let slotsToFill = isFreshAllocation ? requiredCount : 0;
     let currentSelectionCount = 0;
 
     rankedStaff.forEach(s => {
-        // 1. Check Availability (If unavailable, skip and never select)
+        // 1. Check Availability (If unavailable, skip)
         if (isUserUnavailable(slot, s.email, key)) return; 
         
         let isChecked = false;
         
         if (isFreshAllocation) {
-            // Auto-select if we still need people
+            // Fill up to the required count
             if (slotsToFill > 0) {
                 isChecked = true;
                 slotsToFill--;
             }
         } else {
-            // Already assigned? Keep them checked
-            if (slot.assigned.includes(s.email)) {
+            // Keep existing assignments checked
+            if (assignedList.includes(s.email)) {
                 isChecked = true;
             }
         }
@@ -1999,7 +2002,7 @@ window.openManualAllocationModal = function(key) {
         availList.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-gray-500 italic">No available staff found.</td></tr>`;
     }
 
-    // 6. Render Unavailable List (Merged)
+    // 6. Render Unavailable List
     const unavList = document.getElementById('manual-unavailable-list');
     unavList.innerHTML = '';
     
