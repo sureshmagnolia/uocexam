@@ -4942,7 +4942,10 @@ window.openManualAllocationModal = function(key) {
 
     // 7. Update Counters & Open
     document.getElementById('manual-sel-count').textContent = currentSelectionCount;
-    
+    // *** FIX: Update the Required count in the footer as well ***
+    const reqCountEl = document.getElementById('manual-req-count');
+    if (reqCountEl) reqCountEl.textContent = requiredCount;
+    // ************************************************************
     window.openModal('manual-allocation-modal');
 }
 
