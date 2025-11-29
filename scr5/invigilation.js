@@ -3063,10 +3063,11 @@ window.openCompletedDutiesModal = function(email) {
 
     window.openModal('completed-duties-modal');
 }
-// --- WEEKLY AUTO-ASSIGN ALGORITHM (Admin Mode Only + Dept Logic) ---
+
+// --- WEEKLY AUTO-ASSIGN ALGORITHM (Generates Logic Reports) ---
 window.runWeeklyAutoAssign = async function(monthStr, weekNum) {
     // 1. CHECK: Confirm Intent
-    if(!confirm(`⚡ Run Auto-Assignment for ${monthStr}, Week ${weekNum}?\n\nIMPORTANT: This will only fill LOCKED slots (Admin Mode).\n\nRules Applied:\n1. Max 3 duties/week\n2. Avoid Same Day & Adjacent Days\n3. Dept Cap: Max 60% of a dept per session (except single-person depts)\n4. "Show Must Go On" - Rules break if necessary.`)) return;
+    if(!confirm(`⚡ Run Auto-Assignment for ${monthStr}, Week ${weekNum}?\n\nIMPORTANT: This will only fill LOCKED slots (Admin Mode).\n\nRules Applied:\n1. Max 3 duties/week\n2. Avoid Same Day & Adjacent Days\n3. Dept Cap: Max 60% of a dept per session\n4. "Show Must Go On" - Rules break if necessary.`)) return;
 
     // 2. Identify Target Slots (MUST BE LOCKED)
     const targetSlots = [];
@@ -3088,30 +3089,37 @@ window.runWeeklyAutoAssign = async function(monthStr, weekNum) {
     // 3. Sort Slots Chronologically
     targetSlots.sort((a, b) => a.date - b.date);
 
-    // 4. Prepare Staff Stats & Department Counts
-    const deptCounts = {}; // Total staff per dept
+    // 4. Prepare Staff Stats
+    const deptCounts = {}; 
     let eligibleStaff = staffData.map(s => {
-        // Count Department Totals (Exclude Archived)
-        if (s.status !== 'archived') {
-            deptCounts[s.dept] = (deptCounts[s.dept] || 0) + 1;
-        }
+        if (s.status !== 'archived') deptCounts[s.dept] = (deptCounts[s.dept] || 0) + 1;
         return {
             ...s,
             pending: calculateStaffTarget(s) - getDutiesDoneCount(s.email),
-            assignedThisWeek: 0 // Reset counter for this run
+            // Track weekly load dynamically
+            weeklyLoad: {} // Key: "Month-Week" -> count
         };
     });
 
-    // Count duties ALREADY assigned in this week (manual ones)
-    targetSlots.forEach(t => {
-        t.slot.assigned.forEach(email => {
+    // Pre-fill existing assignments into tracker
+    Object.keys(invigilationSlots).forEach(k => {
+        const d = parseDate(k);
+        const mStr = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const wNum = getWeekOfMonth(d);
+        const weekKey = `${mStr}-${wNum}`;
+
+        invigilationSlots[k].assigned.forEach(email => {
             const s = eligibleStaff.find(st => st.email === email);
-            if(s) s.assignedThisWeek++;
+            if(s) {
+                if(!s.weeklyLoad[weekKey]) s.weeklyLoad[weekKey] = 0;
+                s.weeklyLoad[weekKey]++;
+            }
         });
     });
 
     const logEntries = [];
     let assignedCount = 0;
+    const timestamp = new Date().toLocaleString();
 
     // 5. Process Each Slot
     for (const target of targetSlots) {
@@ -3120,61 +3128,64 @@ window.runWeeklyAutoAssign = async function(monthStr, weekNum) {
         
         if (needed <= 0) continue;
 
-        // Track Department counts SPECIFIC TO THIS SLOT
+        // Contexts
+        const mStr = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const wNum = getWeekOfMonth(date);
+        const currentWeekKey = `${mStr}-${wNum}`;
+        
+        const prevDate = new Date(date); prevDate.setDate(date.getDate() - 1);
+        const nextDate = new Date(date); nextDate.setDate(date.getDate() + 1);
+
         const slotDeptCounts = {};
         slot.assigned.forEach(email => {
             const s = staffData.find(st => st.email === email);
-            if (s && s.dept) {
-                slotDeptCounts[s.dept] = (slotDeptCounts[s.dept] || 0) + 1;
-            }
+            if (s && s.dept) slotDeptCounts[s.dept] = (slotDeptCounts[s.dept] || 0) + 1;
         });
 
-        // Iterate to fill needed spots
+        // We need to run the selection loop 'needed' times
+        // For each pick, we re-evaluate because the context (dept count) changes
         for (let i = 0; i < needed; i++) {
+            
             // Score Candidates
             const candidates = eligibleStaff.map(s => {
-                let score = s.pending * 100; // Base Score: High Pending = High Priority
+                let score = s.pending * 100; 
                 let warnings = [];
 
-                // --- HARD CONSTRAINTS (Must Exclude) ---
-                if (slot.assigned.includes(s.email)) return null; // Already in this slot
-                if (isUserUnavailable(slot, s.email, key)) return null; // Marked Unavailable
+                // --- HARD CONSTRAINTS ---
+                if (slot.assigned.includes(s.email)) return null; 
+                if (isUserUnavailable(slot, s.email, key)) return null; 
+                if (s.status === 'archived') return null;
 
-                // --- SOFT CONSTRAINTS (Penalize Score) ---
-                
-                // Rule 1: Max 3 per week (-5000)
-                if (s.assignedThisWeek >= 3) {
+                // --- SOFT CONSTRAINTS ---
+                // 1. Weekly Limit
+                const dutiesThisWeek = s.weeklyLoad[currentWeekKey] || 0;
+                if (dutiesThisWeek >= 3) {
                     score -= 5000; 
-                    warnings.push("Over Weekly Limit (3)");
+                    warnings.push("Max 3/wk");
                 }
 
-                // Rule 2: Department Saturation (-4000)
-                // Logic: Max 60% of dept strength, ignored if dept size <= 1
-                const deptTotal = deptCounts[s.dept] || 0;
-                if (deptTotal > 1) {
-                    const currentDeptAssigned = slotDeptCounts[s.dept] || 0;
-                    const deptLimit = Math.ceil(deptTotal * 0.60);
-                    
-                    if (currentDeptAssigned >= deptLimit) {
-                        score -= 4000;
-                        warnings.push(`Dept Saturation (>60% of ${s.dept})`);
-                    }
-                }
-
-                // Rule 3: Same Day Conflict (-2000)
+                // 2. Same Day Conflict (Check DB directly for speed)
                 const sameDayKeys = targetSlots.filter(t => 
                     t.date.toDateString() === date.toDateString() && t.key !== key
                 ).map(t => t.key);
                 
                 if (sameDayKeys.some(sdk => invigilationSlots[sdk].assigned.includes(s.email))) {
                     score -= 2000;
-                    warnings.push("Same Day Double Duty");
+                    warnings.push("Same Day");
                 }
 
-                // Rule 4: Adjacent Day Conflict (-1000)
-                const prevDate = new Date(date); prevDate.setDate(date.getDate() - 1);
-                const nextDate = new Date(date); nextDate.setDate(date.getDate() + 1);
-                
+                // 3. Dept Saturation
+                const dTotal = deptCounts[s.dept] || 0;
+                if (dTotal > 1) {
+                    const dAssigned = slotDeptCounts[s.dept] || 0;
+                    if (dAssigned >= Math.ceil(dTotal * 0.6)) {
+                        score -= 4000;
+                        warnings.push("Dept Saturation");
+                    }
+                }
+
+                // 4. Adjacent Day (Check DB)
+                // Simplified check against current batch of target slots
                 let hasAdjacent = false;
                 targetSlots.forEach(t => {
                     if ((t.date.toDateString() === prevDate.toDateString() || t.date.toDateString() === nextDate.toDateString()) 
@@ -3184,59 +3195,70 @@ window.runWeeklyAutoAssign = async function(monthStr, weekNum) {
                 });
                 if (hasAdjacent) {
                     score -= 1000;
-                    warnings.push("Adjacent Day Duty");
+                    warnings.push("Adjacent");
                 }
 
                 return { staff: s, score, warnings };
-            }).filter(c => c !== null); 
+            }).filter(c => c !== null);
 
-            // Sort by Score (High to Low)
+            // Sort High to Low
             candidates.sort((a, b) => b.score - a.score);
 
             if (candidates.length > 0) {
-                const choice = candidates[0]; // Best candidate
+                const choice = candidates[0];
                 
                 // Assign
                 slot.assigned.push(choice.staff.email);
-                choice.staff.assignedThisWeek++;
-                choice.staff.pending--; 
                 
-                // Update Slot Dept Count immediately
+                // Update Tracker
+                choice.staff.pending--;
+                if(!choice.staff.weeklyLoad[currentWeekKey]) choice.staff.weeklyLoad[currentWeekKey] = 0;
+                choice.staff.weeklyLoad[currentWeekKey]++;
+                
                 slotDeptCounts[choice.staff.dept] = (slotDeptCounts[choice.staff.dept] || 0) + 1;
                 
                 assignedCount++;
 
-                // Log Warnings
+                // --- GENERATE LOGIC REPORT FOR THIS SLOT ---
+                // We append this decision to the slot's log history
+                let logEntry = `
+                    <div class="text-xs border-b border-gray-100 pb-1 mb-1">
+                        <span class="text-green-700 font-bold">Auto-Assigned:</span> <b>${choice.staff.name}</b> 
+                        <span class="text-gray-500">(Score: ${choice.score})</span>
+                        ${choice.warnings.length > 0 ? `<span class="text-red-500 ml-1">[${choice.warnings.join(', ')}]</span>` : ""}
+                    </div>`;
+
+                // Add Skipped Candidates context
+                const skipped = candidates.slice(1, 4); // Next 3 best
+                if (skipped.length > 0) {
+                    logEntry += `<div class="text-[10px] text-gray-500 ml-2 mb-2">Skipped: ` + 
+                        skipped.map(s => `${s.staff.name} (${s.score})`).join(', ') + `</div>`;
+                }
+
+                // Create/Append Log
+                if (!slot.allocationLog) slot.allocationLog = `<div class="mb-2 pb-2 border-b"><div class="font-bold">Auto-Assign Run (${timestamp})</div></div>`;
+                slot.allocationLog += logEntry;
+
                 if (choice.warnings.length > 0) {
                     logEntries.push({
                         type: "WARN",
                         msg: `Assigned ${choice.staff.name} to ${key}. Breached: ${choice.warnings.join(", ")}`
                     });
                 }
-            } else {
-                logEntries.push({
-                    type: "ERROR",
-                    msg: `FAILED to fill slot ${key}. No eligible staff available.`
-                });
             }
         }
     }
 
-    // 6. Save Log
+    // 6. Save Global Log
     if (logEntries.length > 0) {
         const logRef = doc(db, "colleges", currentCollegeId);
-        const timestamp = new Date().toLocaleString();
         const newLogs = logEntries.map(e => `[${timestamp}] ${e.type}: ${e.msg}`);
-        
-        try {
-             await updateDoc(logRef, {
-                autoAssignLogs: arrayUnion(...newLogs)
-            });
-        } catch(e) { console.error("Log save failed", e); }
+        try { await updateDoc(logRef, { autoAssignLogs: arrayUnion(...newLogs) }); } catch(e){}
     }
 
-    // 7. Save & Refresh
-    logActivity("Auto-Assign Run", `Admin ran auto-assign for ${monthStr} Week ${weekNum}. Filled ${assignedCount} slots.`);
+    logActivity("Auto-Assign Week", `Run for ${monthStr} Week ${weekNum}. Filled ${assignedCount} slots.`);
+    
+    // 7. Save Slots & Refresh
     await syncSlotsToCloud();
     renderSlotsGridAdmin();
     
@@ -3246,6 +3268,7 @@ window.runWeeklyAutoAssign = async function(monthStr, weekNum) {
     }
     alert(alertMsg);
 }
+
 window.viewAutoAssignLogs = async function() {
     const ref = doc(db, "colleges", currentCollegeId);
     const snap = await getDoc(ref);
