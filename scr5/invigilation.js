@@ -58,6 +58,7 @@ let currentSubstituteCandidate = null; // Stores selected staff for substitution
 let isGlobalTargetLocked = true; // <--- NEW
 let currentAdminDate = new Date(); // Tracks the currently viewed month in Admin
 let tempAttendanceBatch = {}; // Stores parsed CSV data grouped by session key
+let isBulkSendingCancelled = false; // <--- NEW FLAG
 let currentEmailQueue = []; // Stores the list for bulk sending
 
 // --- DOM ELEMENTS ---
@@ -3260,37 +3261,29 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
     const list = document.getElementById('notif-list-container');
     const title = document.getElementById('notif-modal-title');
     const subtitle = document.getElementById('notif-modal-subtitle');
-    const preview = document.getElementById('notif-message-preview');
     
     title.textContent = `📢 Notify Week ${weekNum} (${monthStr})`;
     subtitle.textContent = "Send detailed professional emails (Faculty + Consolidated Dept Summary).";
     list.innerHTML = '';
     
-    // Clear Queue
     currentEmailQueue = [];
 
+    // ... (Keep existing duty gathering logic) ...
     // 1. Gather Duties
     const facultyDuties = {}; 
     Object.keys(invigilationSlots).forEach(key => {
         const date = parseDate(key);
         const mStr = date.toLocaleString('default', { month: 'long', year: 'numeric' });
         const wNum = getWeekOfMonth(date);
-        
         if (mStr === monthStr && wNum === weekNum) {
             const slot = invigilationSlots[key];
             const [dStr, tStr] = key.split(' | ');
             const isAN = (tStr.includes("PM") || tStr.startsWith("12"));
             const sessionCode = isAN ? "AN" : "FN";
             const dayName = date.toLocaleString('en-us', { weekday: 'short' }); 
-            
             slot.assigned.forEach(email => {
                 if (!facultyDuties[email]) facultyDuties[email] = [];
-                facultyDuties[email].push({
-                    date: dStr,
-                    day: dayName,
-                    session: sessionCode,
-                    time: tStr
-                });
+                facultyDuties[email].push({ date: dStr, day: dayName, session: sessionCode, time: tStr });
             });
         }
     });
@@ -3300,22 +3293,43 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
         window.openModal('notification-modal');
         return;
     }
+    // ... (End gathering logic) ...
 
-    const sampleName = "Abdul Raheem MK";
-    preview.textContent = generateWeeklyMessage(sampleName, "(01/12-Mon-FN)...");
+    // 2. Add Bulk Buttons (WITH CANCEL BUTTON)
+    list.innerHTML = `
+        <div class="mb-4 pb-4 border-b border-gray-100 flex justify-between items-center">
+            <div class="text-xs text-gray-500">
+                Queue: <b>${Object.keys(facultyDuties).length}</b> Faculty + Dept Copies.
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-cancel-bulk" onclick="cancelBulkSending()" class="hidden bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-4 py-2 rounded shadow-sm hover:bg-red-200 transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    Stop / Cancel
+                </button>
+                
+                <button id="btn-bulk-email-week" onclick="sendBulkEmails('btn-bulk-email-week')" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded shadow-md transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Send Bulk Emails
+                </button>
+            </div>
+        </div>
+    `;
 
-    // --- AGGREGATOR FOR DEPARTMENTS ---
-    const deptAggregator = {}; // { "English": [ { name: "John", duties: [] }, ... ] }
-
+    // ... (Rest of the function: Sorting, Aggregating Depts, Rendering List) ...
+    // (Copy the rest of the logic from previous turn or your file here)
+    
+    // --- SHORTCUT FOR COPYING ---
+    // Just use the loop logic from the previous `openWeeklyNotificationModal`
+    // The only change was the `list.innerHTML = ...` block above.
+    
+    const deptAggregator = {}; 
     const sortedEmails = Object.keys(facultyDuties).sort((a, b) => getNameFromEmail(a).localeCompare(getNameFromEmail(b)));
 
-    // 2. Process Faculty
     sortedEmails.forEach((email, index) => {
         const duties = facultyDuties[email];
         duties.sort((a, b) => a.date.split('.').reverse().join('').localeCompare(b.date.split('.').reverse().join('')));
-
         const dutyString = duties.map(d => `(${d.date}-${d.day}-${d.session})`).join(', ');
-        
         const staff = staffData.find(s => s.email === email);
         const fullName = staff ? staff.name : email;
         const firstName = getFirstName(fullName);
@@ -3325,31 +3339,22 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
         phone = phone.replace(/\D/g, ''); 
         if (phone.length === 10) phone = "91" + phone;
 
-        // A. Add to Faculty Queue
+        // Emails
         const emailSubject = `Invigilation Duty: Week ${weekNum} (${monthStr})`;
         const emailBody = generateProfessionalEmail(fullName, duties, "Upcoming Invigilation Duties");
         const btnId = `email-btn-${index}`;
 
         if (staffEmail) {
-            currentEmailQueue.push({
-                email: staffEmail,
-                name: fullName,
-                subject: emailSubject,
-                body: emailBody,
-                btnId: btnId
-            });
+            currentEmailQueue.push({ email: staffEmail, name: fullName, subject: emailSubject, body: emailBody, btnId: btnId });
         }
 
-        // B. Aggregate for Department
+        // Dept Aggregation
         if (staff && staff.dept) {
             if (!deptAggregator[staff.dept]) deptAggregator[staff.dept] = [];
-            deptAggregator[staff.dept].push({
-                name: fullName,
-                duties: duties
-            });
+            deptAggregator[staff.dept].push({ name: fullName, duties: duties });
         }
 
-        // UI Rendering (Same as before)
+        // WhatsApp/SMS Links
         const waMsg = generateWeeklyMessage(fullName, dutyString);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(waMsg)}` : "#";
         const shortDutyStr = dutyString.length > 100 ? dutyString.substring(0, 97) + "..." : dutyString;
@@ -3371,10 +3376,7 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
                     ${staff && staff.dept ? `<div class="text-[9px] text-gray-400">${staff.dept}</div>` : ''}
                 </div>
                 <div class="flex gap-2 shrink-0">
-                    <button id="${btnId}" onclick="sendSingleEmail(this, '${staffEmail}', '${safeName}', '${safeSubject}', '${safeBody}')" ${emailDisabled}
-                       class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded shadow transition flex items-center gap-1" title="Send Individual Email">
-                       Mail
-                    </button>
+                    <button id="${btnId}" onclick="sendSingleEmail(this, '${staffEmail}', '${safeName}', '${safeSubject}', '${safeBody}')" ${emailDisabled} class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded shadow transition flex items-center gap-1">Mail</button>
                     <a href="${smsLink}" target="_blank" ${phoneDisabled} class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded shadow transition">SMS</a>
                     <a href="${waLink}" target="_blank" ${phoneDisabled} onclick="markAsSent(this)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded shadow transition">WA</a>
                 </div>
@@ -3382,115 +3384,75 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
         `;
     });
 
-    // 3. PROCESS DEPARTMENTS (ADD TO QUEUE)
+    // Dept Emails
     const cleanDepts = departmentsConfig.map(d => (typeof d === 'string') ? { name: d, email: "" } : d);
-    
     Object.keys(deptAggregator).forEach(deptName => {
         const deptObj = cleanDepts.find(d => d.name === deptName);
-        
         if (deptObj && deptObj.email) {
             const facultyList = deptAggregator[deptName];
-            
-            // Generate Consolidated Email
             const deptSubject = `Consolidated Duty List: ${deptName} - Week ${weekNum}`;
             const deptBody = generateDepartmentConsolidatedEmail(deptName, facultyList, weekNum, monthStr);
-
-            // Add to Queue (No button ID, sends silently with bulk)
-            currentEmailQueue.push({
-                email: deptObj.email,
-                name: `HOD ${deptName}`,
-                subject: deptSubject,
-                body: deptBody,
-                btnId: null 
-            });
-
-            // Optional: Add a visual divider in the list to show a dept email will be sent
-            list.insertAdjacentHTML('beforeend', `
-                <div class="bg-indigo-50 border border-indigo-100 p-2 rounded text-xs text-indigo-800 text-center mt-1">
-                    <span class="font-bold">queued:</span> Consolidated email for <b>${deptName}</b> (${deptObj.email})
-                </div>
-            `);
+            currentEmailQueue.push({ email: deptObj.email, name: `HOD ${deptName}`, subject: deptSubject, body: deptBody, btnId: null });
+            list.insertAdjacentHTML('beforeend', `<div class="bg-indigo-50 border border-indigo-100 p-2 rounded text-xs text-indigo-800 text-center mt-1"><span class="font-bold">queued:</span> Consolidated email for <b>${deptName}</b> (${deptObj.email})</div>`);
         }
     });
 
-    // Add Bulk Button at the top
-    const bulkBtnHtml = `
-        <div class="mb-4 pb-4 border-b border-gray-100 flex justify-between items-center">
-            <div class="text-xs text-gray-500">
-                Queue: <b>${sortedEmails.length}</b> Faculty + <b>${Object.keys(deptAggregator).filter(d => cleanDepts.find(cd => cd.name === d && cd.email)).length}</b> Dept Emails.
-            </div>
-            <button id="btn-bulk-email-week" onclick="sendBulkEmails('btn-bulk-email-week')" 
-                class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded shadow-md transition flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                Send Bulk Emails
-            </button>
-        </div>
-    `;
-    list.insertAdjacentHTML('afterbegin', bulkBtnHtml);
-
     window.openModal('notification-modal');
 }
-
 
 window.openSlotReminderModal = function(key) {
     const list = document.getElementById('notif-list-container');
     const title = document.getElementById('notif-modal-title');
     const subtitle = document.getElementById('notif-modal-subtitle');
-    const preview = document.getElementById('notif-message-preview');
     
-    // 1. Identify Target Date
+    // ... (Keep existing Date/Slot logic) ...
+    // Identify Date
     const [targetDateStr] = key.split(' | ');
-    
     title.textContent = `🔔 Daily Reminder: ${targetDateStr}`;
     subtitle.textContent = "Send reminders for ALL duties on this day.";
     list.innerHTML = '';
     currentEmailQueue = [];
 
-    // 2. Find ALL Sessions for this Date
-    const dailyDuties = {}; // email -> [{ session, time }]
-    
+    // Find ALL Sessions for this Date
+    const dailyDuties = {}; 
     Object.keys(invigilationSlots).forEach(slotKey => {
         if (slotKey.startsWith(targetDateStr)) {
             const slot = invigilationSlots[slotKey];
             const [d, t] = slotKey.split(' | ');
             const isAN = (t.includes("PM") || t.startsWith("12"));
             const sessionCode = isAN ? "AN" : "FN";
-            
             slot.assigned.forEach(email => {
                 if (!dailyDuties[email]) dailyDuties[email] = [];
-                dailyDuties[email].push({
-                    date: d,
-                    time: t,
-                    session: sessionCode
-                });
+                dailyDuties[email].push({ date: d, time: t, session: sessionCode });
             });
         }
     });
 
     if (Object.keys(dailyDuties).length === 0) return alert("No duties assigned for this date.");
 
-    // Preview
-    const reportTime = calculateReportTime(key.split(' | ')[1]);
-    preview.textContent = generateDailyMessage("Faculty Name", targetDateStr, "FN/AN", reportTime);
-
-    // ADD BULK BUTTON
+    // ADD BULK BUTTONS (WITH CANCEL)
     list.innerHTML = `
         <div class="mb-4 pb-4 border-b border-gray-100 flex justify-between items-center">
             <div class="text-xs text-gray-500">Queue: <b>${Object.keys(dailyDuties).length}</b> faculty.</div>
-            <button id="btn-bulk-email-day" onclick="sendBulkEmails('btn-bulk-email-day')" 
-                class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded shadow-md transition flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                Send Bulk Emails
-            </button>
+            <div class="flex gap-2">
+                <button id="btn-cancel-bulk" onclick="cancelBulkSending()" class="hidden bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-4 py-2 rounded shadow-sm hover:bg-red-200 transition flex items-center gap-2">
+                    Stop / Cancel
+                </button>
+                <button id="btn-bulk-email-day" onclick="sendBulkEmails('btn-bulk-email-day')" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded shadow-md transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Send Bulk Emails
+                </button>
+            </div>
         </div>
     `;
 
-    // 3. Render List
+    // ... (Rest of the loop logic is same as previous) ...
+    // (Use the loop from the previous openSlotReminderModal)
     const sortedEmails = Object.keys(dailyDuties).sort((a, b) => getNameFromEmail(a).localeCompare(getNameFromEmail(b)));
 
     sortedEmails.forEach((email, index) => {
         const duties = dailyDuties[email];
-        // Sort FN before AN
         duties.sort((a, b) => a.time.localeCompare(b.time));
         
         const staff = staffData.find(s => s.email === email);
@@ -3502,31 +3464,19 @@ window.openSlotReminderModal = function(key) {
         phone = phone.replace(/\D/g, ''); 
         if (phone.length === 10) phone = "91" + phone;
 
-        // 1. Professional Email
         const emailSubject = `Reminder: Exam Duty Tomorrow (${targetDateStr})`;
         const emailBody = generateProfessionalEmail(fullName, duties, "Duty Reminder");
-        
-        // Add to Queue
         const btnId = `email-btn-${index}`;
+
         if (staffEmail) {
-            currentEmailQueue.push({
-                email: staffEmail,
-                name: fullName,
-                subject: emailSubject,
-                body: emailBody,
-                btnId: btnId
-            });
+            currentEmailQueue.push({ email: staffEmail, name: fullName, subject: emailSubject, body: emailBody, btnId: btnId });
         }
 
-        // 2. WhatsApp/SMS (Consolidated)
-        // "FN, AN" or just "FN"
         const sessionsStr = duties.map(d => d.session).join(' & ');
         const firstTime = duties[0].time;
         const reportTime = calculateReportTime(firstTime);
-        
         const waMsg = generateDailyMessage(fullName, targetDateStr, sessionsStr, reportTime);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(waMsg)}` : "#";
-
         const shortDate = targetDateStr.slice(0, 5);
         const smsMsg = `${firstName}: Duty ${shortDate} (${sessionsStr}). Report ${reportTime}. -CS GVC`;
         const smsLink = phone ? `sms:${phone}?body=${encodeURIComponent(smsMsg)}` : "#";
@@ -3534,7 +3484,6 @@ window.openSlotReminderModal = function(key) {
         const phoneDisabled = phone ? "" : "disabled";
         const emailDisabled = staffEmail ? "" : "disabled";
         const noEmailWarning = staffEmail ? "" : `<span class="text-red-500 text-xs ml-2">(No Email)</span>`;
-
         const safeName = fullName.replace(/'/g, "\\'");
         const safeSubject = emailSubject.replace(/'/g, "\\'");
         const safeBody = emailBody.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '');
@@ -3546,10 +3495,7 @@ window.openSlotReminderModal = function(key) {
                     <div class="text-xs text-gray-500 mt-1 font-bold text-indigo-600">Sessions: ${sessionsStr}</div>
                 </div>
                 <div class="flex gap-2 shrink-0">
-                    <button id="${btnId}" onclick="sendSingleEmail(this, '${staffEmail}', '${safeName}', '${safeSubject}', '${safeBody}')" ${emailDisabled}
-                       class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded shadow transition flex items-center gap-1">
-                       Mail
-                    </button>
+                    <button id="${btnId}" onclick="sendSingleEmail(this, '${staffEmail}', '${safeName}', '${safeSubject}', '${safeBody}')" ${emailDisabled} class="bg-gray-700 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded shadow transition flex items-center gap-1">Mail</button>
                     <a href="${smsLink}" target="_blank" ${phoneDisabled} class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded shadow transition">SMS</a>
                     <a href="${waLink}" target="_blank" ${phoneDisabled} onclick="markAsSent(this)" class="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold px-3 py-2 rounded shadow transition">Remind</a>
                 </div>
@@ -3559,6 +3505,7 @@ window.openSlotReminderModal = function(key) {
 
     window.openModal('notification-modal');
 }
+
 
 // --- MESSAGE GENERATORS ---
 
@@ -4012,27 +3959,47 @@ function formatMessageForEmail(text) {
         .replace(/_(.*?)_/g, '<i>$1</i>');       // Italic _text_
     return html;
 }
-
-// --- BULK EMAIL SENDER ---
+// --- BULK EMAIL SENDER (With Cancel Option) ---
 window.sendBulkEmails = async function(btnId) {
     const btn = document.getElementById(btnId);
+    const cancelBtn = document.getElementById('btn-cancel-bulk'); // Get the cancel button
+    
     if (!btn) return;
 
     if (currentEmailQueue.length === 0) return alert("No valid emails found to send.");
     if (!confirm(`Send detailed emails to ${currentEmailQueue.length} faculty members?`)) return;
 
+    // 1. Reset State
+    isBulkSendingCancelled = false;
     const originalText = btn.innerHTML;
     btn.disabled = true;
-    let sentCount = 0;
+    
+    // 2. Show Cancel Button
+    if (cancelBtn) {
+        cancelBtn.classList.remove('hidden');
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = "Stop / Cancel";
+        cancelBtn.classList.remove('opacity-50');
+    }
 
-    // Process Queue
+    let sentCount = 0;
+    let cancelled = false;
+
+    // 3. Process Queue
     for (let i = 0; i < currentEmailQueue.length; i++) {
+        
+        // --- CHECK FOR CANCELLATION ---
+        if (isBulkSendingCancelled) {
+            cancelled = true;
+            break; // Stop the loop
+        }
+
         const item = currentEmailQueue[i];
         
         // Update Button Progress
         btn.innerHTML = `<svg class="animate-spin h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Sending ${i + 1}/${currentEmailQueue.length}...`;
 
-        // Find the individual button to update its status too
+        // Find individual button
         const indBtn = document.getElementById(item.btnId);
         if (indBtn) {
             indBtn.innerHTML = "Sending...";
@@ -4052,7 +4019,7 @@ window.sendBulkEmails = async function(btnId) {
                 })
             });
 
-            // Success Update (Individual)
+            // Success Update
             if (indBtn) {
                 indBtn.innerHTML = "Sent";
                 indBtn.classList.remove('bg-gray-400', 'bg-gray-700');
@@ -4060,8 +4027,8 @@ window.sendBulkEmails = async function(btnId) {
             }
             sentCount++;
             
-            // Small delay to prevent rate limiting
-            await new Promise(r => setTimeout(r, 500));
+            // Delay to prevent rate limiting
+            await new Promise(r => setTimeout(r, 800)); // Increased to 800ms for safety
 
         } catch (e) {
             console.error(`Failed to send to ${item.email}`, e);
@@ -4069,14 +4036,24 @@ window.sendBulkEmails = async function(btnId) {
         }
     }
 
-    // Final Button State
-    btn.innerHTML = `✅ Sent ${sentCount} Emails`;
-    btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
-    btn.classList.add('bg-green-600', 'cursor-default');
-    
-    if(typeof logActivity === 'function') logActivity("Bulk Email", `Sent ${sentCount} automated emails to faculty.`);
-    alert(`Batch Complete! ${sentCount} emails sent.`);
+    // 4. Cleanup
+    if (cancelBtn) cancelBtn.classList.add('hidden'); // Hide Cancel button
+
+    if (cancelled) {
+        btn.innerHTML = `⚠️ Stopped (${sentCount}/${currentEmailQueue.length})`;
+        btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+        btn.classList.add('bg-orange-600', 'cursor-default');
+        alert(`Sending Cancelled.\nSuccessfully sent: ${sentCount}\nRemaining: ${currentEmailQueue.length - sentCount}`);
+    } else {
+        btn.innerHTML = `✅ Sent ${sentCount} Emails`;
+        btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+        btn.classList.add('bg-green-600', 'cursor-default');
+        
+        if(typeof logActivity === 'function') logActivity("Bulk Email", `Sent ${sentCount} automated emails to faculty.`);
+        alert(`Batch Complete! ${sentCount} emails sent.`);
+    }
 }
+
 // --- HELPER: Consolidated Department Email Template ---
 function generateDepartmentConsolidatedEmail(deptName, facultyData, weekNum, monthStr) {
     const collegeName = collegeData.examCollegeName || "Government Victoria College";
@@ -4809,6 +4786,20 @@ window.unselectAllManualStaff = function() {
     // Update the "Selected/Required" counter immediately
     window.updateManualCounts();
 }
+
+// --- BULK CANCEL FUNCTION ---
+window.cancelBulkSending = function() {
+    if (confirm("Stop sending remaining emails?")) {
+        isBulkSendingCancelled = true;
+        const btn = document.getElementById('btn-cancel-bulk');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Stopping...";
+            btn.classList.add('opacity-50');
+        }
+    }
+}
+
 // This makes functions available to HTML onclick="" events
 window.toggleLock = toggleLock;
 window.waNotify = waNotify;
@@ -4885,6 +4876,7 @@ window.downloadAttendanceTemplate = downloadAttendanceTemplate;
 window.handleAttendanceCSVUpload = handleAttendanceCSVUpload;
 window.filterManualStaff = filterManualStaff;
 window.changeAdminMonth = changeAdminMonth;
+window.cancelBulkSending = cancelBulkSending;
 window.switchAdminTab = function(tabName) {
     // Hide All
     document.getElementById('tab-content-staff').classList.add('hidden');
