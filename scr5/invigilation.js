@@ -3620,12 +3620,14 @@ window.openWeeklyNotificationModal = function(monthStr, weekNum) {
             deptAggregator[staff.dept].push({ name: fullName, duties: duties });
         }
 
-        // WhatsApp/SMS Links
-        const waMsg = generateWeeklyMessage(fullName, duties);
+        // WhatsApp (Elaborate & Detailed)
+        const waMsg = generateWeeklyWhatsApp(fullName, duties);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(waMsg)}` : "#";
-        const shortDutyStr = dutyString.length > 100 ? dutyString.substring(0, 97) + "..." : dutyString;
-        const smsMsg = `${firstName}: Duty ${shortDutyStr}. Check Portal. -CS GVC`;
+        // SMS (Shortest Possible)
+        const smsMsg = generateWeeklySMS(firstName, duties);
         const smsLink = phone ? `sms:${phone}?body=${encodeURIComponent(smsMsg)}` : "#";
+        const shortDutyStr = dutyString.length > 100 ? dutyString.substring(0, 97) + "..." : dutyString;
+        
 
         const phoneDisabled = phone ? "" : "disabled";
         const emailDisabled = staffEmail ? "" : "disabled";
@@ -3739,11 +3741,15 @@ window.openSlotReminderModal = function(key) {
         }
 
         // *** UPDATED: Generate detailed daily message ***
-        const waMsg = generateDailyMessage(fullName, targetDateStr, duties);
+        // WhatsApp (Elaborate & Detailed)
+        const waMsg = generateDailyWhatsApp(fullName, targetDateStr, duties);
         const waLink = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(waMsg)}` : "#";
-        const shortDate = targetDateStr.slice(0, 5);
-        const smsMsg = `${firstName}: Duty ${shortDate} (${sessionsStr}). Report ${reportTime}. -CS GVC`;
+
+        // SMS (Shortest Possible)
+        const smsMsg = generateDailySMS(firstName, targetDateStr, duties);
         const smsLink = phone ? `sms:${phone}?body=${encodeURIComponent(smsMsg)}` : "#";
+        const shortDate = targetDateStr.slice(0, 5);
+        
 
         const phoneDisabled = phone ? "" : "disabled";
         const emailDisabled = staffEmail ? "" : "disabled";
@@ -3773,28 +3779,51 @@ window.openSlotReminderModal = function(key) {
 
 // --- MESSAGE GENERATORS ---
 
-function generateWeeklyMessage(name, duties) {
+// --- MESSAGE GENERATORS (Split for SMS & WhatsApp) ---
+
+// 1. Weekly WhatsApp (Elaborate)
+function generateWeeklyWhatsApp(name, duties) {
     const now = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     
     let dutyList = "";
-    // Loop through duties to add Reporting Time for each
     duties.forEach(d => {
         const rTime = calculateReportTime(d.time);
         dutyList += `\n📅 *${d.date}* (${d.day}) | ${d.session}\n   👉 Report by: *${rTime}*\n`;
     });
 
-    return `🟡 ${name}: Invigilation Duty Update (${now})\n${dutyList}\n🟢 *Instructions: https://bit.ly/gvc-exam*\n\n_Adjustments: http://www.gvc.ac.in/exam_\n-Chief Supt.`;
+    return `🟡 *${name}*: Invigilation Duty Update (${now})\n${dutyList}\n🟢 *Instructions:* https://bit.ly/gvc-exam\n\n_Adjustments:_ http://www.gvc.ac.in/exam\n-Chief Supt.`;
 }
 
-function generateDailyMessage(name, dateStr, duties) {
+// 2. Weekly SMS (Shortest)
+function generateWeeklySMS(firstName, duties) {
+    // Format: "John: Duties: 01.12(FN), 03.12(AN). Portal: gvc.ac.in/exam -CS"
+    const shortList = duties.map(d => {
+        const shortDate = d.date.slice(0,5); // "01.12"
+        return `${shortDate}(${d.session})`;
+    }).join(', ');
+    
+    return `${firstName}: Duties: ${shortList}. Portal: gvc.ac.in/exam -CS`;
+}
+
+// 3. Daily WhatsApp (Elaborate & Formal)
+function generateDailyWhatsApp(name, dateStr, duties) {
     let dutyList = "";
-    // Loop through duties to add Reporting Time for each
     duties.forEach(d => {
         const rTime = calculateReportTime(d.time);
-        dutyList += `\n🔹 Session: ${d.session} (${d.time})\n   ⏰ Report by: *${rTime}*\n`;
+        dutyList += `\n🔹 *Session:* ${d.session} (${d.time})\n   ⏰ *Report by:* ${rTime}\n`;
     });
 
-    return `🔔 REMINDER: Exam Duty Tomorrow (${dateStr})\n${dutyList}\nPlease report to the office of the CS on time.\n\n- Chief Supt.`;
+    return `📢 *INVIGILATION DUTY REMINDER* 📢\n\nDear *${name}*,\n\nThis is to inform you that you have invigilation duty scheduled for tomorrow, *${dateStr}*.\n\n*Duty Details:*${dutyList}\n👉 *Instructions:*\n1. Kindly abide by the rules and regulations of the University.\n2. Please report to the Chief Superintendent's office *before the stipulated time*.\n3. In case of any inconvenience/leave, you are strictly requested to *arrange a mutual replacement* to ensure the examination is conducted uninterrupted.\n\nThank you for your cooperation.\n\n- Chief Superintendent\nExam Wing`;
+}
+
+// 4. Daily SMS (Shortest)
+function generateDailySMS(firstName, dateStr, duties) {
+    // Format: "John: Duty Tmrw 01.12 (FN). Report 9:00 AM. -CS"
+    const shortDate = dateStr.slice(0,5);
+    const sessions = duties.map(d => d.session).join('&');
+    const firstTime = calculateReportTime(duties[0].time);
+    
+    return `${firstName}: Duty Tmrw ${shortDate} (${sessions}). Report ${firstTime}. -CS`;
 }
 
 function calculateReportTime(timeStr) {
