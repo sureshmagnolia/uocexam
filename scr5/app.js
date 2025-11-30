@@ -905,7 +905,7 @@ function updateSyncStatus(status, type) {
 let lastGeneratedRoomData = [];
 let lastGeneratedReportType = "";
 let currentStreamConfig = ["Regular"]; // Default
-
+let isStreamSettingsLocked = true; // Default Locked state for Streams
 // --- (V28) Global var to hold room config map for report generation ---
 let currentRoomConfig = {};
 
@@ -10186,21 +10186,31 @@ window.handlePythonExtraction = function(jsonString) {
         populateStreamDropdowns();
     }
 
-    // Render Settings List
+    // Render Settings List (Lock-Aware)
     function renderStreamSettings() {
         if (!streamContainer) return;
         streamContainer.innerHTML = '';
         currentStreamConfig.forEach((stream, index) => {
             const div = document.createElement('div');
             div.className = "flex justify-between items-center bg-white border p-2 rounded text-sm";
+            
+            let actionHtml = '';
+            if (index === 0) {
+                 actionHtml = '<span class="text-xs text-gray-400">(Default)</span>';
+            } else {
+                 // Only show delete button if UNLOCKED
+                 if (!isStreamSettingsLocked) {
+                     actionHtml = `<button class="text-red-500 hover:text-red-700 font-bold px-2" onclick="deleteStream('${stream}')">&times;</button>`;
+                 }
+            }
+
             div.innerHTML = `
                 <span class="font-medium">${stream}</span>
-                ${index > 0 ? `<button class="text-red-500 hover:text-red-700" onclick="deleteStream('${stream}')">&times;</button>` : '<span class="text-xs text-gray-400">(Default)</span>'}
+                ${actionHtml}
             `;
             streamContainer.appendChild(div);
         });
     }
-
 // Populate Dropdowns (Fixed: Variable Name Typo)
     function populateStreamDropdowns() {
         const streamsToRender = (currentStreamConfig && currentStreamConfig.length > 0) 
@@ -10257,13 +10267,35 @@ window.handlePythonExtraction = function(jsonString) {
         }
     }
     
-    // Expose globally
-    window.populateRemunerationDropdowns = populateStreamDropdowns;
-    
-    
-    // Also expose this function globally if needed by remuneration.js init
+        // Also expose this function globally if needed by remuneration.js init
     window.populateRemunerationDropdowns = populateStreamDropdowns;
 
+    // --- Stream Lock Toggle Logic ---
+    const toggleStreamLockBtn = document.getElementById('toggle-stream-lock-btn');
+    const streamInputGroup = document.getElementById('stream-input-group');
+
+    if (toggleStreamLockBtn) {
+        toggleStreamLockBtn.addEventListener('click', () => {
+            isStreamSettingsLocked = !isStreamSettingsLocked;
+            
+            // Update UI based on state
+            if (isStreamSettingsLocked) {
+                // LOCKED STATE
+                toggleStreamLockBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg><span>List Locked</span>`;
+                toggleStreamLockBtn.className = "text-xs flex items-center gap-1 bg-gray-100 text-gray-600 border border-gray-300 px-3 py-1 rounded hover:bg-gray-200 transition shadow-sm";
+                
+                if(streamInputGroup) streamInputGroup.classList.add('hidden'); // Hide Add inputs
+            } else {
+                // UNLOCKED STATE
+                toggleStreamLockBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg><span>Unlocked</span>`;
+                toggleStreamLockBtn.className = "text-xs flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded hover:bg-red-100 transition shadow-sm";
+                
+                if(streamInputGroup) streamInputGroup.classList.remove('hidden'); // Show Add inputs
+            }
+            
+            renderStreamSettings(); // Re-render list to show/hide delete buttons
+        });
+    }
     // Add Stream
     if (addStreamBtn) {
         addStreamBtn.addEventListener('click', () => {
