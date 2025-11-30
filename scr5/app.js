@@ -541,14 +541,15 @@ function syncDataFromCloud(collegeId) {
 
             console.log("☁️ New cloud data detected. Downloading...");
             
-            // 1. Save Main Keys
-            [
-                'examRoomConfig', 'examStreamsConfig', 'examCollegeName', 
-                'examQPCodes', 'examScribeList', 'examScribeAllotment', 
-                'examAbsenteeList', 'examSessionNames', 'lastUpdated', 'examRulesConfig'
-            ].forEach(key => {
-                if (mainData[key]) localStorage.setItem(key, mainData[key]);
-            });
+           // 1. Save Main Keys (UPDATED)
+        [
+            'examRoomConfig', 'examStreamsConfig', 'examCollegeName', 
+            'examQPCodes', 'examScribeList', 'examScribeAllotment', 
+            'examAbsenteeList', 'examSessionNames', 'lastUpdated', 'examRulesConfig',
+            'examInvigilationSlots', 'examStaffData' // <--- ADDED THESE TWO
+        ].forEach(key => {
+            if (mainData[key]) localStorage.setItem(key, mainData[key]);
+        });
             updateHeaderCollegeName(); // <--- ADD THIS LINE HERE
 
             // -------------------------------------------------------
