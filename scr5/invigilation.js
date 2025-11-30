@@ -2468,21 +2468,35 @@ function addAttendanceRow(email, isLocked) {
     if(!s) return;
     
     const div = document.createElement('div');
-    div.className = `flex justify-between items-center bg-white p-2 rounded border ${isLocked ? 'border-green-100 bg-green-50' : 'border-gray-200'}`;
+    // Responsive Layout: Column on Mobile (Card), Row on Desktop
+    div.className = `group flex flex-col md:flex-row justify-between items-start md:items-center p-3 rounded-lg border shadow-sm transition mb-2 gap-2 md:gap-4 ${isLocked ? 'border-green-200 bg-green-50' : 'bg-white border-gray-200'}`;
     
-    // Disable inputs if locked
+    // Checkbox State
     const chkState = isLocked ? "disabled" : "onchange='window.updateAttCount()'";
-    const removeBtn = isLocked ? "" : `<button class="text-red-400 hover:text-red-600 text-xs font-bold px-2" onclick="this.parentElement.remove(); window.updateAttCount();">&times; Remove</button>`;
+
+    // Render Action Button (Full width on mobile, Auto on desktop)
+    let actionHtml = "";
+    if (!isLocked) {
+        actionHtml = `
+            <div class="w-full md:w-auto pt-2 md:pt-0 border-t md:border-0 border-gray-100 md:border-transparent">
+                <button class="text-xs font-bold px-3 py-1.5 rounded border transition w-full md:w-auto text-center flex items-center justify-center gap-1 bg-white text-red-600 border-red-200 hover:bg-red-50 cursor-pointer" 
+                    onclick="this.closest('.group').remove(); window.updateAttCount();">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    Remove
+                </button>
+            </div>
+        `;
+    }
 
     div.innerHTML = `
-        <div class="flex items-center gap-3">
-            <input type="checkbox" class="att-chk w-5 h-5 text-green-600 rounded focus:ring-green-500" value="${email}" checked ${chkState}>
-            <div>
-                <div class="font-bold text-gray-800 text-sm">${s.name}</div>
-                <div class="text-xs text-gray-500">${s.dept}</div>
+        <div class="flex items-center gap-3 w-full md:w-auto">
+            <input type="checkbox" class="att-chk w-5 h-5 text-green-600 rounded focus:ring-green-500 shrink-0" value="${email}" checked ${chkState}>
+            <div class="min-w-0 flex-1">
+                <div class="font-bold text-gray-800 text-sm truncate">${s.name}</div>
+                <div class="text-xs text-gray-500 truncate">${s.dept}</div>
             </div>
         </div>
-        ${removeBtn}
+        ${actionHtml}
     `;
     ui.attList.appendChild(div);
 }
