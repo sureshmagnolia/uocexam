@@ -6048,11 +6048,20 @@ sessionSelect.addEventListener('change', () => {
         absenteeListSection.classList.remove('hidden');
         generateAbsenteeReportButton.disabled = false;
         loadAbsenteeList(sessionKey);
+        
+        // *** FIX: Populate the QP Filter Dropdown ***
+        populateAbsenteeQpFilter(sessionKey); 
+        // ******************************************
     } else {
         absenteeSearchSection.classList.add('hidden');
         absenteeListSection.classList.add('hidden');
         generateAbsenteeReportButton.disabled = true;
         currentAbsenteeListDiv.innerHTML = "";
+        
+        // Optional: Reset the filter if no session
+        if (typeof populateAbsenteeQpFilter === 'function') {
+             populateAbsenteeQpFilter(null);
+        }
     }
     clearSearch();
 });
