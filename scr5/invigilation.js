@@ -882,14 +882,19 @@ function renderExchangeMarket(myEmail) {
     const badge = document.getElementById('market-count-badge');
     if (!list) return;
 
+    // --- NEW: Get Search Query ---
+    const searchInput = document.getElementById('exchange-search-input');
+    const filterText = searchInput ? searchInput.value.toLowerCase() : "";
+    // -----------------------------
+
     list.innerHTML = '';
     
     // 1. Find all slots with active exchange requests
-    const marketSlots = [];
+    let marketSlots = [];
     Object.keys(invigilationSlots).forEach(key => {
         const slot = invigilationSlots[key];
         if (slot.exchangeRequests && slot.exchangeRequests.length > 0) {
-            // Filter: Don't show my own requests (I can't swap with myself)
+            // Filter: Don't show my own requests
             const othersRequests = slot.exchangeRequests.filter(reqEmail => reqEmail !== myEmail);
             
             othersRequests.forEach(sellerEmail => {
@@ -902,20 +907,33 @@ function renderExchangeMarket(myEmail) {
         }
     });
 
-    // 2. Sort by Date (Sooner first)
+    // 2. Sort by Date
     marketSlots.sort((a, b) => {
-        // Parse date for sorting (simplified)
         const dateA = a.key.split('|')[0].split('.').reverse().join('-');
         const dateB = b.key.split('|')[0].split('.').reverse().join('-');
         return dateA.localeCompare(dateB);
     });
 
-    // 3. Update Badge
-    if (badge) badge.textContent = marketSlots.length;
+    // --- NEW: Filter List based on Search ---
+    if (filterText) {
+        marketSlots = marketSlots.filter(item => {
+            const sellerName = getNameFromEmail(item.seller).toLowerCase();
+            return sellerName.includes(filterText);
+        });
+    }
+    // ---------------------------------------
+
+    // 3. Update Badge (Total count, ignoring filter)
+    if (badge) {
+        // Count total real items (re-calculate purely for badge if needed, or just use length)
+        // For UX, usually badge shows total available, list shows filtered. 
+        // Let's keep badge dynamic to view.
+        badge.textContent = marketSlots.length; 
+    }
 
     // 4. Render
     if (marketSlots.length === 0) {
-        list.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">No duties available for exchange.</p>`;
+        list.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">No duties found.</p>`;
         return;
     }
 
@@ -923,7 +941,6 @@ function renderExchangeMarket(myEmail) {
         const sellerName = getNameFromEmail(item.seller);
         const [date, time] = item.key.split(' | ');
         
-        // Check for conflicts
         const sameDaySessions = Object.keys(invigilationSlots).filter(k => k.startsWith(date) && k !== item.key);
         const hasConflict = sameDaySessions.some(k => invigilationSlots[k].assigned.includes(myEmail));
         const amAlreadyAssigned = item.slotData.assigned.includes(myEmail);
@@ -2602,11 +2619,37 @@ async function acceptExchange(key, buyerEmail, sellerEmail) {
     // 4. LOGGING
     logActivity("Exchange Accepted", `${getNameFromEmail(buyerEmail)} took duty ${key} from ${getNameFromEmail(sellerEmail)}.`);
 
+    // --- NEW: SEND NOTIFICATION EMAIL TO SELLER ---
+    if (seller && seller.email && googleScriptUrl) {
+        const subject = `Duty Exchange Accepted: ${key}`;
+        const body = `
+            <p>Dear ${seller.name},</p>
+            <p>Good news! Your request to exchange the invigilation duty for <b>${key}</b> has been accepted by <b>${buyer.name}</b>.</p>
+            <p>You have been removed from this duty assignment.</p>
+            <hr>
+            <p style="font-size:12px; color:#666;">Exam Cell Notification</p>
+        `;
+        
+        // Non-blocking fetch (Fire and Forget)
+        fetch(googleScriptUrl, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: seller.email,
+                subject: subject,
+                body: body
+            })
+        }).then(() => console.log("Notification email triggered."))
+          .catch(e => console.error("Email failed", e));
+    }
+    // ----------------------------------------------
+
     // 5. Sync
     await syncSlotsToCloud();
     await syncStaffToCloud();
 
-    alert(`Success! You have accepted the duty from ${sellerName}.`);
+    alert(`Success! You have accepted the duty from ${sellerName}. A notification has been sent to them.`);
     
     window.closeModal('day-detail-modal');
     renderStaffCalendar(buyerEmail);
@@ -3446,7 +3489,13 @@ function renderLiveLogs(query = "") {
         `;
     }).join('');
 }
-
+// --- LISTENER FOR EXCHANGE SEARCH ---
+const exchangeSearch = document.getElementById('exchange-search-input');
+if (exchangeSearch) {
+    exchangeSearch.addEventListener('input', () => {
+        if (currentUser) renderExchangeMarket(currentUser.email);
+    });
+}
 
 // ==========================================
 // 📢 MESSAGING & ALERTS SYSTEM
