@@ -54,7 +54,12 @@
         <div id="auth-section" class="hidden flex items-center gap-4">
             <div class="text-right hidden md:block">
                 <div id="user-name" class="text-sm font-bold text-gray-800">User</div>
-                <div id="user-role" class="text-xs text-indigo-600 font-bold uppercase tracking-wider">Role</div>
+                <div class="flex items-center justify-end gap-2">
+                    <div id="user-role" class="text-xs text-indigo-600 font-bold uppercase tracking-wider">Role</div>
+                    <div id="sync-status" class="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Connecting...
+                    </div>
+                </div>
             </div>
             <button id="logout-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2 rounded text-sm font-medium">Logout</button>
         </div>
