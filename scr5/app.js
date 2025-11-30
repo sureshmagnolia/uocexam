@@ -894,13 +894,23 @@ window.removeUser = async function(email) {
     }
 }
 
-// Helper for status UI
+// Helper for status UI (Updates Desktop & Mobile)
 function updateSyncStatus(status, type) {
-    if (!syncStatusDisplay) return;
-    syncStatusDisplay.textContent = status;
-    syncStatusDisplay.className = type === 'success' ? 'text-xs text-green-400' : (type === 'error' ? 'text-xs text-red-400' : 'text-xs text-yellow-400');
-}
+    // 1. Desktop Status (Text)
+    const syncStatusDisplay = document.getElementById('sync-status');
+    if (syncStatusDisplay) {
+        syncStatusDisplay.textContent = status;
+        syncStatusDisplay.className = type === 'success' ? 'text-xs text-green-400' : (type === 'error' ? 'text-xs text-red-400' : 'text-xs text-yellow-400');
+    }
 
+    // 2. Mobile Status (Dot Only)
+    const mobileDot = document.getElementById('mobile-sync-dot');
+    if (mobileDot) {
+        if (type === 'success') mobileDot.className = "md:hidden w-2 h-2 rounded-full bg-green-400 mr-1";
+        else if (type === 'error') mobileDot.className = "md:hidden w-2 h-2 rounded-full bg-red-500 mr-1";
+        else mobileDot.className = "md:hidden w-2 h-2 rounded-full bg-yellow-400 mr-1 animate-pulse";
+    }
+}
 // --- Global var to hold data from the last *report run* ---
 let lastGeneratedRoomData = [];
 let lastGeneratedReportType = "";
