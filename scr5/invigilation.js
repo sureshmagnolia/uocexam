@@ -3797,17 +3797,18 @@ window.openSlotReminderModal = function(key) {
 
 // --- MESSAGE GENERATORS (Split for SMS & WhatsApp) ---
 
-// 1. Weekly WhatsApp (Elaborate)
+// 1. Weekly WhatsApp (Safe Emojis)
 function generateWeeklyWhatsApp(name, duties) {
     const now = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     
     let dutyList = "";
     duties.forEach(d => {
         const rTime = calculateReportTime(d.time);
-        dutyList += `\n📅 *${d.date}* (${d.day}) | ${d.session}\n   👉 Report by: *${rTime}*\n`;
+        // Using 🗓️ (Calendar) and ➡️ (Arrow)
+        dutyList += `\n🗓️ *${d.date}* (${d.day}) | ${d.session}\n   ➡️ Report by: *${rTime}*\n`;
     });
 
-    return `🟡 *${name}*: Invigilation Duty Update (${now})\n${dutyList}\n🟢 *Instructions:* https://bit.ly/gvc-exam\n\n_Adjustments:_ http://www.gvc.ac.in/exam\n-Chief Supt.`;
+    return `⚠️ *${name}*: Invigilation Duty Update (${now})\n${dutyList}\n✅ *Instructions:* https://bit.ly/gvc-exam\n\n_Adjustments:_ http://www.gvc.ac.in/exam\n-Chief Supt.`;
 }
 
 // 2. Weekly SMS (Shortest)
