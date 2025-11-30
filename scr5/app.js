@@ -11028,7 +11028,7 @@ function loadInitialData() {
                 <div class="text-center border-b-2 border-black pb-4 mb-4">
                     <h2 class="text-xl font-bold uppercase leading-tight text-black">${currentCollegeName}</h2>
                     <h3 class="text-lg font-semibold mt-1 text-black">Remuneration Bill: ${bill.title}</h3>
-                    <p class="text-sm text-black mt-1">Stream: ${bill.stream} | Generated on ${new Date().toLocaleDateString()}</p>
+                    <p class="text-sm text-black mt-1">Stream: ${bill.stream}</p>
                 </div>
                 <table class="w-full border-collapse border border-black text-sm mb-4 table-fixed text-black">
                     <colgroup>${colGroup}</colgroup>
