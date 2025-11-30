@@ -886,10 +886,9 @@ function renderExchangeMarket(myEmail) {
     const badge = document.getElementById('market-count-badge');
     if (!list) return;
 
-    // --- NEW: Get Search Query ---
+    // Get Search Query
     const searchInput = document.getElementById('exchange-search-input');
     const filterText = searchInput ? searchInput.value.toLowerCase() : "";
-    // -----------------------------
 
     list.innerHTML = '';
     
@@ -898,10 +897,8 @@ function renderExchangeMarket(myEmail) {
     Object.keys(invigilationSlots).forEach(key => {
         const slot = invigilationSlots[key];
         if (slot.exchangeRequests && slot.exchangeRequests.length > 0) {
-            // Filter: Don't show my own requests
-            const othersRequests = slot.exchangeRequests.filter(reqEmail => reqEmail !== myEmail);
-            
-            othersRequests.forEach(sellerEmail => {
+            // *** CHANGE: Show ALL requests, including my own ***
+            slot.exchangeRequests.forEach(sellerEmail => {
                 marketSlots.push({
                     key: key,
                     seller: sellerEmail,
@@ -918,31 +915,28 @@ function renderExchangeMarket(myEmail) {
         return dateA.localeCompare(dateB);
     });
 
-    // --- NEW: Filter List based on Search ---
+    // Filter List based on Search
     if (filterText) {
         marketSlots = marketSlots.filter(item => {
             const sellerName = getNameFromEmail(item.seller).toLowerCase();
             return sellerName.includes(filterText);
         });
     }
-    // ---------------------------------------
 
-    // 3. Update Badge (Total count, ignoring filter)
+    // 3. Update Badge
     if (badge) {
-        // Count total real items (re-calculate purely for badge if needed, or just use length)
-        // For UX, usually badge shows total available, list shows filtered. 
-        // Let's keep badge dynamic to view.
         badge.textContent = marketSlots.length; 
     }
 
     // 4. Render
     if (marketSlots.length === 0) {
-        list.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">No duties found.</p>`;
+        list.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-2">No duties available for exchange.</p>`;
         return;
     }
 
     marketSlots.forEach(item => {
-        const sellerName = getNameFromEmail(item.seller);
+        const isMe = (item.seller === myEmail);
+        const sellerName = isMe ? "You (Your Post)" : getNameFromEmail(item.seller);
         const [date, time] = item.key.split(' | ');
         
         const sameDaySessions = Object.keys(invigilationSlots).filter(k => k.startsWith(date) && k !== item.key);
@@ -950,12 +944,25 @@ function renderExchangeMarket(myEmail) {
         const amAlreadyAssigned = item.slotData.assigned.includes(myEmail);
 
         let actionBtn = "";
+        let bgClass = "bg-white border-indigo-100"; // Default style
+        let sellerColor = "bg-indigo-100 text-indigo-600";
         
-        if (amAlreadyAssigned) {
+        if (isMe) {
+             // *** MY POST: Show Withdraw Button ***
+             bgClass = "bg-orange-50 border-orange-200"; // Highlight my posts
+             sellerColor = "bg-orange-100 text-orange-700";
+             
+             actionBtn = `
+                <button onclick="withdrawExchange('${item.key}', '${myEmail}')" 
+                    class="bg-white text-red-600 border border-red-200 text-[10px] px-3 py-1.5 rounded font-bold hover:bg-red-50 shadow-sm transition flex items-center gap-1" title="Take back this duty">
+                    Withdraw
+                </button>`;
+        } else if (amAlreadyAssigned) {
              actionBtn = `<span class="text-[10px] text-gray-400 font-medium">You are on this duty</span>`;
         } else if (hasConflict) {
              actionBtn = `<span class="text-[10px] text-red-400 font-medium">Time Conflict</span>`;
         } else {
+             // Others' Post: Show Accept
              actionBtn = `
                 <button onclick="acceptExchange('${item.key}', '${myEmail}', '${item.seller}')" 
                     class="bg-indigo-600 text-white text-[10px] px-3 py-1.5 rounded font-bold hover:bg-indigo-700 shadow-sm transition flex items-center gap-1">
@@ -964,19 +971,19 @@ function renderExchangeMarket(myEmail) {
         }
 
         list.innerHTML += `
-            <div class="bg-white p-2.5 rounded border border-indigo-100 shadow-sm hover:shadow-md transition">
+            <div class="${bgClass} p-2.5 rounded border shadow-sm hover:shadow-md transition mb-2">
                 <div class="flex justify-between items-start mb-1">
                     <div class="font-bold text-gray-800 text-xs">${date}</div>
                     <div class="text-[10px] text-gray-500 bg-gray-100 px-1.5 rounded">${time}</div>
                 </div>
                 <div class="flex justify-between items-center mt-2">
                     <div class="flex items-center gap-1.5">
-                        <div class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px] font-bold">
+                        <div class="w-5 h-5 rounded-full ${sellerColor} flex items-center justify-center text-[10px] font-bold">
                             ${sellerName.charAt(0)}
                         </div>
                         <div class="flex flex-col">
                             <span class="text-[10px] text-gray-500 leading-none">Request by</span>
-                            <span class="text-xs font-bold text-gray-700 leading-none">${sellerName}</span>
+                            <span class="text-xs font-bold text-gray-700 leading-none truncate max-w-[100px]">${sellerName}</span>
                         </div>
                     </div>
                     ${actionBtn}
