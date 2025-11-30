@@ -1017,3 +1017,29 @@ tr.scribe-row-highlight td.signature-col {
     }
     
 }
+/* --- REMUNERATION BILL MOBILE OPTIMIZATIONS --- */
+
+/* Ensure the bill container fits on mobile screens */
+#remuneration-output .print-page {
+    max-width: 100%;
+    margin: 0 auto;
+    overflow-x: auto; /* Allow scrolling if table is too wide */
+}
+
+@media (max-width: 768px) {
+    /* Remove large padding/borders on mobile to save space */
+    #remuneration-output .print-page {
+        padding: 15px !important;
+        border-width: 1px !important;
+        box-shadow: none !important;
+    }
+    
+    /* Scale down font size slightly for mobile view */
+    #remuneration-output table {
+        font-size: 0.75rem !important;
+    }
+    
+    #remuneration-output h2 {
+        font-size: 1.1rem !important;
+    }
+}
