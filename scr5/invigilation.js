@@ -4324,7 +4324,8 @@ function generateProfessionalEmail(name, dutiesArray, title) {
         </div>
 
         <p style="font-size: 13px; color: #666;">
-            <em>For any adjustments, please request via the <a href="http://www.gvc.ac.in/exam" style="color: #666;">Exam Portal</a> and inform the SAS/Exam Chief in advance.</em>
+            <em>For adjustments, please post in the <a href="http://www.gvc.ac.in/exam" style="color: #666;">Exam Portal</a>.</em><br>
+            <span style="color: #c0392b; font-weight: bold;">Important: If your Exchange Request is not picked up, you must arrange a replacement personally.</span>
         </p>
         
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
