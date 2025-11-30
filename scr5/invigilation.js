@@ -5487,9 +5487,6 @@ window.executeReschedule = async function() {
         alert(`✅ Session moved to ${newKey}. (No staff were assigned).`);
     }
 }
-// ==========================================
-// 📄 OFFICIAL NOTIFICATION PDF GENERATOR
-// ==========================================
 
 // ==========================================
 // 📄 DUTY NOTIFICATION PREVIEW (Print + Download)
@@ -5504,6 +5501,7 @@ window.printDutyNotification = function(key) {
     const [d, m, y] = dateStr.split('.');
     const examDate = new Date(`${y}-${m}-${d}`);
     
+    // Calculate Excel Serial Date
     const excelBaseDate = new Date(1899, 11, 30);
     const dayDiff = Math.floor((examDate - excelBaseDate) / (1000 * 60 * 60 * 24));
     
@@ -5529,7 +5527,6 @@ window.printDutyNotification = function(key) {
                     <div style="font-size: 9pt; color: #444;">${staff.dept}</div>
                 </td>
                 <td style="text-align: center; font-size: 9pt;">${phone}</td>
-                <td style="text-align: center;"></td>
             </tr>
         `;
     };
@@ -5537,7 +5534,7 @@ window.printDutyNotification = function(key) {
     let tableContentHtml = "";
 
     if (useTwoColumns) {
-        // --- 2 COLUMN LAYOUT ---
+        // --- 2 COLUMN LAYOUT (No Signature) ---
         const mid = Math.ceil(totalStaff / 2);
         const leftList = slot.assigned.slice(0, mid);
         const rightList = slot.assigned.slice(mid);
@@ -5548,8 +5545,7 @@ window.printDutyNotification = function(key) {
                     <tr>
                         <th style="width: 25px;">No</th>
                         <th>Name & Dept</th>
-                        <th style="width: 75px;">Mobile</th>
-                        <th style="width: 40px;">Sign</th>
+                        <th style="width: 80px;">Mobile</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -5569,7 +5565,7 @@ window.printDutyNotification = function(key) {
             </div>
         `;
     } else {
-        // --- 1 COLUMN LAYOUT ---
+        // --- 1 COLUMN LAYOUT (No Signature) ---
         tableContentHtml = `
             <table class="staff-table" style="width: 100%; margin-top: 10px;">
                 <thead>
@@ -5577,7 +5573,6 @@ window.printDutyNotification = function(key) {
                         <th style="width: 40px;">SL. NO</th>
                         <th>Name and Department of the Invigilator</th>
                         <th style="width: 120px;">Mobile</th>
-                        <th style="width: 100px;">Signature</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -5625,11 +5620,13 @@ window.printDutyNotification = function(key) {
                 /* A4 PAGE STYLING */
                 .content-wrapper {
                     width: 210mm;
-                    min-height: 297mm;
+                    /* REMOVED FIXED HEIGHT TO FIX BLANK PAGE ISSUE */
+                    height: auto;
                     padding: 15mm;
                     background: white;
                     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
                     box-sizing: border-box;
+                    overflow: hidden; 
                 }
 
                 .header { text-align: center; margin-bottom: 20px; position: relative; }
@@ -5722,10 +5719,10 @@ window.printDutyNotification = function(key) {
                     btn.disabled = true;
 
                     const opt = {
-                        margin: 0,
+                        margin: 0, // Clean margins
                         filename: 'Duty_Notification_${dateStr}.pdf',
                         image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true },
+                        html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
                     };
 
@@ -5743,6 +5740,7 @@ window.printDutyNotification = function(key) {
     `);
     w.document.close();
 }
+
 // --- Reschedule Notification Modal ---
 function openRescheduleNotification(staffList, oldKey, newKey) {
     const list = document.getElementById('notif-list-container');
