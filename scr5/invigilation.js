@@ -6049,17 +6049,20 @@ window.addEventListener('offline', () => {
 });
 
 // ==========================================
-// 📋 STAFF UPCOMING SCHEDULE (Optimized)
+// 📋 STAFF UPCOMING SCHEDULE (Taller & Cleaner)
 // ==========================================
 
 function renderStaffUpcomingSummary(email) {
     const viewStaff = document.getElementById('view-staff');
     if (!viewStaff) return;
 
-    // 1. Create/Find Container
+    // 1. Cleanup Old/Blank Boxes (If any exist from previous versions)
+    const oldBox = document.getElementById('my-upcoming-duties');
+    if (oldBox) oldBox.remove();
+
+    // 2. Create/Find Main Container
     let container = document.getElementById('staff-upcoming-summary');
     if (!container) {
-        // Insert after the stats grid (first grid in view)
         const statsGrid = viewStaff.querySelector('.grid'); 
         container = document.createElement('div');
         container.id = 'staff-upcoming-summary';
@@ -6072,14 +6075,14 @@ function renderStaffUpcomingSummary(email) {
         }
     }
 
-    // 2. Gather Data
+    // 3. Gather Data
     const today = new Date();
     today.setHours(0,0,0,0);
     
     const upcomingDuties = [];
     const unavailableDates = [];
 
-    // A. Gather Assignments (Duties)
+    // A. Gather Assignments
     Object.keys(invigilationSlots).forEach(key => {
         const slot = invigilationSlots[key];
         const date = parseDate(key);
@@ -6099,7 +6102,7 @@ function renderStaffUpcomingSummary(email) {
         }
     });
 
-    // B. Gather Unavailabilities (Slot Specific)
+    // B. Gather Inconveniences
     Object.keys(invigilationSlots).forEach(key => {
         const slot = invigilationSlots[key];
         const date = parseDate(key);
@@ -6112,7 +6115,6 @@ function renderStaffUpcomingSummary(email) {
         }
     });
 
-    // C. Gather Unavailabilities (Advance)
     Object.keys(advanceUnavailability).forEach(dateStr => {
         const d = parseDate(dateStr + " | 00:00 AM");
         if (d >= today) {
@@ -6129,24 +6131,19 @@ function renderStaffUpcomingSummary(email) {
         }
     });
 
-    // 3. Sort & Format Data
+    // 4. Sort
     upcomingDuties.sort((a, b) => a.date - b.date);
     unavailableDates.sort((a, b) => a.date - b.date);
-    
-    // Remove duplicate unavailabilities (e.g. slot vs advance overlap)
     const uniqueUnav = [...new Set(unavailableDates.map(u => u.str))];
 
-    // 4. Render HTML
-    
-    // Header
+    // 5. Render HTML
     let htmlContent = `
-        <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 font-bold text-gray-800 text-sm flex justify-between items-center">
+        <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 font-bold text-gray-800 text-sm flex justify-between items-center sticky top-0 z-10">
             <span>📋 Your Upcoming Schedule</span>
             <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">${upcomingDuties.length} Duties</span>
         </div>
     `;
 
-    // Summary of Unavailability (Text Only)
     if (uniqueUnav.length > 0) {
         htmlContent += `
             <div class="bg-red-50 px-4 py-2 border-b border-red-100 flex items-start gap-2">
@@ -6158,8 +6155,8 @@ function renderStaffUpcomingSummary(email) {
         `;
     }
 
-    // Duty List (Scrollable Cards)
-    htmlContent += `<div class="overflow-y-auto custom-scroll" style="max-height: 300px;">`; // Max height 300px with scrollbar
+    // *** UPDATE: Increased max-height to 60vh (approx 500-600px on mobile) ***
+    htmlContent += `<div class="overflow-y-auto custom-scroll" style="max-height: 60vh;">`; 
     
     if (upcomingDuties.length === 0) {
         htmlContent += `
@@ -6169,10 +6166,9 @@ function renderStaffUpcomingSummary(email) {
     } else {
         htmlContent += `<div class="divide-y divide-gray-100">`;
         upcomingDuties.forEach(item => {
-            // Format Key (Remove Date if redundant, show Time/Session)
             let title = item.key;
             if (item.key.includes('|')) {
-                title = item.key.split('|')[1].trim(); // Just Time
+                title = item.key.split('|')[1].trim(); 
             }
             
             htmlContent += `
@@ -6196,8 +6192,7 @@ function renderStaffUpcomingSummary(email) {
         htmlContent += `</div>`;
     }
     
-    htmlContent += `</div>`; // Close scroll container
-
+    htmlContent += `</div>`;
     container.innerHTML = htmlContent;
 }
 
