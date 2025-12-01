@@ -6330,7 +6330,15 @@ if(btnStaffNext) {
         renderStaffTable();
     });
 }
-    
+
+// --- INSTANT SEARCH LISTENER ---
+const staffSearchInput = document.getElementById('staff-search');
+if (staffSearchInput) {
+    staffSearchInput.addEventListener('input', () => {
+        currentStaffPage = 1; // Always reset to Page 1 on new search
+        renderStaffTable();
+    });
+}
 // Initialize Listeners
 setupSearchHandler('att-cs-search', 'att-cs-results', 'att-cs-email', false);
 setupSearchHandler('att-sas-search', 'att-sas-results', 'att-sas-email', false);
