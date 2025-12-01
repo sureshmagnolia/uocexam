@@ -1317,9 +1317,7 @@ window.deleteSlot = async function(key) {
     }
 }
 
-// --- NEW: Toggle Advance Unavailability ---
 window.toggleAdvance = async function(dateStr, email, session) {
-    // 1. Init date object if missing
     if (!advanceUnavailability[dateStr]) advanceUnavailability[dateStr] = { FN: [], AN: [] };
     if (!advanceUnavailability[dateStr][session]) advanceUnavailability[dateStr][session] = [];
 
@@ -1331,12 +1329,15 @@ window.toggleAdvance = async function(dateStr, email, session) {
         if(confirm(`Remove 'Unavailable' status for ${session}?`)) {
             advanceUnavailability[dateStr][session] = list.filter(u => u.email !== email);
             
-            // LOGGING
             logActivity("Advance Unavailability Removed", `Removed ${getNameFromEmail(email)} from ${dateStr} (${session}) unavailability list.`);
             
             await saveAdvanceUnavailability();
-            renderStaffCalendar(email); 
-            openDayModal(dateStr, email); 
+            renderStaffCalendar(email);
+            
+            // *** FIX: Update List Live ***
+            if(typeof renderStaffUpcomingSummary === 'function') renderStaffUpcomingSummary(email);
+            
+            openDayModal(dateStr, email); // Keep open on remove (User might want to add again)
         }
     } else {
         // ADD (Open Modal for Reason)
@@ -1366,7 +1367,6 @@ async function saveAdvanceUnavailability() {
 window.toggleWholeDay = async function(dateStr, email) {
     if (!advanceUnavailability[dateStr]) advanceUnavailability[dateStr] = { FN: [], AN: [] };
     
-    // Check if ALREADY marked for both
     const fnList = advanceUnavailability[dateStr].FN || [];
     const anList = advanceUnavailability[dateStr].AN || [];
     const isFullDay = fnList.some(u => u.email === email) && anList.some(u => u.email === email);
@@ -1378,10 +1378,14 @@ window.toggleWholeDay = async function(dateStr, email) {
             advanceUnavailability[dateStr].AN = anList.filter(u => u.email !== email);
             await saveAdvanceUnavailability();
             renderStaffCalendar(email);
+            
+            // *** FIX: Update List Live ***
+            if(typeof renderStaffUpcomingSummary === 'function') renderStaffUpcomingSummary(email);
+            
             openDayModal(dateStr, email);
         }
     } else {
-        // MARK BOTH (Open Modal with Special Key)
+        // MARK BOTH
         document.getElementById('unav-key').value = `ADVANCE|${dateStr}|WHOLE`; 
         document.getElementById('unav-email').value = email;
         
@@ -1484,7 +1488,12 @@ window.setAvailability = async function(key, email, isAvailable) {
             invigilationSlots[key].unavailable = invigilationSlots[key].unavailable.filter(u => (typeof u === 'string' ? u !== email : u.email !== email));
             logActivity("Marked Available", `${getNameFromEmail(email)} marked as available for ${key}.`);
             await syncSlotsToCloud();
+            
+            // *** FIX: Update List Live ***
+            if(typeof renderStaffUpcomingSummary === 'function') renderStaffUpcomingSummary(email);
+
             window.closeModal('day-detail-modal');
+            renderStaffCalendar(email); // Update calendar colors
         }
     } else {
         document.getElementById('unav-key').value = key;
@@ -1524,7 +1533,6 @@ window.confirmUnavailable = async function() {
             advanceUnavailability[dateStr].FN.push(entry);
             advanceUnavailability[dateStr].AN.push(entry);
             
-            // LOGGING
             logActivity("Advance Unavailability", `Marked ${getNameFromEmail(email)} unavailable for WHOLE DAY on ${dateStr}. Reason: ${reason}`);
         } else {
             // Single Session
@@ -1532,29 +1540,36 @@ window.confirmUnavailable = async function() {
             advanceUnavailability[dateStr][session] = advanceUnavailability[dateStr][session].filter(u => u.email !== email);
             advanceUnavailability[dateStr][session].push(entry);
 
-            // LOGGING
             logActivity("Advance Unavailability", `Marked ${getNameFromEmail(email)} unavailable for ${dateStr} (${session}). Reason: ${reason}`);
         }
         
         await saveAdvanceUnavailability();
         
+        // --- FIXES APPLIED HERE ---
         window.closeModal('unavailable-modal');
-        openDayModal(dateStr, email);
+        window.closeModal('day-detail-modal'); // Ensure previous modal is closed
         renderStaffCalendar(email);
+        
+        // 1. LIVE UPDATE LIST
+        if(typeof renderStaffUpcomingSummary === 'function') renderStaffUpcomingSummary(email); 
+        // 2. DO NOT RE-OPEN MODAL (Issue 2 Fix)
+        // openDayModal(dateStr, email); <--- REMOVED
+        // --------------------------
 
     } else {
         // --- CASE B: SLOT SPECIFIC ---
         if (!invigilationSlots[key].unavailable) invigilationSlots[key].unavailable = [];
         invigilationSlots[key].unavailable.push(entry);
         
-        // LOGGING
         logActivity("Session Unavailability", `Marked ${getNameFromEmail(email)} unavailable for ${key}. Reason: ${reason}`);
         
         await syncSlotsToCloud();
         window.closeModal('unavailable-modal');
+        window.closeModal('day-detail-modal'); // Ensure previous modal is closed
         
-        try { const [datePart] = key.split(' | '); openDayModal(datePart, email); } catch(e) {}
         renderStaffCalendar(email);
+        // 1. LIVE UPDATE LIST
+        if(typeof renderStaffUpcomingSummary === 'function') renderStaffUpcomingSummary(email);
     }
 }
 
