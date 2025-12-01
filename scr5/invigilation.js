@@ -208,6 +208,8 @@ function setupLiveSync(collegeId, mode) {
                              renderStaffCalendar(me.email); 
                              renderStaffRankList(me.email);
                              if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
+                             if(typeof renderStaffUpcomingSummary === "function") {
+                                 renderStaffUpcomingSummary(me.email);
                          }
                     }
                 }
