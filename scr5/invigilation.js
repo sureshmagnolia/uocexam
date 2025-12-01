@@ -494,7 +494,7 @@ window.sendSingleEmail = function(btn, email, name, subject, message) {
         btn.classList.add('bg-red-600');
     });
 }
-// --- RENDER ADMIN SLOTS (Monthly View with Logic Button) ---
+// --- RENDER ADMIN SLOTS (Tidy Mobile View + Scroll Fix) ---
 function renderSlotsGridAdmin() {
     if(!ui.adminSlotsGrid) return;
     ui.adminSlotsGrid.innerHTML = '';
@@ -504,21 +504,21 @@ function renderSlotsGridAdmin() {
     const currentMonthStr = monthNames[currentAdminDate.getMonth()];
     const currentYear = currentAdminDate.getFullYear();
 
-    // --- NAVIGATION BAR ---
+    // --- NAVIGATION BAR (Sticky Top) ---
     const navHtml = `
-        <div class="col-span-full flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-2 sticky top-0 z-10">
-            <button onclick="changeAdminMonth(-1)" class="px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100 rounded border border-gray-300 flex items-center gap-2 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-                Previous Month
+        <div class="col-span-full flex justify-between items-center bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-2 sticky top-0 z-30 mx-1 mt-1">
+            <button onclick="changeAdminMonth(-1)" class="px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-100 rounded border border-gray-300 flex items-center gap-1 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                Prev
             </button>
             
-            <h3 class="text-lg font-black text-indigo-800 uppercase tracking-wide flex items-center gap-2">
-                <span>📅</span> ${currentMonthStr} ${currentYear}
+            <h3 class="text-sm md:text-lg font-black text-indigo-800 uppercase tracking-wide flex items-center gap-2">
+                <span>📅</span> ${currentMonthStr} '${String(currentYear).slice(-2)}
             </h3>
             
-            <button onclick="changeAdminMonth(1)" class="px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100 rounded border border-gray-300 flex items-center gap-2 transition">
-                Next Month
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            <button onclick="changeAdminMonth(1)" class="px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-100 rounded border border-gray-300 flex items-center gap-1 transition">
+                Next
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
             </button>
         </div>
     `;
@@ -529,18 +529,14 @@ function renderSlotsGridAdmin() {
     Object.keys(invigilationSlots).forEach(key => {
         const date = parseDate(key);
         if (date.getMonth() === currentAdminDate.getMonth() && date.getFullYear() === currentAdminDate.getFullYear()) {
-            slotItems.push({
-                key,
-                date: date,
-                slot: invigilationSlots[key]
-            });
+            slotItems.push({ key, date: date, slot: invigilationSlots[key] });
         }
     });
 
     // 3. Empty State
     if (slotItems.length === 0) {
         ui.adminSlotsGrid.innerHTML += `
-            <div class="col-span-full text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+            <div class="col-span-full text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 m-2">
                 <p class="text-gray-400 font-medium mb-2">No exam sessions scheduled for ${currentMonthStr}.</p>
                 <button onclick="openAddSlotModal()" class="text-indigo-600 font-bold hover:underline text-sm flex items-center justify-center gap-1 mx-auto">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
@@ -562,7 +558,7 @@ function renderSlotsGridAdmin() {
         groupedSlots[groupKey].items.push(item);
     });
 
-    // 5. Sort Groups (Ascending: Week 1 -> Week 4)
+    // 5. Sort Groups
     const sortedGroupKeys = Object.keys(groupedSlots).sort((a, b) => {
         const dateA = groupedSlots[a].items[0].date;
         const dateB = groupedSlots[b].items[0].date;
@@ -573,34 +569,33 @@ function renderSlotsGridAdmin() {
     sortedGroupKeys.forEach(gKey => {
         const group = groupedSlots[gKey];
         
-        // Week Header
+        // Week Header (Compact)
         ui.adminSlotsGrid.innerHTML += `
-            <div class="col-span-full mt-4 mb-2 flex flex-wrap justify-between items-center bg-indigo-50 px-3 py-2 rounded-lg border border-indigo-100 shadow-sm gap-2">
-                <span class="text-indigo-900 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                    <span class="bg-white px-2 py-0.5 rounded border border-indigo-100 shadow-sm">Week ${group.week}</span>
+            <div class="col-span-full mt-3 mb-1 flex flex-wrap justify-between items-center bg-indigo-50 px-3 py-2 rounded border border-indigo-100 shadow-sm mx-1">
+                <span class="text-indigo-900 text-[10px] font-bold uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-indigo-100">
+                    Week ${group.week}
                 </span>
-                <div class="flex gap-2">
+                <div class="flex gap-1">
                     <button onclick="openWeeklyNotificationModal('${group.month}', ${group.week})" 
-                        class="text-[10px] bg-green-600 text-white border border-green-700 px-3 py-1 rounded hover:bg-green-700 font-bold transition shadow-sm flex items-center gap-1">
+                        class="text-[10px] bg-green-600 text-white border border-green-700 px-2 py-1 rounded hover:bg-green-700 font-bold transition shadow-sm flex items-center gap-1">
                         📢 Notify
                     </button>
 
                     <button onclick="runWeeklyAutoAssign('${group.month}', ${group.week})" 
-                        class="text-[10px] bg-indigo-600 text-white border border-indigo-700 px-3 py-1 rounded hover:bg-indigo-700 font-bold transition shadow-sm flex items-center gap-1">
-                        ⚡ Auto-Assign
+                        class="text-[10px] bg-indigo-600 text-white border border-indigo-700 px-2 py-1 rounded hover:bg-indigo-700 font-bold transition shadow-sm flex items-center gap-1">
+                        ⚡ Auto
                     </button>
                     
                     <div class="flex rounded shadow-sm">
-                        <button onclick="toggleWeekLock('${group.month}', ${group.week}, true)" class="text-[10px] bg-white border border-gray-300 text-red-600 px-2 py-1 rounded-l hover:bg-red-50 font-bold transition border-r-0">🔒</button>
-                        <button onclick="toggleWeekLock('${group.month}', ${group.week}, false)" class="text-[10px] bg-white border border-gray-300 text-green-600 px-2 py-1 rounded-r hover:bg-green-50 font-bold transition">🔓</button>
+                        <button onclick="toggleWeekLock('${group.month}', ${group.week}, true)" class="text-[10px] bg-white border border-gray-300 text-red-600 px-2 py-1 rounded-l hover:bg-red-50 font-bold border-r-0">🔒</button>
+                        <button onclick="toggleWeekLock('${group.month}', ${group.week}, false)" class="text-[10px] bg-white border border-gray-300 text-green-600 px-2 py-1 rounded-r hover:bg-green-50 font-bold">🔓</button>
                     </div>
                 </div>
             </div>`;
 
-        // Render Slots (Ascending Date)
+        // Render Slots
         group.items.sort((a, b) => a.date - b.date);
         
-        // *** FIX: Destructure the item correctly ***
         group.items.forEach(({ key, slot }) => {
             const filled = slot.assigned.length;
             let statusColor = slot.isLocked ? "border-red-500 bg-red-50" : (filled >= slot.required ? "border-green-400 bg-green-50" : "border-orange-300 bg-orange-50");
@@ -609,43 +604,46 @@ function renderSlotsGridAdmin() {
             // Unavailability Button
             let unavButton = "";
             if (slot.unavailable && slot.unavailable.length > 0) {
-                unavButton = `<button onclick="openInconvenienceModal('${key}')" class="mt-2 w-full flex items-center justify-center gap-2 bg-white text-red-700 border border-red-200 px-2 py-1.5 rounded text-xs font-bold hover:bg-red-50 transition shadow-sm"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> View ${slot.unavailable.length} Inconvenience(s)</button>`;
+                unavButton = `<button onclick="openInconvenienceModal('${key}')" class="mt-1.5 w-full flex items-center justify-center gap-1 bg-white text-red-700 border border-red-200 px-2 py-1 rounded-[4px] text-[10px] font-bold hover:bg-red-50 transition shadow-sm"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> ${slot.unavailable.length} Issue(s)</button>`;
             }
             
-            // Check for Logic Log
             const hasLog = slot.allocationLog ? "" : "opacity-50 cursor-not-allowed";
 
             ui.adminSlotsGrid.innerHTML += `
-                <div class="border-l-4 ${statusColor} bg-white p-4 rounded shadow-sm slot-card flex flex-col justify-between transition-all">
+                <div class="border-l-4 ${statusColor} bg-white p-3 rounded shadow-sm slot-card flex flex-col justify-between transition-all mx-1 mb-2">
                     <div>
-                        <div class="flex justify-between items-start mb-2">
-                            <h4 class="font-bold text-gray-800 text-sm w-1/2 break-words flex items-center gap-1">${statusIcon} ${key}</h4>
-                            <div class="flex items-center bg-white border border-gray-300 rounded text-xs shadow-sm">
-                                <button onclick="changeSlotReq('${key}', -1)" class="px-2 py-1 hover:bg-gray-100 border-r text-gray-600 font-bold">-</button>
-                                <span class="px-2 font-bold text-gray-800" title="Filled / Required">${filled} / ${slot.required}</span>
-                                <button onclick="changeSlotReq('${key}', 1)" class="px-2 py-1 hover:bg-gray-100 border-l text-gray-600 font-bold">+</button>
+                        <div class="flex justify-between items-start mb-1.5">
+                            <h4 class="font-bold text-gray-800 text-xs w-2/3 break-words leading-tight">${statusIcon} ${key}</h4>
+                            <div class="flex items-center bg-white border border-gray-300 rounded text-[10px] shadow-sm shrink-0">
+                                <button onclick="changeSlotReq('${key}', -1)" class="px-1.5 py-0.5 hover:bg-gray-100 border-r text-gray-600 font-bold">-</button>
+                                <span class="px-1.5 font-bold text-gray-800" title="Filled / Required">${filled}/${slot.required}</span>
+                                <button onclick="changeSlotReq('${key}', 1)" class="px-1.5 py-0.5 hover:bg-gray-100 border-l text-gray-600 font-bold">+</button>
                             </div>
                         </div>
-                        <div class="text-xs text-gray-600 mb-2"><strong>Assigned:</strong> ${slot.assigned.map(email => getNameFromEmail(email)).join(', ') || "None"}</div>
+                        <div class="text-[10px] text-gray-600 mb-1 leading-tight">
+                            <strong>Staff:</strong> ${slot.assigned.map(email => getNameFromEmail(email)).join(', ') || "<span class='text-gray-400'>None</span>"}
+                        </div>
                         ${unavButton}
                     </div>
                     
-                    <div class="grid grid-cols-4 gap-1 mt-3">
-                         <button onclick="openSlotReminderModal('${key}')" class="col-span-1 text-[10px] bg-green-50 text-green-700 border border-green-200 rounded py-1.5 hover:bg-green-100 font-bold transition" title="Daily Reminder">🔔</button>
-                         <button onclick="printSessionReport('${key}')" class="col-span-1 text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded py-1.5 hover:bg-gray-200 font-bold transition" title="Print">🖨️</button>
-                         <button onclick="openManualAllocationModal('${key}')" class="col-span-1 text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 rounded py-1.5 hover:bg-indigo-100 font-bold transition" title="Manual Edit">Edit</button>
-                         <button onclick="viewSlotHistory('${key}')" class="col-span-1 text-[10px] bg-orange-50 text-orange-700 border border-orange-200 rounded py-1.5 hover:bg-orange-100 font-bold transition ${hasLog}" title="View Logic">📜</button>
+                    <div class="grid grid-cols-4 gap-1 mt-2">
+                         <button onclick="openSlotReminderModal('${key}')" class="col-span-1 text-[10px] bg-green-50 text-green-700 border border-green-200 rounded py-1 hover:bg-green-100 font-bold transition text-center" title="Reminder">🔔</button>
+                         <button onclick="printSessionReport('${key}')" class="col-span-1 text-[10px] bg-gray-100 text-gray-700 border border-gray-300 rounded py-1 hover:bg-gray-200 font-bold transition text-center" title="Print">🖨️</button>
+                         <button onclick="openManualAllocationModal('${key}')" class="col-span-1 text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 rounded py-1 hover:bg-indigo-100 font-bold transition text-center" title="Edit">Edit</button>
+                         <button onclick="viewSlotHistory('${key}')" class="col-span-1 text-[10px] bg-orange-50 text-orange-700 border border-orange-200 rounded py-1 hover:bg-orange-100 font-bold transition text-center ${hasLog}" title="Log">📜</button>
                     </div>
-                        <div class="flex gap-2 mt-2">
-                            <button onclick="toggleLock('${key}')" class="flex-1 text-xs border border-gray-300 rounded py-1.5 hover:bg-gray-50 text-gray-700 font-medium transition shadow-sm bg-white">${slot.isLocked ? 'Unlock' : 'Lock'}</button>
-    
-                            <button onclick="openRescheduleModal('${key}')" class="px-3 text-xs border border-orange-200 rounded py-1.5 hover:bg-orange-50 text-orange-600 font-bold transition shadow-sm bg-white" title="Reschedule Exam">📅</button>
-    
-                            <button onclick="deleteSlot('${key}')" class="px-3 text-xs border border-red-200 rounded py-1.5 hover:bg-red-50 text-red-600 font-bold transition shadow-sm bg-white" title="Delete Slot">🗑️</button>
-                        </div>                
-                    </div>`;
+                    <div class="flex gap-1 mt-1.5">
+                        <button onclick="toggleLock('${key}')" class="flex-1 text-[10px] border border-gray-300 rounded py-1 hover:bg-gray-50 text-gray-700 font-medium transition shadow-sm bg-white">${slot.isLocked ? 'Unlock' : 'Lock'}</button>
+                        <button onclick="openRescheduleModal('${key}')" class="px-2 text-[10px] border border-orange-200 rounded py-1 hover:bg-orange-50 text-orange-600 font-bold transition shadow-sm bg-white" title="Reschedule">📅</button>
+                        <button onclick="deleteSlot('${key}')" class="px-2 text-[10px] border border-red-200 rounded py-1 hover:bg-red-50 text-red-600 font-bold transition shadow-sm bg-white" title="Delete">🗑️</button>
+                    </div>                
+                </div>`;
         });
     });
+
+    // 7. BOTTOM SPACER (The Fix)
+    // Adds 32 (8rem / 128px) of empty space at the bottom so the last card scrolls above any mobile bars
+    ui.adminSlotsGrid.innerHTML += `<div class="col-span-full h-32 w-full"></div>`;
 }
 function renderStaffTable() {
     if(!ui.staffTableBody) return;
