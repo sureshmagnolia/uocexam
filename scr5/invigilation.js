@@ -222,7 +222,7 @@ function setupLiveSync(collegeId, mode) {
                         renderStaffCalendar(me.email);
                         renderStaffRankList(me.email);
                         if(typeof renderExchangeMarket === "function") renderExchangeMarket(me.email);
-                        
+                        if(typeof renderStaffUpcomingSummary === "function") renderStaffUpcomingSummary(me.email);
                         // --- UPDATE STATS LIVE ---
                         const done = getDutiesDoneCount(me.email);
                         const pending = Math.max(0, calculateStaffTarget(me) - done); // FIX: No negative
