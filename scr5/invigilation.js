@@ -6442,134 +6442,181 @@ if (staffSearchInput) {
     });
 }
 
-// --- HoD MONITORING LOGIC ---
+
+// --- HoD MONITORING LOGIC (Day & Session Wise) ---
 window.openHodMonitorModal = function() {
     const me = staffData.find(s => s.email.toLowerCase() === currentUser.email.toLowerCase());
     if (!me) return;
 
     const dept = me.dept;
-    document.getElementById('hod-dept-name').textContent = `${dept} Department Overview`;
+    document.getElementById('hod-dept-name').textContent = `${dept} Department Schedule (Upcoming)`;
     
     const list = document.getElementById('hod-monitor-list');
-    list.innerHTML = '<div class="text-center py-10"><span class="animate-spin text-2xl inline-block">⏳</span> <span class="block mt-2 text-sm text-gray-500">Loading department data...</span></div>';
+    list.innerHTML = '<div class="text-center py-10"><span class="animate-spin text-2xl inline-block">⏳</span> <span class="block mt-2 text-sm text-gray-500">Processing schedule...</span></div>';
     
     window.openModal('hod-monitor-modal');
 
-    // Slight delay to allow modal render
     setTimeout(() => {
-        // Filter Staff by Dept
-        const deptStaff = staffData.filter(s => s.dept === dept && s.status !== 'archived');
-        
-        if (deptStaff.length === 0) {
-            list.innerHTML = '<div class="text-center text-gray-400 py-8 italic border-2 border-dashed border-gray-200 rounded-lg">No staff members found in this department.</div>';
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // 1. Identify Dept Staff Emails
+        const deptStaffEmails = new Set(
+            staffData.filter(s => s.dept === dept && s.status !== 'archived').map(s => s.email)
+        );
+
+        if (deptStaffEmails.size === 0) {
+            list.innerHTML = '<div class="text-center text-gray-400 py-8 italic">No staff found in this department.</div>';
             return;
         }
 
-        let html = "";
-        
-        // Sort by Name
-        deptStaff.sort((a, b) => a.name.localeCompare(b.name));
+        // 2. Aggregate Data by Day & Session
+        // Structure: { "YYYY-MM-DD": { dateObj, dateStr, FN: { assigned: [], posted: [], unavailable: [] }, AN: { ... } } }
+        const schedule = {};
 
-        deptStaff.forEach(staff => {
-            // 1. Gather Duties (Assigned) & Exchange Requests
-            const duties = [];
-            const exchanges = [];
-            
-            Object.keys(invigilationSlots).forEach(key => {
-                const slot = invigilationSlots[key];
-                if (slot.assigned.includes(staff.email)) {
-                    duties.push(key);
-                }
-                if (slot.exchangeRequests && slot.exchangeRequests.includes(staff.email)) {
-                    exchanges.push(key);
-                }
-            });
-            duties.sort((a, b) => parseDate(a) - parseDate(b));
+        const getDayEntry = (dateObj, dateStr) => {
+            const key = dateObj.toISOString().split('T')[0];
+            if (!schedule[key]) {
+                schedule[key] = { 
+                    dateObj: dateObj, 
+                    dateStr: dateStr, 
+                    FN: { assigned: [], posted: [], unavailable: [] }, 
+                    AN: { assigned: [], posted: [], unavailable: [] } 
+                };
+            }
+            return schedule[key];
+        };
 
-            // 2. Gather Unavailability
-            const unavail = [];
+        // A. Process Invigilation Slots (Duties & Slot-Specific Leaves)
+        Object.keys(invigilationSlots).forEach(key => {
+            const date = parseDate(key);
+            if (date < today) return; // Filter Past
+
+            const [dStr, tStr] = key.split(' | ');
+            const isAN = (tStr.includes("PM") || tStr.startsWith("12:") || tStr.startsWith("12."));
+            const sess = isAN ? "AN" : "FN";
             
-            // A. Slot Specific
-            Object.keys(invigilationSlots).forEach(key => {
-                const slot = invigilationSlots[key];
-                if (slot.unavailable) {
-                    const uEntry = slot.unavailable.find(u => (typeof u === 'string' ? u === staff.email : u.email === staff.email));
-                    if (uEntry) {
-                        const reason = (typeof uEntry === 'object') ? uEntry.reason : "Unspecified";
-                        unavail.push({ key: key, reason: reason });
+            const dayEntry = getDayEntry(date, dStr);
+            const slot = invigilationSlots[key];
+
+            // Assigned & Posted (Exchange)
+            slot.assigned.forEach(email => {
+                if (deptStaffEmails.has(email)) {
+                    dayEntry[sess].assigned.push(email);
+                    // Check if they posted it for exchange
+                    if (slot.exchangeRequests && slot.exchangeRequests.includes(email)) {
+                        dayEntry[sess].posted.push(email);
                     }
                 }
             });
 
-            // B. Advance
-            Object.keys(advanceUnavailability).forEach(dateStr => {
-                ['FN', 'AN'].forEach(sess => {
-                    if (advanceUnavailability[dateStr][sess]) {
-                        const uEntry = advanceUnavailability[dateStr][sess].find(u => u.email === staff.email);
-                        if (uEntry) {
-                            unavail.push({ key: `${dateStr} | ${sess}`, reason: uEntry.reason });
-                        }
+            // Slot Unavailable
+            if (slot.unavailable) {
+                slot.unavailable.forEach(u => {
+                    const email = (typeof u === 'string' ? u : u.email);
+                    const reason = (typeof u === 'object' ? u.reason : "Unspecified");
+                    if (deptStaffEmails.has(email)) {
+                        dayEntry[sess].unavailable.push({ email, reason });
                     }
                 });
-            });
-            
-            // Render Card Sections
-            const dutyHtml = duties.length > 0 
-                ? duties.map(d => {
-                    const isExchanged = exchanges.includes(d);
-                    const bg = isExchanged ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-green-50 text-green-700 border-green-200';
-                    const icon = isExchanged ? '⏳' : '✅';
-                    return `<span class="inline-block ${bg} text-[10px] px-2 py-1 rounded border font-mono mb-1 mr-1 font-bold whitespace-nowrap">${icon} ${d}</span>`;
-                }).join('')
-                : `<span class="text-gray-400 text-xs italic">No duties currently assigned.</span>`;
+            }
+        });
 
-            const unavHtml = unavail.length > 0
-                ? unavail.map(u => `
-                    <div class="text-[10px] text-red-700 bg-red-50 border border-red-100 px-2 py-1 rounded mb-1 flex justify-between items-center">
-                        <span class="font-mono">${u.key}</span>
-                        <span class="font-bold bg-white px-1 rounded border border-red-100">${u.reason}</span>
-                    </div>`).join('')
-                : `<span class="text-gray-400 text-xs italic">No unavailability recorded.</span>`;
+        // B. Process Advance Unavailability (General Leaves)
+        Object.keys(advanceUnavailability).forEach(dateStr => {
+            const [d, m, y] = dateStr.split('.');
+            const date = new Date(y, m - 1, d);
+            
+            if (date < today) return;
+
+            const dayEntry = getDayEntry(date, dateStr);
+
+            ['FN', 'AN'].forEach(sess => {
+                if (advanceUnavailability[dateStr][sess]) {
+                    advanceUnavailability[dateStr][sess].forEach(u => {
+                        if (deptStaffEmails.has(u.email)) {
+                            // Avoid duplicates if already caught in slot-specific above
+                            const exists = dayEntry[sess].unavailable.some(x => x.email === u.email);
+                            if (!exists) {
+                                dayEntry[sess].unavailable.push({ email: u.email, reason: u.reason });
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        // 3. Sort & Render
+        const sortedKeys = Object.keys(schedule).sort();
+        
+        let html = "";
+
+        sortedKeys.forEach(dateKey => {
+            const dayData = schedule[dateKey];
+            const dayName = dayData.dateObj.toLocaleString('en-us', { weekday: 'long' });
+            
+            // Only render if there is data for this day
+            const hasFN = dayData.FN.assigned.length > 0 || dayData.FN.unavailable.length > 0;
+            const hasAN = dayData.AN.assigned.length > 0 || dayData.AN.unavailable.length > 0;
+
+            if (!hasFN && !hasAN) return;
+
+            const renderSession = (sessName, data) => {
+                if (data.assigned.length === 0 && data.unavailable.length === 0) return "";
+                
+                let assignedHtml = "";
+                if (data.assigned.length > 0) {
+                    assignedHtml = `<div class="mb-2"><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Assigned / Posted</span><div class="flex flex-wrap gap-1 mt-1">`;
+                    data.assigned.forEach(email => {
+                        const name = getNameFromEmail(email);
+                        const isPosted = data.posted.includes(email);
+                        const style = isPosted ? "bg-orange-100 text-orange-700 border-orange-200" : "bg-green-50 text-green-700 border-green-200";
+                        const icon = isPosted ? "⏳" : "✅";
+                        assignedHtml += `<span class="px-2 py-1 rounded border ${style} text-xs font-bold flex items-center gap-1">${icon} ${name}</span>`;
+                    });
+                    assignedHtml += `</div></div>`;
+                }
+
+                let unavHtml = "";
+                if (data.unavailable.length > 0) {
+                    unavHtml = `<div><span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Unavailable</span><div class="flex flex-wrap gap-1 mt-1">`;
+                    data.unavailable.forEach(u => {
+                        const name = getNameFromEmail(u.email);
+                        unavHtml += `<span class="px-2 py-1 rounded border bg-red-50 text-red-700 border-red-100 text-xs flex items-center gap-1" title="${u.reason}">⛔ ${name} <span class="text-[9px] opacity-75">(${u.reason})</span></span>`;
+                    });
+                    unavHtml += `</div></div>`;
+                }
+
+                return `
+                    <div class="flex-1 min-w-[250px] border-l-4 ${sessName.includes('Forenoon') ? 'border-indigo-400' : 'border-purple-400'} bg-white p-3 rounded shadow-sm border border-gray-100">
+                        <h5 class="font-bold text-gray-800 text-sm mb-2 border-b border-gray-100 pb-1">${sessName}</h5>
+                        ${assignedHtml}
+                        ${unavHtml}
+                    </div>
+                `;
+            };
 
             html += `
-                <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-3 border-b border-gray-100 pb-2">
-                        <div class="flex items-center gap-3">
-                            <div class="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
-                                ${staff.name.charAt(0)}
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-gray-800 text-sm leading-tight">${staff.name}</h4>
-                                <p class="text-[10px] text-gray-500">${staff.designation}</p>
-                            </div>
+                <div class="mb-6 bg-gray-50/50 p-2 rounded-xl">
+                    <div class="flex items-center gap-2 mb-2 ml-1">
+                        <div class="bg-gray-800 text-white font-bold px-3 py-1 rounded text-xs uppercase tracking-wide shadow-sm">
+                            ${dayData.dateStr}
                         </div>
-                        <div class="text-right bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                            <span class="block text-[9px] text-gray-400 uppercase font-bold">Total Duties</span>
-                            <span class="block text-sm font-bold text-gray-700">${duties.length}</span>
-                        </div>
+                        <span class="text-xs font-bold text-gray-500 uppercase">${dayName}</span>
                     </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <h5 class="text-[10px] font-bold text-green-700 uppercase mb-2 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Assigned & Posted
-                            </h5>
-                            <div class="flex flex-wrap">${dutyHtml}</div>
-                        </div>
-                        <div class="md:border-l md:border-gray-100 md:pl-4">
-                            <h5 class="text-[10px] font-bold text-red-600 uppercase mb-2 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Unavailability
-                            </h5>
-                            <div class="flex flex-col">${unavHtml}</div>
-                        </div>
+                    <div class="flex flex-wrap gap-3">
+                        ${renderSession("Forenoon (FN)", dayData.FN)}
+                        ${renderSession("Afternoon (AN)", dayData.AN)}
                     </div>
                 </div>
             `;
         });
 
-        list.innerHTML = html;
+        list.innerHTML = html || '<div class="text-center text-gray-400 py-8 italic border-2 border-dashed border-gray-200 rounded-lg">No upcoming duties or leaves found for this department.</div>';
+
     }, 50);
 }
+
 
 // Initialize Listeners
 setupSearchHandler('att-cs-search', 'att-cs-results', 'att-cs-email', false);
