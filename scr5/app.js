@@ -7691,17 +7691,39 @@ window.real_loadGlobalScribeList = function() {
     renderGlobalScribeList();
 }
 
-// 2. Render the global list (Responsive: Card on Mobile, Row on PC)
+// --- SCRIBE PAGINATION VARIABLES ---
+let currentScribePage = 1;
+const SCRIBES_PER_PAGE = 10;
+
+// 2. Render the global list (Paginated)
 function renderGlobalScribeList() {
     if (!currentScribeListDiv) return; 
     currentScribeListDiv.innerHTML = "";
     
+    // Elements for pagination
+    const paginationControls = document.getElementById('scribe-pagination-controls');
+    const pageInfo = document.getElementById('scribe-page-info');
+    const prevBtn = document.getElementById('scribe-prev-page');
+    const nextBtn = document.getElementById('scribe-next-page');
+
     if (globalScribeList.length === 0) {
         currentScribeListDiv.innerHTML = `<div class="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-gray-400 text-xs italic">No scribes added yet.</div>`;
+        if (paginationControls) paginationControls.classList.add('hidden');
         return;
     }
     
-    globalScribeList.forEach(student => {
+    // --- PAGINATION LOGIC ---
+    const totalPages = Math.ceil(globalScribeList.length / SCRIBES_PER_PAGE);
+    
+    // Safety check: if we deleted items and current page is now empty, go back
+    if (currentScribePage > totalPages) currentScribePage = totalPages || 1;
+
+    const startIndex = (currentScribePage - 1) * SCRIBES_PER_PAGE;
+    const endIndex = startIndex + SCRIBES_PER_PAGE;
+    const pageItems = globalScribeList.slice(startIndex, endIndex);
+
+    // Render Items
+    pageItems.forEach(student => {
         const item = document.createElement('div');
         // Mobile: Column (Card), Desktop: Row
         item.className = 'group flex flex-col md:flex-row justify-between items-start md:items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition mb-2 gap-3 md:gap-4';
@@ -7712,7 +7734,6 @@ function renderGlobalScribeList() {
         const isLocked = isScribeListLocked;
         const btnDisabled = isLocked ? 'disabled' : '';
         
-        // Button: Full width on mobile, auto on desktop
         const btnBase = "text-xs font-bold px-3 py-1.5 rounded border transition w-full md:w-auto text-center flex items-center justify-center gap-1";
         const btnStyle = isLocked 
             ? "bg-gray-50 text-gray-400 border-gray-100 cursor-not-allowed" 
@@ -7745,6 +7766,33 @@ function renderGlobalScribeList() {
         
         currentScribeListDiv.appendChild(item);
     });
+
+    // --- UPDATE CONTROLS ---
+    if (paginationControls) {
+        if (totalPages > 1) {
+            paginationControls.classList.remove('hidden');
+            pageInfo.textContent = `Page ${currentScribePage} of ${totalPages}`;
+            
+            prevBtn.disabled = (currentScribePage === 1);
+            nextBtn.disabled = (currentScribePage === totalPages);
+
+            // Re-attach listeners (safe to overwrite onclick)
+            prevBtn.onclick = () => {
+                if (currentScribePage > 1) {
+                    currentScribePage--;
+                    renderGlobalScribeList();
+                }
+            };
+            nextBtn.onclick = () => {
+                if (currentScribePage < totalPages) {
+                    currentScribePage++;
+                    renderGlobalScribeList();
+                }
+            };
+        } else {
+            paginationControls.classList.add('hidden');
+        }
+    }
 }
 
 // 3. Remove a student (Updated with Confirmation)
