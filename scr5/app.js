@@ -1143,14 +1143,17 @@ const restoreStatus = document.getElementById('restore-status');
 const toggleButton = document.getElementById('sidebar-toggle');
 const sidebar = document.getElementById('main-nav');
 
-// --- INJECT DOWNLOAD BUTTON ---
+// --- INJECT DOWNLOAD BUTTON FOR REPORTS ---
 const btnDownloadReport = document.createElement('button');
 btnDownloadReport.id = 'download-report-pdf-btn';
 btnDownloadReport.className = "flex-1 inline-flex justify-center items-center rounded-md border border-transparent bg-green-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-green-700";
 btnDownloadReport.innerHTML = `⬇️ Download PDF`;
-// Insert it next to the Print button
+
 if (finalPrintButton && finalPrintButton.parentNode) {
-    finalPrintButton.parentNode.insertBefore(btnDownloadReport, finalPrintButton.nextSibling);
+    // Insert only if not already there
+    if (!document.getElementById('download-report-pdf-btn')) {
+        finalPrintButton.parentNode.insertBefore(btnDownloadReport, finalPrintButton.nextSibling);
+    }
 }
 
 // Attach Listener
@@ -1158,10 +1161,9 @@ btnDownloadReport.addEventListener('click', () => {
     const content = document.getElementById('report-output-area').innerHTML;
     if (!content.trim()) return alert("No report generated.");
     
-    // Determine filename based on global state or default
     const filename = (typeof lastGeneratedReportType !== 'undefined' && lastGeneratedReportType) 
                      ? lastGeneratedReportType 
-                     : "ExamFlow_Report";
+                     : "Exam_Report";
                      
     openPdfPreview(content, filename);
 });
@@ -11192,7 +11194,7 @@ function loadInitialData() {
         });
     }
 
-   // --- UPDATED BILL PRINT: Uses Unified PDF Preview ---
+   // --- REMUNERATION BILL DOWNLOAD ---
     if (btnPrintBill) {
         btnPrintBill.addEventListener('click', () => {
             const billContent = document.getElementById('remuneration-output').innerHTML;
@@ -11668,105 +11670,102 @@ if (btnSessionDelete) {
     });
 }
 // ==========================================
-// 📄 PDF PREVIEW & DOWNLOADER (Global Helper)
+// 📄 GLOBAL PDF PREVIEW & DOWNLOADER (Replica Fix)
 // ==========================================
 window.openPdfPreview = function(contentHtml, filenamePrefix) {
-    // 1. PREPARE CONTENT
-    // We strip any existing fixed-height styles to prevent blank pages
-    const cleanContent = contentHtml.replace(/min-height:\s*297mm/g, 'min-height: auto');
+    // 1. CLONE STYLES (Ensures exact replica)
+    const headContent = document.head.innerHTML;
+    
+    // 2. GENERATE FILENAME
     const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
     const filename = `${filenamePrefix}_${dateStr}.pdf`;
 
+    // 3. OPEN POPUP
     const w = window.open('', '_blank');
     w.document.write(`
-        <html>
+        <!DOCTYPE html>
+        <html lang="en">
         <head>
-            <title>${filename}</title>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+            ${headContent} <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
             <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-                @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&display=swap');
-                
-                body { font-family: 'Inter', sans-serif; background: #f3f4f6; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+                body { background-color: #f3f4f6; padding: 20px; display: flex; flex-direction: column; align-items: center; }
                 
                 /* CONTROL BAR */
-                #controls {
-                    margin-bottom: 20px; background: white; padding: 10px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                #pdf-controls {
+                    margin-bottom: 20px; background: white; padding: 10px 20px; 
+                    border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
                     position: sticky; top: 10px; z-index: 50;
                 }
-                .btn {
-                    padding: 10px 20px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 0 5px;
-                }
-                .btn-print { background-color: #374151; color: white; }
-                .btn-download { background-color: #2563eb; color: white; }
-                .btn:hover { opacity: 0.9; }
 
-                /* DOCUMENT CONTAINER */
-                #pdf-content {
-                    width: 210mm; /* A4 Width */
+                /* PREVIEW CONTAINER (A4 Width) */
+                #pdf-wrapper {
+                    width: 210mm; 
+                    min-height: 297mm; 
                     background: white;
+                    padding: 10mm; /* Internal Padding */
                     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                    box-sizing: border-box;
                 }
 
-                /* RESET PAGE STYLES FOR PDF */
-                /* This ensures pages flow naturally without forcing extra blank ones */
+                /* RESET PAGE HEIGHTS FOR PDF (Fixes Blank Pages) */
                 .print-page, .print-page-daywise, .print-page-sticker {
                     width: 100% !important;
-                    height: auto !important;
+                    height: auto !important; /* Let content dictate height */
                     min-height: 0 !important;
                     margin: 0 !important;
-                    padding: 15mm !important; /* Uniform Padding */
+                    padding: 0 !important; /* Handled by wrapper */
                     border: none !important;
                     box-shadow: none !important;
                     page-break-after: always;
-                    box-sizing: border-box;
                 }
                 
-                /* Hide last page break */
+                /* PREVENT SPLITTING */
+                tr { page-break-inside: avoid; }
+                
                 .print-page:last-child { page-break-after: auto; }
 
-                /* TABLE STYLES */
-                table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-                th, td { border: 1px solid #000; padding: 6px; }
-                th { background-color: #f0f0f0; font-weight: bold; }
-
-                /* PRINT HIDING */
+                /* HIDE CONTROLS IN PRINT */
                 @media print {
-                    body { background: white; padding: 0; }
-                    #controls { display: none !important; }
-                    #pdf-content { box-shadow: none; width: 100%; }
-                    @page { margin: 0; } /* We handle margins in padding */
+                    #pdf-controls { display: none !important; }
+                    #pdf-wrapper { box-shadow: none; margin: 0; width: 100%; }
+                    body { padding: 0; background: white; }
+                    @page { margin: 10mm; } 
                 }
             </style>
         </head>
         <body>
-            <div id="controls">
-                <button class="btn btn-print" onclick="window.print()">🖨️ Print</button>
-                <button class="btn btn-download" onclick="downloadPDF()">⬇️ Download PDF</button>
+            <div id="pdf-controls">
+                <button onclick="window.print()" class="bg-gray-700 text-white px-4 py-2 rounded font-bold shadow hover:bg-gray-800 mr-2">
+                    🖨️ Print
+                </button>
+                <button onclick="downloadDoc()" class="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-blue-700">
+                    ⬇️ One-Click Download
+                </button>
             </div>
 
-            <div id="pdf-content">
-                ${cleanContent}
+            <div id="pdf-wrapper">
+                ${contentHtml}
             </div>
 
             <script>
-                function downloadPDF() {
-                    const element = document.getElementById('pdf-content');
-                    const btn = document.querySelector('.btn-download');
+                function downloadDoc() {
+                    const element = document.getElementById('pdf-wrapper');
+                    const btn = document.querySelector('button[onclick="downloadDoc()"]');
                     btn.textContent = "Generating...";
                     btn.disabled = true;
 
                     const opt = {
-                        margin: 0, // We use padding inside .print-page instead
+                        margin: [5, 0, 5, 0], // Top, Left, Bottom, Right (mm)
                         filename: '${filename}',
                         image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                        html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
                     };
 
                     html2pdf().set(opt).from(element).save().then(() => {
                         btn.textContent = "✅ Downloaded";
-                        setTimeout(() => { btn.textContent = "⬇️ Download PDF"; btn.disabled = false; }, 2000);
+                        setTimeout(() => { btn.textContent = "⬇️ One-Click Download"; btn.disabled = false; }, 3000);
                     });
                 }
             <\/script>
@@ -11774,7 +11773,7 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
         </html>
     `);
     w.document.close();
-}    
+}   
     // Initial Call (in case we start on settings page or refresh)
 updateStudentPortalLink();
 // --- NEW: Restore Last Active Tab ---
