@@ -806,14 +806,9 @@ function renderStaffTable() {
     spacer.innerHTML = `<td class="block border-none p-0"></td>`;
     ui.staffTableBody.appendChild(spacer);
 }
+
 function renderStaffRankList(myEmail) {
-    // Target BOTH lists (Desktop & Mobile)
-    const containers = [
-        document.getElementById('staff-rank-list'),
-        document.getElementById('staff-rank-list-mobile')
-    ];
-    
-    // 1. Calculate and Sort (Same as before)
+    // 1. Calculate and Sort
     const rankedStaff = staffData
         .filter(s => s.status !== 'archived')
         .map(s => { 
@@ -829,8 +824,6 @@ function renderStaffRankList(myEmail) {
 
     // 2. Pagination Logic
     const totalPages = Math.ceil(rankedStaff.length / RANK_PER_PAGE) || 1;
-    
-    // Boundary Checks
     if (currentRankPage > totalPages) currentRankPage = totalPages;
     if (currentRankPage < 1) currentRankPage = 1;
 
@@ -840,7 +833,7 @@ function renderStaffRankList(myEmail) {
 
     // 3. Generate List HTML
     const listHtml = pageItems.map((s, i) => {
-        const absoluteIndex = start + i; // Correct rank number based on page
+        const absoluteIndex = start + i;
         const isMe = s.email === myEmail;
         const bgClass = isMe ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-transparent hover:bg-gray-100";
         const textClass = isMe ? "text-indigo-700 font-bold" : "text-gray-700";
@@ -875,37 +868,43 @@ function renderStaffRankList(myEmail) {
             </div>`;
     }).join('');
 
-    // 4. Pagination Controls (Sticky Bottom)
-    const prevDisabled = (currentRankPage === 1) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-100 hover:text-indigo-600 cursor-pointer";
-    const nextDisabled = (currentRankPage === totalPages) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-100 hover:text-indigo-600 cursor-pointer";
+    // 4. Generate Pagination HTML (Simple and Tidy)
+    const prevDisabled = (currentRankPage === 1) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer";
+    const nextDisabled = (currentRankPage === totalPages) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer";
 
     const paginationHtml = `
-        <div class="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 pt-2 pb-1 mt-auto flex justify-between items-center shadow-lg z-10 -mx-1 px-2 rounded-b-lg">
-            <button onclick="changeRankPage(-1)" ${prevDisabled} class="px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-gray-50 shadow-sm">
+        <div class="flex justify-between items-center w-full bg-white">
+            <button onclick="changeRankPage(-1)" ${prevDisabled} class="px-3 py-1.5 rounded border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-white shadow-sm">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 Prev
             </button>
             
-            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-100 px-2 py-1 rounded">
+            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-50 px-2 py-1 rounded border border-gray-100">
                 ${currentRankPage} <span class="text-gray-300">/</span> ${totalPages}
             </span>
             
-            <button onclick="changeRankPage(1)" ${nextDisabled} class="px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-gray-50 shadow-sm">
+            <button onclick="changeRankPage(1)" ${nextDisabled} class="px-3 py-1.5 rounded border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-white shadow-sm">
                 Next
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
             </button>
         </div>
     `;
 
-    // 5. Inject Content
-    containers.forEach(container => {
-        if(container) {
-            container.innerHTML = listHtml + paginationHtml;
-            // Only scroll to top if not already visible (optional UX polish)
-            container.scrollTop = 0; 
-        }
-    });
+    // 5. Inject Content into respective containers
+    
+    // Desktop
+    const deskList = document.getElementById('staff-rank-list');
+    const deskPag = document.getElementById('staff-rank-pagination');
+    if(deskList) { deskList.innerHTML = listHtml; deskList.scrollTop = 0; }
+    if(deskPag) deskPag.innerHTML = paginationHtml;
+
+    // Mobile
+    const mobList = document.getElementById('staff-rank-list-mobile');
+    const mobPag = document.getElementById('staff-rank-mobile-pagination');
+    if(mobList) { mobList.innerHTML = listHtml; mobList.scrollTop = 0; }
+    if(mobPag) mobPag.innerHTML = paginationHtml;
 }
+
 
 // --- ADD THIS NEW FUNCTION AT THE END OR WITH OTHER EXPORTS ---
 
