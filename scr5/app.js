@@ -7831,8 +7831,7 @@ function loadScribeAllotment(sessionKey) {
     }
 }
 
-
-// Render the list of scribe students for the selected session (Responsive Card View)
+// Render the list of scribe students for the selected session (Responsive Card View + Clear Option)
 function renderScribeAllotmentList(sessionKey) {
     const [date, time] = sessionKey.split(' | ');
     const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
@@ -7883,14 +7882,22 @@ function renderScribeAllotmentList(sessionKey) {
             const location = (roomInfo && roomInfo.location) ? ` <span class="text-gray-400 font-normal text-xs">(${roomInfo.location})</span>` : '';
             const displayRoom = `<span class="font-mono font-bold text-gray-500 mr-1">#${serialNo}</span> ${allottedRoom}${location}`;
 
+            // *** ADDED CLEAR BUTTON BELOW ***
             actionContent = `
                 <div class="w-full md:w-auto bg-green-50 border border-green-100 rounded p-2 md:bg-transparent md:border-0 md:p-0 flex flex-col md:flex-row md:items-center gap-2">
                     <div class="text-xs text-gray-500 uppercase font-bold md:hidden">Allotted Room</div>
                     <div class="text-sm font-bold text-green-700 md:text-gray-800 md:mr-4">${displayRoom}</div>
-                    <button class="w-full md:w-auto inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-1.5 px-3 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-                            onclick="openScribeRoomModal('${regNo}', '${student.Name}')">
-                        Change
-                    </button>
+                    
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <button class="flex-1 md:flex-none inline-flex justify-center items-center rounded-md border border-gray-300 bg-white py-1.5 px-3 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                                onclick="openScribeRoomModal('${regNo}', '${student.Name}')">
+                            Change
+                        </button>
+                        <button class="flex-1 md:flex-none inline-flex justify-center items-center rounded-md border border-red-200 bg-white py-1.5 px-3 text-xs font-bold text-red-600 shadow-sm hover:bg-red-50"
+                                onclick="removeScribeRoom('${regNo}')" title="Unassign Room">
+                            Clear
+                        </button>
+                    </div>
                 </div>
             `;
         } else {
@@ -7920,6 +7927,7 @@ function renderScribeAllotmentList(sessionKey) {
         scribeAllotmentList.appendChild(item);
     });
 }
+
 // Find available rooms for scribes
 async function findAvailableRooms(sessionKey) {
     
@@ -11835,8 +11843,26 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
         </html>
     `);
     w.document.close();
-}
-    // Initial Call (in case we start on settings page or refresh)
+}  
+
+// --- NEW: Clear Scribe Room Assignment ---
+window.removeScribeRoom = function(regNo) {
+    if (!confirm("Unassign this student? They will return to the 'Assign Room' state.")) return;
+
+    // 1. Remove from current session mapping
+    delete currentScribeAllotment[regNo];
+
+    // 2. Save to Local Storage
+    const allAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
+    allAllotments[currentSessionKey] = currentScribeAllotment;
+    localStorage.setItem(SCRIBE_ALLOTMENT_KEY, JSON.stringify(allAllotments));
+
+    // 3. Sync & Refresh
+    if (typeof syncDataToCloud === 'function') syncDataToCloud();
+    renderScribeAllotmentList(currentSessionKey);
+};    
+    
+// Initial Call (in case we start on settings page or refresh)
 updateStudentPortalLink();
 // --- NEW: Restore Last Active Tab ---
     function restoreActiveTab() {
