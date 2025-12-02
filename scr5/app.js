@@ -251,6 +251,7 @@ const ROOM_ALLOTMENT_KEY = 'examRoomAllotment';
 const EXAM_RULES_KEY = 'examRulesConfig'; 
 let currentExamRules = []; 
 let isExamRulesLocked = true; // <--- ADD THIS NEW VARIABLE
+let isAddingExamSchedule = false; // Controls visibility of the schedule form    
 let isAllotmentLocked = true; // Default locked state for Room Allotment
 // ******************************
     
@@ -1285,12 +1286,11 @@ function getExamName(date, time, stream) {
     return ""; // No match found
 }
 
-// --- UI: Render the Scheduler Interface (Updated with Lock) ---
+// --- UI: Render the Scheduler Interface (Toggle View) ---
 function renderExamNameSettings() {
     const container = document.getElementById('exam-names-grid');
     const section = document.getElementById('exam-names-section');
     
-    // Load Rules
     const saved = localStorage.getItem(EXAM_RULES_KEY);
     currentExamRules = saved ? JSON.parse(saved) : [];
 
@@ -1299,71 +1299,91 @@ function renderExamNameSettings() {
     section.classList.remove('hidden');
     container.innerHTML = '';
 
-    // --- 1. ADD NEW ENTRY FORM ---
-    const streams = (typeof currentStreamConfig !== 'undefined') ? currentStreamConfig : ["Regular"];
-    const streamOptions = streams.map(s => `<option value="${s}">${s}</option>`).join('');
-    
-    const formHtml = `
-        <div class="bg-white p-5 rounded-lg border border-gray-200 shadow-sm mb-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-base font-bold text-gray-800 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-600"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
-                    Schedule New Exam
-                </h3>
-                <button id="toggle-exam-rules-lock" class="text-xs flex items-center gap-1 px-3 py-1 rounded transition shadow-sm ${isExamRulesLocked ? 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200' : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="${isExamRulesLocked ? 'M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25 2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z' : 'M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z'}" />
-                    </svg>
-                    <span>${isExamRulesLocked ? 'List Locked' : 'Unlocked'}</span>
-                </button>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                <div class="md:col-span-4">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Exam Name</label>
-                    <input type="text" id="rule-name" class="block w-full p-2 border border-gray-300 rounded text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" placeholder="e.g. 5th Semester B.Sc">
-                </div>
+    // --- 1. HEADER TOOLBAR (Always Visible) ---
+    const lockBtnHtml = `
+        <button id="toggle-exam-rules-lock" class="text-xs flex items-center gap-1 px-3 py-1 rounded transition shadow-sm ${isExamRulesLocked ? 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-gray-200' : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="${isExamRulesLocked ? 'M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25 2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z' : 'M13.5 10.5V6.75a4.5 4.5 0 1 1 9 0v3.75M3.75 21.75h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H3.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z'}" />
+            </svg>
+            <span>${isExamRulesLocked ? 'List Locked' : 'Unlocked'}</span>
+        </button>
+    `;
 
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Stream</label>
-                    <select id="rule-stream" class="block w-full p-2 border border-gray-300 rounded text-sm bg-white">
-                        <option value="All Streams">All Streams</option>
-                        ${streamOptions}
-                    </select>
-                </div>
-
-                <div class="md:col-span-3 bg-gray-50 p-2 rounded border border-gray-200">
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">From</label>
-                    <div class="flex gap-1">
-                        <input type="date" id="rule-start-date" class="w-full p-1.5 border border-gray-300 rounded text-xs cursor-pointer" onclick="this.showPicker()">
-                        <select id="rule-start-session" class="w-16 p-1.5 border border-gray-300 rounded text-xs">
-                            <option value="FN">FN</option>
-                            <option value="AN">AN</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="md:col-span-3 bg-gray-50 p-2 rounded border border-gray-200">
-                    <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">To</label>
-                    <div class="flex gap-1">
-                        <input type="date" id="rule-end-date" class="w-full p-1.5 border border-gray-300 rounded text-xs cursor-pointer" onclick="this.showPicker()">
-                        <select id="rule-end-session" class="w-16 p-1.5 border border-gray-300 rounded text-xs">
-                            <option value="AN" selected>AN</option>
-                            <option value="FN">FN</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="md:col-span-12 flex justify-end mt-2">
-                    <button id="add-rule-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded text-sm font-medium shadow-sm transition">
-                        + Add to Schedule
-                    </button>
-                </div>
+    const headerHtml = `
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-600"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
+                Exam Schedule
+            </h3>
+            <div class="flex items-center gap-2">
+                 ${!isAddingExamSchedule ? `<button onclick="setExamScheduleMode(true)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded shadow-sm transition flex items-center gap-1">+ Schedule New</button>` : ''}
+                 ${lockBtnHtml}
             </div>
         </div>
     `;
 
-    // --- 2. LIST EXISTING RULES (Database View) ---
+    // --- 2. ADD FORM (Conditionally Rendered) ---
+    let formHtml = '';
+    if (isAddingExamSchedule) {
+        const streams = (typeof currentStreamConfig !== 'undefined') ? currentStreamConfig : ["Regular"];
+        const streamOptions = streams.map(s => `<option value="${s}">${s}</option>`).join('');
+        
+        formHtml = `
+            <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 shadow-sm mb-6 relative">
+                <button onclick="setExamScheduleMode(false)" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                </button>
+                
+                <h4 class="text-xs font-bold text-indigo-800 uppercase mb-3">New Exam Details</h4>
+                
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div class="md:col-span-4">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Exam Name</label>
+                        <input type="text" id="rule-name" class="block w-full p-2 border border-gray-300 rounded text-sm bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" placeholder="e.g. 5th Semester B.Sc">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">Stream</label>
+                        <select id="rule-stream" class="block w-full p-2 border border-gray-300 rounded text-sm bg-white">
+                            <option value="All Streams">All Streams</option>
+                            ${streamOptions}
+                        </select>
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">From</label>
+                        <div class="flex gap-1">
+                            <input type="date" id="rule-start-date" class="w-full p-1.5 border border-gray-300 rounded text-xs bg-white cursor-pointer" onclick="this.showPicker()">
+                            <select id="rule-start-session" class="w-14 p-1.5 border border-gray-300 rounded text-xs bg-white">
+                                <option value="FN">FN</option>
+                                <option value="AN">AN</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="block text-[10px] font-bold text-gray-500 uppercase mb-1">To</label>
+                        <div class="flex gap-1">
+                            <input type="date" id="rule-end-date" class="w-full p-1.5 border border-gray-300 rounded text-xs bg-white cursor-pointer" onclick="this.showPicker()">
+                            <select id="rule-end-session" class="w-14 p-1.5 border border-gray-300 rounded text-xs bg-white">
+                                <option value="AN" selected>AN</option>
+                                <option value="FN">FN</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 flex justify-end gap-2">
+                    <button onclick="setExamScheduleMode(false)" class="bg-white text-gray-600 border border-gray-300 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-50">Cancel</button>
+                    <button id="add-rule-btn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded text-xs font-bold shadow-sm transition">
+                        Save Schedule
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // --- 3. LIST EXISTING RULES ---
     let listHtml = '';
     if (currentExamRules.length > 0) {
         const sortedRules = [...currentExamRules].sort((a, b) => {
@@ -1373,12 +1393,7 @@ function renderExamNameSettings() {
         let rows = '';
         sortedRules.forEach((rule) => {
             const fmt = (d) => d.split('-').reverse().slice(0, 2).join('/');
-            
-            // CHECK LOCK STATE FOR DELETE BUTTON
-            const btnState = isExamRulesLocked 
-                ? 'disabled opacity-30 cursor-not-allowed text-gray-400' 
-                : 'text-red-500 hover:text-red-700 cursor-pointer';
-            
+            const btnState = isExamRulesLocked ? 'disabled opacity-30 cursor-not-allowed text-gray-400' : 'text-red-500 hover:text-red-700 cursor-pointer';
             const onclickAction = isExamRulesLocked ? '' : `onclick="deleteExamRule('${rule.id}')"`;
 
             rows += `
@@ -1408,7 +1423,7 @@ function renderExamNameSettings() {
                         <tr>
                             <th class="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Exam Name</th>
                             <th class="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Stream</th>
-                            <th class="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Schedule Range</th>
+                            <th class="px-4 py-2 text-xs font-bold text-gray-500 uppercase">Range</th>
                             <th class="px-4 py-2 text-xs font-bold text-gray-500 uppercase text-right">Action</th>
                         </tr>
                     </thead>
@@ -1417,21 +1432,20 @@ function renderExamNameSettings() {
             </div>
         `;
     } else {
-        listHtml = `<div class="text-center text-gray-400 italic py-4 bg-white border border-dashed border-gray-300 rounded-lg">No exams scheduled yet. Add one above.</div>`;
+        listHtml = `<div class="text-center text-gray-400 italic py-8 border border-dashed border-gray-200 rounded-lg bg-gray-50">No exams scheduled. Click "+ Schedule New" to begin.</div>`;
     }
 
-    container.innerHTML = formHtml + listHtml;
+    container.innerHTML = headerHtml + formHtml + listHtml;
 
-    // --- ATTACH LOCK LISTENER ---
+    // --- LISTENERS ---
     const lockBtn = document.getElementById('toggle-exam-rules-lock');
     if(lockBtn) {
         lockBtn.addEventListener('click', () => {
             isExamRulesLocked = !isExamRulesLocked;
-            renderExamNameSettings(); // Re-render UI to reflect new state
+            renderExamNameSettings(); 
         });
     }
 
-    // --- ATTACH ADD BUTTON LISTENER ---
     const addBtn = document.getElementById('add-rule-btn');
     if(addBtn) {
         addBtn.addEventListener('click', () => {
@@ -1442,17 +1456,9 @@ function renderExamNameSettings() {
             const eDate = document.getElementById('rule-end-date').value;
             const eSess = document.getElementById('rule-end-session').value;
 
-            if (!name || !sDate || !eDate) {
-                alert("Please fill in Name, Start Date, and End Date.");
-                return;
-            }
+            if (!name || !sDate || !eDate) { alert("Please fill in Name, Start Date, and End Date."); return; }
+            if (new Date(sDate) > new Date(eDate)) { alert("Start Date cannot be after End Date."); return; }
 
-            if (new Date(sDate) > new Date(eDate)) {
-                alert("Start Date cannot be after End Date.");
-                return;
-            }
-
-            // Create Rule Object
             const newRule = {
                 id: Date.now().toString(),
                 examName: name,
@@ -1466,10 +1472,18 @@ function renderExamNameSettings() {
             currentExamRules.push(newRule);
             localStorage.setItem(EXAM_RULES_KEY, JSON.stringify(currentExamRules));
             
+            // *** SUCCESS: Close Form and Refresh ***
+            isAddingExamSchedule = false; 
             renderExamNameSettings();
             if (typeof syncDataToCloud === 'function') syncDataToCloud();
         });
     }
+}
+
+// Helper to toggle the "Add New" form
+window.setExamScheduleMode = function(isAdding) {
+    isAddingExamSchedule = isAdding;
+    renderExamNameSettings();
 }
 
 // Global Delete Function for Rules
