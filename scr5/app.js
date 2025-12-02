@@ -11670,7 +11670,7 @@ if (btnSessionDelete) {
     });
 }
 // ==========================================
-// 📄 GLOBAL PDF PREVIEW (Fixed Widths & No Cut-off)
+// 📄 GLOBAL PDF PREVIEW (85% Zoom / Smart Fit Strategy)
 // ==========================================
 window.openPdfPreview = function(contentHtml, filenamePrefix) {
     // 1. CLEAN CONTENT
@@ -11678,7 +11678,7 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
         .replace(/min-height:\s*297mm/g, 'min-height: auto')
         .replace(/height:\s*297mm/g, 'height: auto')
         .replace(/width:\s*210mm/g, 'width: 100%') 
-        .replace(/padding:\s*2cm/g, 'padding: 10px')
+        .replace(/padding:\s*2cm/g, 'padding: 15px')
         .replace(/mb-8/g, 'mb-4')
         .replace(/shadow-xl/g, 'shadow-none')
         .replace(/border-2/g, 'border');
@@ -11702,9 +11702,13 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
                     position: sticky; top: 10px; z-index: 9999;
                 }
 
-                /* CONTAINER: Strictly 190mm (Fits A4 with 10mm margin) */
+                /* --- THE ZOOM STRATEGY --- */
+                /* A4 Width = 210mm.
+                   To simulate 85% Zoom, we set width to 210 / 0.85 = ~247mm.
+                   The PDF engine will auto-shrink this to fit A4, effectively "zooming out".
+                */
                 #pdf-wrapper {
-                    width: 190mm; 
+                    width: 245mm; 
                     background: white;
                     padding: 0; 
                     box-shadow: 0 4px 15px rgba(0,0,0,0.5);
@@ -11717,7 +11721,7 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
                     height: auto !important;
                     min-height: 0 !important;
                     margin: 0 !important;
-                    padding: 15px !important; 
+                    padding: 15mm !important; /* Generous padding (shrinks on PDF) */
                     border: none !important;
                     box-shadow: none !important;
                     page-break-after: always;
@@ -11728,25 +11732,18 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
                 
                 .print-page:last-child { page-break-after: auto !important; margin-bottom: 0 !important; }
 
-                /* --- CRITICAL TABLE FIXES --- */
-                
-                /* Force table to respect container width */
+                /* TABLE STABILITY */
                 table { 
                     width: 100% !important; 
-                    max-width: 100% !important;
-                    table-layout: fixed !important; /* Prevents overflow */
+                    table-layout: fixed !important;
                     border-collapse: collapse !important;
                 }
-                
-                /* Force cells to wrap text instead of expanding */
                 th, td { 
                     word-wrap: break-word !important;
                     overflow-wrap: break-word !important;
-                    white-space: normal !important;
                     border: 1px solid #000 !important;
                 }
 
-                /* Hide scrollbars in print */
                 ::-webkit-scrollbar { display: none; }
 
                 @media print {
@@ -11779,10 +11776,11 @@ window.openPdfPreview = function(contentHtml, filenamePrefix) {
                     btn.disabled = true;
 
                     const opt = {
-                        margin: [10, 10, 10, 10], 
+                        // Tiny margins because the container padding (15mm) handles the spacing
+                        margin: [5, 5, 5, 5], 
                         filename: '${filename}',
                         image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 800 }, 
+                        html2canvas: { scale: 2, useCORS: true, scrollY: 0, windowWidth: 1000 }, 
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
                     };
