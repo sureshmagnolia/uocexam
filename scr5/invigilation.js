@@ -868,12 +868,12 @@ function renderStaffRankList(myEmail) {
             </div>`;
     }).join('');
 
-    // 4. Generate Pagination HTML (Simple and Tidy)
+// 4. Generate Pagination HTML (Updated with extra padding)
     const prevDisabled = (currentRankPage === 1) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer";
     const nextDisabled = (currentRankPage === totalPages) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-50 cursor-pointer";
 
     const paginationHtml = `
-        <div class="flex justify-between items-center w-full bg-white">
+        <div class="flex justify-between items-center w-full bg-white py-2">
             <button onclick="changeRankPage(-1)" ${prevDisabled} class="px-3 py-1.5 rounded border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-white shadow-sm">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 Prev
