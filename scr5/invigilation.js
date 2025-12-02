@@ -74,7 +74,8 @@ let lastManualRanking = []; // Stores the scoring snapshot for the open modal
 let currentEmailQueue = []; // Stores the list for bulk sending
 let currentStaffPage = 1;
 const STAFF_PER_PAGE = 20;
-
+let currentRankPage = 1;
+const RANK_PER_PAGE = 20;
 // --- DOM ELEMENTS ---
 const views = { login: document.getElementById('view-login'), admin: document.getElementById('view-admin'), staff: document.getElementById('view-staff') };
 const ui = {
@@ -812,14 +813,13 @@ function renderStaffRankList(myEmail) {
         document.getElementById('staff-rank-list-mobile')
     ];
     
-    // 1. Calculate and Sort
+    // 1. Calculate and Sort (Same as before)
     const rankedStaff = staffData
         .filter(s => s.status !== 'archived')
         .map(s => { 
             const target = calculateStaffTarget(s);
             const done = getDutiesDoneCount(s.email);
             const pending = target - done;
-            // Return all stats so we can display them
             return { ...s, done, pending }; 
         })
         .sort((a, b) => {
@@ -827,12 +827,24 @@ function renderStaffRankList(myEmail) {
             return a.name.localeCompare(b.name);
         });
 
-    // 2. Generate HTML
-    const html = rankedStaff.map((s, i) => {
+    // 2. Pagination Logic
+    const totalPages = Math.ceil(rankedStaff.length / RANK_PER_PAGE) || 1;
+    
+    // Boundary Checks
+    if (currentRankPage > totalPages) currentRankPage = totalPages;
+    if (currentRankPage < 1) currentRankPage = 1;
+
+    const start = (currentRankPage - 1) * RANK_PER_PAGE;
+    const end = start + RANK_PER_PAGE;
+    const pageItems = rankedStaff.slice(start, end);
+
+    // 3. Generate List HTML
+    const listHtml = pageItems.map((s, i) => {
+        const absoluteIndex = start + i; // Correct rank number based on page
         const isMe = s.email === myEmail;
         const bgClass = isMe ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-transparent hover:bg-gray-100";
         const textClass = isMe ? "text-indigo-700 font-bold" : "text-gray-700";
-        const rankBadge = i < 3 ? `text-orange-500 font-black` : `text-gray-400 font-medium`;
+        const rankBadge = absoluteIndex < 3 ? `text-orange-500 font-black` : `text-gray-400 font-medium`;
         const displayPending = Math.max(0, s.pending);
         
         let roleBadge = "";
@@ -842,11 +854,10 @@ function renderStaffRankList(myEmail) {
             if (activeRole) roleBadge = `<span class="ml-1 text-[8px] uppercase font-bold bg-purple-100 text-purple-700 px-1 py-0.5 rounded border border-purple-200">${activeRole.role}</span>`;
         }
 
-        // New Format: Done (Green) / Pending (Red)
         return `
             <div class="flex items-center justify-between p-2 rounded border ${bgClass} text-xs transition mb-1">
                 <div class="flex items-center gap-2 overflow-hidden">
-                    <span class="${rankBadge} w-4 text-center shrink-0">${i + 1}</span>
+                    <span class="${rankBadge} w-6 text-center shrink-0 text-[10px]">${absoluteIndex + 1}</span>
                     <div class="flex flex-col min-w-0">
                         <div class="flex items-center gap-1">
                             <span class="truncate ${textClass}">${s.name}</span>
@@ -856,7 +867,7 @@ function renderStaffRankList(myEmail) {
                     </div>
                 </div>
                 
-                <div class="text-right flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border border-gray-100 shadow-sm">
+                <div class="text-right flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-100 shadow-sm shrink-0">
                      <span class="font-mono font-bold text-green-600" title="Completed Duties">${s.done}</span>
                      <span class="text-gray-300 text-[10px]">/</span>
                      <span class="font-mono font-bold ${displayPending > 0 ? 'text-red-600' : 'text-gray-400'}" title="Pending Duties">${displayPending}</span>
@@ -864,13 +875,45 @@ function renderStaffRankList(myEmail) {
             </div>`;
     }).join('');
 
-    // 3. Inject into DOM with BOTTOM SPACER
-    // The spacer ensures the last item is visible above mobile bottom bars
-    const spacer = `<div class="h-24 w-full shrink-0"></div>`;
+    // 4. Pagination Controls (Sticky Bottom)
+    const prevDisabled = (currentRankPage === 1) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-100 hover:text-indigo-600 cursor-pointer";
+    const nextDisabled = (currentRankPage === totalPages) ? "disabled opacity-50 cursor-not-allowed" : "hover:bg-gray-100 hover:text-indigo-600 cursor-pointer";
 
+    const paginationHtml = `
+        <div class="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 pt-2 pb-1 mt-auto flex justify-between items-center shadow-lg z-10 -mx-1 px-2 rounded-b-lg">
+            <button onclick="changeRankPage(-1)" ${prevDisabled} class="px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-gray-50 shadow-sm">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                Prev
+            </button>
+            
+            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-gray-100 px-2 py-1 rounded">
+                ${currentRankPage} <span class="text-gray-300">/</span> ${totalPages}
+            </span>
+            
+            <button onclick="changeRankPage(1)" ${nextDisabled} class="px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 text-[10px] font-bold transition flex items-center gap-1 bg-gray-50 shadow-sm">
+                Next
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+        </div>
+    `;
+
+    // 5. Inject Content
     containers.forEach(container => {
-        if(container) container.innerHTML = html + spacer;
+        if(container) {
+            container.innerHTML = listHtml + paginationHtml;
+            // Only scroll to top if not already visible (optional UX polish)
+            container.scrollTop = 0; 
+        }
     });
+}
+
+// --- ADD THIS NEW FUNCTION AT THE END OR WITH OTHER EXPORTS ---
+
+window.changeRankPage = function(delta) {
+    currentRankPage += delta;
+    // Refresh list using current user email for highlighting
+    const myEmail = currentUser ? currentUser.email : "";
+    renderStaffRankList(myEmail);
 }
 
 
