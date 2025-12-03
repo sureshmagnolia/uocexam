@@ -1064,9 +1064,40 @@
         </div>
     </div>
 </div>
+
+
+    
+<div id="dashboard-invig-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 z-[80] flex justify-center items-center p-4 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[85vh] animate-slide-up">
+        
+        <div class="bg-gradient-to-r from-indigo-600 to-blue-600 p-4 flex justify-between items-center shrink-0">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <span class="bg-white/20 p-1.5 rounded-lg">📋</span> 
+                    <span id="dash-modal-title">Session Details</span>
+                </h3>
+                <p class="text-indigo-100 text-xs mt-0.5" id="dash-modal-subtitle">Invigilators on Duty</p>
+            </div>
+            <button onclick="document.getElementById('dashboard-invig-modal').classList.add('hidden')" class="text-white/80 hover:text-white hover:bg-white/20 p-2 rounded-full transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+
+        <div id="dash-invig-list" class="p-4 overflow-y-auto custom-scroll space-y-3 bg-gray-50/50 flex-1">
+            </div>
+
+        <div class="p-3 border-t border-gray-100 bg-white text-center shrink-0">
+            <p class="text-[10px] text-gray-400">Tap WhatsApp icon to contact invigilator</p>
+        </div>
+    </div>
+</div>
+
     
     
     <script type="module" src="invigilation.js">
     </script>
+
+
+    
 </body>
 </html>
