@@ -3228,6 +3228,10 @@ window.printSessionReport = function(key) {
     printWindow.document.close();
     printWindow.print();
 }
+
+
+
+
 function renderAdminTodayStats() {
     const container = document.getElementById('admin-today-container');
     if (!container) return;
@@ -3260,25 +3264,29 @@ function renderAdminTodayStats() {
     container.classList.remove('hidden');
     container.innerHTML = '';
 
-    // --- PART 1: TODAY'S EXAMS (Print & Bulk SMS) ---
+    // --- PART 1: TODAY'S EXAMS (View & Bulk SMS) ---
     if (todaySessions.length > 0) {
         todaySessions.sort();
         let buttonsHtml = '';
         todaySessions.forEach(key => {
             const timePart = key.split(' | ')[1];
+            
+            // Grouped Container for Time + Buttons
             buttonsHtml += `
-                <div class="flex items-center gap-2 bg-white/10 p-2 rounded-lg border border-white/20">
-                    <span class="text-white text-sm font-bold mr-1">${timePart}</span>
+                <div class="flex items-center gap-2 bg-white/10 p-1.5 rounded-lg border border-white/20 w-full sm:w-auto justify-between sm:justify-start">
+                    <span class="text-white text-xs font-bold mr-1 ml-1 whitespace-nowrap">${timePart}</span>
                     
-                    <button onclick="printSessionReport('${key}')" class="bg-white text-indigo-700 hover:bg-indigo-50 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition" title="Print Invigilator List">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        Print List
-                    </button>
-                    
-                    <button onclick="sendSessionSMS('${key}')" class="bg-green-500 text-white hover:bg-green-600 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition" title="Send Bulk SMS to All Staff in this Session">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-                        Bulk SMS
-                    </button>
+                    <div class="flex gap-2">
+                        <button onclick="openDashboardInvigModal('${key}')" class="bg-white text-indigo-700 hover:bg-indigo-50 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition" title="View Staff List">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                            View
+                        </button>
+                        
+                        <button onclick="sendSessionSMS('${key}')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition" title="Send Bulk SMS">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                            SMS
+                        </button>
+                    </div>
                 </div>
             `;
         });
@@ -3295,7 +3303,7 @@ function renderAdminTodayStats() {
                             <p class="text-indigo-100 text-xs font-medium">${todaySessions.length} Session(s) Active</p>
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-2 justify-center md:justify-end">
+                    <div class="flex flex-wrap gap-2 justify-center md:justify-end w-full md:w-auto">
                         ${buttonsHtml}
                     </div>
                 </div>
@@ -3303,7 +3311,7 @@ function renderAdminTodayStats() {
         `;
     }
 
-    // --- PART 2: TOMORROW'S EXAMS (Notifications) ---
+    // --- PART 2: TOMORROW'S EXAMS (Unchanged) ---
     if (tomorrowSessions.length > 0) {
         tomorrowSessions.sort();
         let buttonsHtml = '';
@@ -3312,16 +3320,8 @@ function renderAdminTodayStats() {
             buttonsHtml += `
                 <div class="flex items-center gap-2 bg-white/10 p-2 rounded-lg border border-white/20">
                     <span class="text-white text-sm font-bold mr-1">${timePart}</span>
-                    
-                    <button onclick="openSlotReminderModal('${key}')" class="bg-white text-orange-700 hover:bg-orange-50 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition" title="Send Alerts (Email, WhatsApp, SMS)">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                        Notify
-                    </button>
-
-                    <button onclick="printDutyNotification('${key}')" class="bg-blue-600 text-white hover:bg-blue-700 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition" title="Download Official Notification PDF">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        PDF
-                    </button>
+                    <button onclick="openSlotReminderModal('${key}')" class="bg-white text-orange-700 hover:bg-orange-50 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition">Notify</button>
+                    <button onclick="printDutyNotification('${key}')" class="bg-blue-600 text-white hover:bg-blue-700 font-bold py-1.5 px-3 rounded shadow-sm text-xs flex items-center gap-1 transition">PDF</button>
                 </div>
             `;
         });
@@ -3334,8 +3334,8 @@ function renderAdminTodayStats() {
                             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
                         <div>
-                            <h2 class="text-lg font-bold leading-tight">Exams Tomorrow (${tomorrowStr})</h2>
-                            <p class="text-orange-100 text-xs font-medium">${tomorrowSessions.length} Session(s) Scheduled</p>
+                            <h2 class="text-lg font-bold leading-tight">Exams Tomorrow</h2>
+                             <p class="text-orange-100 text-xs font-medium">${tomorrowSessions.length} Session(s) Scheduled</p>
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2 justify-center md:justify-end">
@@ -3345,7 +3345,12 @@ function renderAdminTodayStats() {
             </div>
         `;
     }
-} // <--- THIS BRACE WAS MISSING
+}
+
+
+
+
+ 
 // Updated: Show Completed Duties Modal (AY Filtered + Neat UI)
 window.openCompletedDutiesModal = function(email) {
     const list = document.getElementById('completed-duties-list');
