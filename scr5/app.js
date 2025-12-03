@@ -8491,6 +8491,8 @@ editCourseSelect.addEventListener('change', () => {
 
 // Find the renderStudentEditTable function (around line 1330) and replace it with this:
 
+
+// 3. Render Table (Responsive: Cute Card on Mobile, Table on PC)
 function renderStudentEditTable() {
     editDataContainer.innerHTML = '';
     
@@ -8504,9 +8506,10 @@ function renderStudentEditTable() {
     const end = start + STUDENTS_PER_EDIT_PAGE;
     const pageStudents = currentCourseStudents.slice(start, end);
 
-    // --- LOCK STATE STYLES ---
-    const btnState = isEditDataLocked ? 'disabled' : '';
-    const btnOpacity = isEditDataLocked ? 'opacity-50 cursor-not-allowed' : '';
+    // --- LOCK CHECK ---
+    const isLocked = (typeof isEditDataLocked !== 'undefined') ? isEditDataLocked : false;
+    const btnState = isLocked ? 'disabled' : '';
+    const btnOpacity = isLocked ? 'opacity-50 cursor-not-allowed' : '';
 
     let tableHtml = `
         <div class="overflow-hidden border-b border-gray-200 sm:rounded-lg">
@@ -8529,65 +8532,81 @@ function renderStudentEditTable() {
         const serialNo = uniqueRowIndex + 1;
         const streamDisplay = student.Stream || "Regular";
         
-        tableHtml += `
-            <tr data-row-index="${uniqueRowIndex}" class="block md:table-row mb-3 md:mb-0 bg-white border border-gray-200 md:border-0 rounded-lg md:rounded-none shadow-sm md:shadow-none w-full">
+        // --- Mobile Card HTML ---
+        // Uses a single block TD with a contained layout
+        const mobileCard = `
+            <td class="md:hidden block p-4 w-full border-b border-gray-100 last:border-0">
                 
-                <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">${serialNo}</td>
-                <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm text-gray-900 font-medium">${student.Date}</div>
-                    <div class="text-xs text-gray-500">${student.Time}</div>
-                </td>
-                <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-mono font-bold text-indigo-600">${student['Register Number']}</td>
-                <td class="hidden md:table-cell px-6 py-4">
-                    <div class="text-sm font-medium text-gray-900">${student.Name}</div>
-                    <div class="text-xs text-gray-500">${student.Course}</div>
-                </td>
-                <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${streamDisplay}</span>
-                </td>
-                <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button class="edit-row-btn text-indigo-600 hover:text-indigo-900 mr-3 font-bold ${btnOpacity}" ${btnState}>Edit</button>
-                    <button class="delete-row-btn text-red-600 hover:text-red-900 font-bold ${btnOpacity}" ${btnState}>Delete</button>
-                </td>
-
-                <td class="md:hidden block p-3 w-full">
-                    <div class="flex items-center justify-between mb-2">
-                        <div class="flex items-center gap-3 overflow-hidden">
-                            <div class="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0 border border-indigo-200">
-                                ${student.Name.charAt(0)}
-                            </div>
-                            <div class="min-w-0">
-                                <div class="text-sm font-bold text-gray-900 truncate">${student.Name}</div>
-                                <div class="text-xs text-gray-500 font-mono">${student['Register Number']}</div>
-                            </div>
-                        </div>
-                        <span class="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">#${serialNo}</span>
+                <div class="flex items-start gap-3 mb-3">
+                    <div class="h-10 w-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm shrink-0 border border-indigo-100">
+                        ${student.Name ? student.Name.charAt(0) : '?'}
                     </div>
-
-                    <div class="bg-gray-50 rounded-md p-2 text-xs border border-gray-100 mb-3">
-                        <div class="flex justify-between border-b border-gray-200 pb-1 mb-1">
-                            <span class="text-gray-500">Date:</span>
-                            <span class="font-medium text-gray-800">${student.Date}</span>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex justify-between items-start">
+                            <div class="text-sm font-bold text-gray-900 leading-tight truncate pr-2">${student.Name}</div>
+                            <span class="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-green-50 text-green-700 border border-green-200 uppercase tracking-wide">
+                                ${streamDisplay}
+                            </span>
                         </div>
-                        <div class="flex justify-between border-b border-gray-200 pb-1 mb-1">
-                            <span class="text-gray-500">Time:</span>
-                            <span class="font-medium text-gray-800">${student.Time}</span>
-                        </div>
-                        <div class="pt-0.5">
-                            <span class="text-gray-500 block mb-0.5">Course:</span>
-                            <span class="font-medium text-gray-800 block leading-tight">${student.Course}</span>
-                        </div>
+                        <div class="text-xs text-gray-500 font-mono mt-0.5 font-semibold tracking-wide">${student['Register Number']}</div>
                     </div>
+                </div>
 
-                    <div class="flex gap-2">
-                        <button class="edit-row-btn flex-1 bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs font-bold py-2 rounded-md shadow-sm flex items-center justify-center gap-1 ${btnOpacity}" ${btnState}>
-                            Edit
-                        </button>
-                        <button class="delete-row-btn flex-1 bg-white border border-red-200 text-red-700 hover:bg-red-50 text-xs font-bold py-2 rounded-md shadow-sm flex items-center justify-center gap-1 ${btnOpacity}" ${btnState}>
-                            Delete
-                        </button>
+                <div class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100 mb-3">
+                    <div>
+                        <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Date</span>
+                        <span class="font-medium text-gray-700">${student.Date}</span>
                     </div>
-                </td>
+                    <div>
+                        <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Time</span>
+                        <span class="font-medium text-gray-700">${student.Time}</span>
+                    </div>
+                    <div class="col-span-2 border-t border-gray-200 pt-1 mt-1">
+                        <span class="text-gray-400 block text-[10px] uppercase font-bold tracking-wider">Course</span>
+                        <span class="font-medium text-gray-700 block truncate" title="${student.Course}">${student.Course}</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button class="edit-row-btn flex-1 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-xs font-bold py-2 rounded-lg shadow-sm flex items-center justify-center gap-2 transition ${btnOpacity}" ${btnState}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                        Edit
+                    </button>
+                    <button class="delete-row-btn flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold py-2 rounded-lg shadow-sm flex items-center justify-center gap-2 transition ${btnOpacity}" ${btnState}>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        Remove
+                    </button>
+                </div>
+            </td>
+        `;
+
+        // --- Desktop Row HTML ---
+        const desktopRow = `
+            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm text-gray-500">${serialNo}</td>
+            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900 font-medium">${student.Date}</div>
+                <div class="text-xs text-gray-500">${student.Time}</div>
+            </td>
+            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-sm font-mono font-bold text-indigo-600">${student['Register Number']}</td>
+            <td class="hidden md:table-cell px-6 py-4">
+                <div class="text-sm font-medium text-gray-900">${student.Name}</div>
+                <div class="text-xs text-gray-500 truncate max-w-xs" title="${student.Course}">${student.Course}</div>
+            </td>
+            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${streamDisplay}</span>
+            </td>
+            <td class="hidden md:table-cell px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <div class="flex justify-end gap-2">
+                    <button class="edit-row-btn text-indigo-600 hover:text-indigo-900 font-bold px-2 py-1 rounded hover:bg-indigo-50 ${btnOpacity}" ${btnState}>Edit</button>
+                    <button class="delete-row-btn text-red-600 hover:text-red-900 font-bold px-2 py-1 rounded hover:bg-red-50 ${btnOpacity}" ${btnState}>Delete</button>
+                </div>
+            </td>
+        `;
+
+        tableHtml += `
+            <tr data-row-index="${uniqueRowIndex}" class="block md:table-row bg-white md:border-b border-gray-200 last:border-0">
+                ${desktopRow}
+                ${mobileCard}
             </tr>
         `;
     });
@@ -8596,6 +8615,8 @@ function renderStudentEditTable() {
     editDataContainer.innerHTML = tableHtml;
     renderEditPagination(currentCourseStudents.length);
 }
+
+
 
 // 4. Render Pagination (Same as before)
 function renderEditPagination(totalStudents) {
