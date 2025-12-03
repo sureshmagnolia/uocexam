@@ -12398,7 +12398,8 @@ window.autoAssignInvigilators = function() {
     }
 }
 
-// 5. Print List (Final: Stream-Wise Empty Rows + Invig Names)
+
+// 5. Print List (Final: Stream-Wise Empty Rows + Invig Names + Dept + Mobile)
 window.printInvigilatorList = function() {
     const sessionKey = allotmentSessionSelect.value;
     if (!sessionKey) return;
@@ -12412,10 +12413,15 @@ window.printInvigilatorList = function() {
     const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
     const sessionScribeMap = allScribeAllotments[sessionKey] || {};
 
-    // Staff Dept Lookup
+    // Load Staff Data for Dept & Phone Lookup
     const staffData = JSON.parse(localStorage.getItem('examStaffData') || '[]');
-    const staffDeptMap = {};
-    staffData.forEach(s => staffDeptMap[s.name] = s.dept || "");
+    const staffDetailsMap = {};
+    staffData.forEach(s => {
+        staffDetailsMap[s.name] = {
+            dept: s.dept || "",
+            phone: s.phone || ""
+        };
+    });
 
     // 2. Build Consolidated Room List
     const roomList = [];
@@ -12432,8 +12438,8 @@ window.printInvigilatorList = function() {
         });
     }
 
-    // B. Prepare Student Counts (For Empty Row Calculation)
-    const streamCounts = {}; // { "Regular": { candidates: 0, scribes: 0 } }
+    // B. Prepare Student Counts (For Empty Row Logic)
+    const streamCounts = {}; 
     const scribeStreamMap = {}; 
 
     if (allStudentData) {
@@ -12441,15 +12447,13 @@ window.printInvigilatorList = function() {
         const globalScribeList = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
         const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
 
-        // Map Scribe Rooms to Streams
         const regStreamMap = {};
         sessionStudents.forEach(s => {
             const sStream = s.Stream || "Regular";
             regStreamMap[s['Register Number']] = sStream;
 
-            // Initialize stats
             if (!streamCounts[sStream]) streamCounts[sStream] = { candidates: 0, scribes: 0 };
-
+            
             if (scribeRegNos.has(s['Register Number'])) {
                 streamCounts[sStream].scribes++;
             } else {
@@ -12494,14 +12498,12 @@ window.printInvigilatorList = function() {
     // 5. Generate HTML
     let rowsHtml = "";
     
-    // Sort Streams: Regular First
     const sortedStreamNames = Object.keys(streams).sort((a, b) => {
         if (a === "Regular") return -1;
         if (b === "Regular") return 1;
         return a.localeCompare(b);
     });
 
-    // Add streams that have students but maybe no rooms yet (to show empty rows)
     Object.keys(streamCounts).forEach(s => {
         if (!streams[s] && !sortedStreamNames.includes(s)) sortedStreamNames.push(s);
     });
@@ -12524,14 +12526,22 @@ window.printInvigilatorList = function() {
         // B. Actual Rooms
         list.forEach(room => {
             const invigName = currentSessionInvigs[room.name] || "-";
-            const invigDept = staffDeptMap[invigName] || "";
-            const roomInfo = currentRoomConfig[room.name] || {};
+            const staffInfo = staffDetailsMap[invigName] || { dept: "", phone: "" };
+            const invigDept = staffInfo.dept;
+            const invigPhone = staffInfo.phone;
             
+            const roomInfo = currentRoomConfig[room.name] || {};
             const displayLoc = (roomInfo.location && roomInfo.location.trim()) ? roomInfo.location : room.name;
             const scribeBadge = room.isScribe ? `<span style="font-size:8pt; font-weight:bold; margin-left:5px;">(Scribe)</span>` : "";
 
+            // --- FORMAT INFO: Name + Dept | Phone ---
+            let metaInfo = invigDept;
+            if (invigPhone) {
+                metaInfo = metaInfo ? `${metaInfo} | ${invigPhone}` : invigPhone;
+            }
+
             const invigDisplay = (invigName !== "-") 
-                ? `<div style="line-height:1.2;"><strong>${invigName}</strong><br><span style="font-size:8pt; color:#444;">${invigDept}</span></div>` 
+                ? `<div style="line-height:1.2;"><strong>${invigName}</strong><br><span style="font-size:8pt; color:#444;">${metaInfo}</span></div>` 
                 : "-";
 
             rowsHtml += `
@@ -12541,27 +12551,15 @@ window.printInvigilatorList = function() {
                         ${displayLoc} ${scribeBadge}
                     </td>
                     <td style="border:1px solid #000; padding:6px;">${invigDisplay}</td>
-                    <td style="border:1px solid #000; padding:6px;"></td>
-                    <td style="border:1px solid #000; padding:6px;"></td>
-                    <td style="border:1px solid #000; padding:6px;"></td>
-                    <td style="border:1px solid #000; padding:6px;"></td>
-                    <td style="border:1px solid #000; padding:6px;"></td>
-                    <td style="border:1px solid #000; padding:6px;"></td>
-                </tr>`;
+                    <td style="border:1px solid #000; padding:6px;"></td> <td style="border:1px solid #000; padding:6px;"></td> <td style="border:1px solid #000; padding:6px;"></td> <td style="border:1px solid #000; padding:6px;"></td> <td style="border:1px solid #000; padding:6px;"></td> <td style="border:1px solid #000; padding:6px;"></td> </tr>`;
         });
 
-        // C. Calculate Empty Rows (Per Stream)
-        // Logic: (Candidates / 30) + (Scribes / 1) - Actual Rooms
+        // C. Empty Rows
         const stats = streamCounts[streamName] || { candidates: 0, scribes: 0 };
-        
         const candidateReq = Math.ceil(stats.candidates / 30);
-        const scribeReq = stats.scribes; // 1 row per scribe student (User Request)
+        const scribeReq = stats.scribes; 
         const totalReq = candidateReq + scribeReq;
-        
-        // Ensure at least 2 empty rows buffer for every stream
-        const buffer = 2;
-        const actualCount = list.length;
-        const emptyRowsNeeded = Math.max(buffer, totalReq - actualCount);
+        const emptyRowsNeeded = Math.max(2, totalReq - list.length);
         
         for (let i = 0; i < emptyRowsNeeded; i++) {
              rowsHtml += `
@@ -12635,7 +12633,6 @@ window.printInvigilatorList = function() {
     `);
     w.document.close();
 }
-
     
 // Initial Call (in case we start on settings page or refresh)
 updateStudentPortalLink();
