@@ -12265,22 +12265,15 @@ window.removeScribeRoom = function(regNo) {
 // 👮 INVIGILATOR ASSIGNMENT MODULE (FIXED V3)
 // ==========================================
 
-// 1. Render the Main Assignment Panel (Safe Version)
+// 1. Render the Main Assignment Panel (Mobile-Fixed: Cute & Tidy)
 window.renderInvigilationPanel = function() {
     const section = document.getElementById('invigilator-assignment-section');
     const list = document.getElementById('invigilator-list-container');
-    
-    // --- CRITICAL SAFETY CHECK ---
-    // If HTML is missing, stop here instead of crashing
-    if (!section || !list) {
-        console.warn("Invigilator Assignment HTML elements not found. Please check index.html.");
-        return;
-    }
-
     const sessionKey = allotmentSessionSelect.value;
 
+    // Check if session is selected
     if (!sessionKey) {
-        section.classList.add('hidden');
+        if(section) section.classList.add('hidden');
         return;
     }
 
@@ -12335,56 +12328,76 @@ window.renderInvigilationPanel = function() {
         const assignedName = currentInvigMapping[roomName];
         const serial = serialMap[roomName] || '-';
         
-        const roomInfo = currentRoomConfig[room.name] || {}; // Fix: Use room.name, not roomName which is string
+        const roomInfo = currentRoomConfig[room.name] || {};
         const location = roomInfo.location || "";
-        const safeRoomName = roomName.replace(/'/g, "\\'"); 
+        const safeRoomName = roomName.replace(/'/g, "\\'");
 
-        // Generate Stream Badges
+        // Generate Badges
         const streamBadges = Array.from(room.streams).map(s => {
             let color = "bg-blue-100 text-blue-800 border-blue-200";
             if(s === "Scribe") color = "bg-orange-100 text-orange-800 border-orange-200";
             else if(s !== "Regular") color = "bg-purple-100 text-purple-800 border-purple-200";
-            return `<span class="text-[9px] px-1.5 py-0.5 rounded border ${color} font-bold uppercase tracking-wide">${s}</span>`;
+            return `<span class="text-[9px] px-1.5 py-0.5 rounded border ${color} font-bold uppercase tracking-wide whitespace-nowrap">${s}</span>`;
         }).join(' ');
 
-        const statusClass = assignedName ? "bg-green-50 border-green-200" : "bg-white border-gray-200";
+        const cardBorder = assignedName ? "border-green-200 bg-green-50/30" : "border-gray-200 bg-white";
         
-        const btnHtml = assignedName 
-            ? `<div class="flex items-center gap-2">
-                 <div class="flex flex-col items-end">
-                     <span class="text-xs font-bold text-green-700 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        ${assignedName}
-                     </span>
-                     <button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="text-[10px] text-gray-400 hover:text-indigo-600 underline leading-none mt-0.5">Change</button>
-                 </div>
-               </div>`
-            : `<button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-3 py-1 rounded text-xs font-bold hover:bg-indigo-100 transition shadow-sm">Assign</button>`;
+        // Button Logic (Responsive)
+        let actionHtml = "";
+        if (assignedName) {
+            // Assigned State: Name + Change Button
+            actionHtml = `
+                <div class="flex items-center justify-between w-full sm:w-auto gap-2 bg-white sm:bg-transparent p-2 sm:p-0 rounded border sm:border-0 border-green-100 mt-2 sm:mt-0">
+                    <div class="flex items-center gap-2 min-w-0">
+                         <div class="bg-green-100 text-green-700 p-1 rounded-full shrink-0">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                         </div>
+                         <span class="text-xs font-bold text-green-800 truncate max-w-[150px] sm:max-w-[200px]" title="${assignedName}">${assignedName}</span>
+                    </div>
+                    <button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline shrink-0 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 transition">Change</button>
+                </div>
+            `;
+        } else {
+            // Unassigned State: Assign Button (Full width on mobile)
+            actionHtml = `
+                <button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="w-full sm:w-auto mt-2 sm:mt-0 bg-indigo-600 text-white border border-transparent px-4 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm flex items-center justify-center gap-1">
+                    <span>+</span> Assign
+                </button>
+            `;
+        }
 
         list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border rounded-lg shadow-sm ${statusClass} hover:shadow-md transition mb-2">
-                <div class="flex items-center gap-3">
-                    <div class="flex flex-col items-center justify-center w-9 h-9 bg-gray-100 text-gray-600 rounded font-bold text-xs border border-gray-200">
-                        <span>#${serial}</span>
+            <div class="p-3 border rounded-lg shadow-sm ${cardBorder} hover:shadow-md transition mb-2">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3">
+                    
+                    <div class="flex items-start gap-3 min-w-0">
+                        <div class="flex flex-col items-center justify-center w-10 h-10 bg-gray-100 text-gray-600 rounded-lg font-bold text-xs border border-gray-200 shrink-0">
+                            <span class="text-[8px] text-gray-400 uppercase leading-none mb-0.5">Hall</span>
+                            <span>#${serial}</span>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-bold text-gray-800 text-sm flex flex-wrap items-baseline gap-1">
+                                <span class="truncate">${roomName}</span>
+                                <span class="text-xs text-gray-400 font-normal truncate">${location ? `(${location})` : ''}</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                                <span class="text-[10px] text-gray-500 font-semibold bg-white px-1.5 py-0.5 rounded border border-gray-200 shadow-sm whitespace-nowrap">
+                                    👥 ${room.count}
+                                </span>
+                                ${streamBadges}
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <div class="font-bold text-gray-800 text-sm flex items-baseline gap-2">
-                            ${roomName}
-                            <span class="text-xs text-gray-400 font-normal">${location ? `(${location})` : ''}</span>
-                        </div>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="text-[10px] text-gray-500 font-semibold bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                                👥 ${room.count}
-                            </span>
-                            ${streamBadges}
-                        </div>
+
+                    <div class="sm:text-right min-w-[180px]">
+                        ${actionHtml}
                     </div>
                 </div>
-                ${btnHtml}
             </div>
         `;
     });
 }
+
 
 // 2. Open Modal (Populates List)
 window.openInvigModal = function(roomName) {
