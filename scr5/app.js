@@ -12565,8 +12565,8 @@ window.printInvigilatorList = function() {
                                 <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 6%;">Asgd</th>
                                 <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 6%;">Used</th>
                                 <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 6%;">Retd</th>
-                                <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 19%;">Remarks</th>
-                                <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 10%;">Sign</th>
+                                <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 10%;">Remarks</th>
+                                <th style="background: #eee; border: 1px solid #000; padding: 6px; width: 19%;">Sign</th>
                             </tr>
                         </thead>
                         <tbody>${tableRows}</tbody>
