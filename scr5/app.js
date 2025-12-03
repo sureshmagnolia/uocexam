@@ -12390,7 +12390,7 @@ window.autoAssignInvigilators = function() {
     }
 }
 
-// 5. Print List
+// 5. Print List (Updated: Stream Wise + Scribes + Empty Rows)
 window.printInvigilatorList = function() {
     const sessionKey = allotmentSessionSelect.value;
     if (!sessionKey) return;
@@ -12398,32 +12398,135 @@ window.printInvigilatorList = function() {
     const [date, time] = sessionKey.split(' | ');
     const serialMap = getRoomSerialMap(sessionKey);
     
-    // Re-build Full List
-    const allRoomNames = new Set();
-    if (currentSessionAllotment) currentSessionAllotment.forEach(r => allRoomNames.add(r.roomName));
+    // 1. Load Data
+    const invigMap = JSON.parse(localStorage.getItem(INVIG_MAPPING_KEY) || '{}');
+    const currentSessionInvigs = invigMap[sessionKey] || {};
     const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
     const sessionScribeMap = allScribeAllotments[sessionKey] || {};
-    Object.values(sessionScribeMap).forEach(r => allRoomNames.add(r));
+    
+    // 2. Build Room List with Stream Info
+    const roomList = [];
+    
+    // A. Regular Allotments
+    if (currentSessionAllotment) {
+        currentSessionAllotment.forEach(r => {
+            roomList.push({
+                name: r.roomName,
+                stream: r.stream || "Regular",
+                isScribe: false,
+                serial: serialMap[r.roomName] || 999
+            });
+        });
+    }
 
-    const sortedRooms = Array.from(allRoomNames).sort((a, b) => (serialMap[a] || 999) - (serialMap[b] || 999));
+    // B. Scribe Allotments (Deduce Stream)
+    const scribeRooms = new Set(Object.values(sessionScribeMap));
+    const scribeStreamMap = {}; // { "RoomName": "Stream" }
 
-    let rows = "";
-    sortedRooms.forEach(roomName => {
-        const name = currentInvigMapping[roomName] || "-";
-        const roomInfo = currentRoomConfig[roomName] || {};
-        const location = roomInfo.location ? `<br><span style="font-size:8pt; color:#555;">(${roomInfo.location})</span>` : "";
+    // Find stream for scribe rooms by looking at students
+    if (allStudentData) {
+        const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
+        // Map RegNo -> Stream
+        const regStreamMap = {};
+        sessionStudents.forEach(s => regStreamMap[s['Register Number']] = s.Stream || "Regular");
+
+        Object.entries(sessionScribeMap).forEach(([regNo, roomName]) => {
+            const sStream = regStreamMap[regNo] || "Regular";
+            // Logic: If room already marked Regular, keep it. If new, set it. 
+            // If room has mixed streams, prioritize Regular.
+            if (!scribeStreamMap[roomName]) {
+                scribeStreamMap[roomName] = sStream;
+            } else if (scribeStreamMap[roomName] !== "Regular" && sStream === "Regular") {
+                scribeStreamMap[roomName] = "Regular";
+            }
+        });
+    }
+
+    scribeRooms.forEach(roomName => {
+        roomList.push({
+            name: roomName,
+            stream: scribeStreamMap[roomName] || "Regular",
+            isScribe: true,
+            serial: serialMap[roomName] || 999
+        });
+    });
+
+    // 3. Separate Lists
+    const regularList = roomList.filter(r => r.stream === "Regular").sort((a, b) => a.serial - b.serial);
+    const otherList = roomList.filter(r => r.stream !== "Regular").sort((a, b) => a.serial - b.serial);
+
+    // 4. Calculate Empty Rows needed
+    // Calc Theoretical Need
+    let totalCandidates = 0;
+    let totalScribes = 0;
+    if (allStudentData) {
+        const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
+        const globalScribeList = JSON.parse(localStorage.getItem(SCRIBE_LIST_KEY) || '[]');
+        const scribeRegNos = new Set(globalScribeList.map(s => s.regNo));
         
-        rows += `
-            <tr>
-                <td style="border:1px solid #000; padding:6px; text-align:center; font-weight:bold;">${serialMap[roomName]}</td>
-                <td style="border:1px solid #000; padding:6px;">
-                    <strong>${roomName}</strong>
-                    ${location}
+        sessionStudents.forEach(s => {
+            if (scribeRegNos.has(s['Register Number'])) totalScribes++;
+            else totalCandidates++;
+        });
+    }
+    
+    // Standard Formula: 1 per 30 candidates + 1 per 5 scribes
+    const theoreticalNeed = Math.ceil(totalCandidates / 30) + Math.ceil(totalScribes / 5);
+    const currentRoomCount = roomList.length;
+    
+    // Ensure we have at least 20 rows or enough to match theoretical need + buffer
+    const totalRowsToPrint = Math.max(currentRoomCount + 5, theoreticalNeed + 2, 20);
+
+    // 5. Generate HTML Rows
+    let rowsHtml = "";
+
+    const renderRows = (list, title) => {
+        if (list.length === 0) return;
+        
+        // Header Row
+        rowsHtml += `
+            <tr style="background-color:#f3f4f6;">
+                <td colspan="4" style="border:1px solid #000; padding:6px; font-weight:bold; text-transform:uppercase;">
+                    ${title}
                 </td>
-                <td style="border:1px solid #000; padding:6px; font-size:10pt;">${name}</td>
+            </tr>
+        `;
+
+        list.forEach((room, idx) => {
+            const invigName = currentSessionInvigs[room.name] || "-";
+            const roomInfo = currentRoomConfig[room.name] || {};
+            const location = roomInfo.location ? `<br><span style="font-size:8pt; color:#555;">(${roomInfo.location})</span>` : "";
+            const scribeBadge = room.isScribe ? `<span style="font-size:8pt; font-weight:bold; margin-left:5px;">(Scribe)</span>` : "";
+            
+            rowsHtml += `
+                <tr>
+                    <td style="border:1px solid #000; padding:6px; text-align:center; font-weight:bold;">${room.serial}</td>
+                    <td style="border:1px solid #000; padding:6px;">
+                        <strong>${room.name}</strong> ${scribeBadge}
+                        ${location}
+                    </td>
+                    <td style="border:1px solid #000; padding:6px; font-size:10pt;">${invigName}</td>
+                    <td style="border:1px solid #000; padding:6px;"></td>
+                </tr>`;
+        });
+    };
+
+    renderRows(regularList, "Regular Stream");
+    renderRows(otherList, "Other Streams");
+
+    // 6. Add Empty Rows at the End
+    // Calculate how many rows we already added (items + headers)
+    const usedRows = regularList.length + otherList.length + (regularList.length > 0 ? 1 : 0) + (otherList.length > 0 ? 1 : 0);
+    
+    for (let i = usedRows; i < totalRowsToPrint; i++) {
+         rowsHtml += `
+            <tr>
+                <td style="border:1px solid #000; padding:6px; text-align:center;">-</td>
+                <td style="border:1px solid #000; padding:6px;"></td>
+                <td style="border:1px solid #000; padding:6px;"></td>
                 <td style="border:1px solid #000; padding:6px;"></td>
             </tr>`;
-    });
+    }
 
     const w = window.open('', '_blank');
     w.document.write(`
@@ -12438,7 +12541,7 @@ window.printInvigilatorList = function() {
             <h3>${date} (${time})</h3>
             <table>
                 <thead><tr><th width="5%" style="text-align:center;">Sl</th><th width="30%">Hall / Location</th><th width="40%">Invigilator</th><th width="25%">Signature</th></tr></thead>
-                <tbody>${rows}</tbody>
+                <tbody>${rowsHtml}</tbody>
             </table>
             <script>window.onload = () => window.print();<\/script>
         </body></html>
