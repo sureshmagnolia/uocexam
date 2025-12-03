@@ -12218,7 +12218,7 @@ window.removeScribeRoom = function(regNo) {
 // 👮 INVIGILATOR ASSIGNMENT MODULE (FIXED V3)
 // ==========================================
 
-// 1. Render the Main Assignment Panel
+// 1. Render the Main Assignment Panel (Mobile-Fixed)
 window.renderInvigilationPanel = function() {
     const section = document.getElementById('invigilator-assignment-section');
     const list = document.getElementById('invigilator-list-container');
@@ -12232,7 +12232,6 @@ window.renderInvigilationPanel = function() {
     // A. Consolidate Rooms (Regular + Scribe)
     const roomDataMap = {}; 
     
-    // Regular Allotments
     if (currentSessionAllotment && currentSessionAllotment.length > 0) {
         currentSessionAllotment.forEach(room => {
             if (!roomDataMap[room.roomName]) {
@@ -12243,7 +12242,6 @@ window.renderInvigilationPanel = function() {
         });
     }
 
-    // Scribe Allotments
     const allScribeAllotments = JSON.parse(localStorage.getItem(SCRIBE_ALLOTMENT_KEY) || '{}');
     const sessionScribeMap = allScribeAllotments[sessionKey] || {};
     
@@ -12266,15 +12264,13 @@ window.renderInvigilationPanel = function() {
     section.classList.remove('hidden');
     list.innerHTML = '';
 
-    // Load saved assignments
     const allMappings = JSON.parse(localStorage.getItem(INVIG_MAPPING_KEY) || '{}');
     currentInvigMapping = allMappings[sessionKey] || {};
 
-    // Sort by Serial Number
     const serialMap = getRoomSerialMap(sessionKey);
     allRooms.sort((a, b) => (serialMap[a.name] || 999) - (serialMap[b.name] || 999));
 
-    // C. Render Rows
+    // C. Render Rows (Responsive Layout)
     allRooms.forEach(room => {
         const roomName = room.name;
         const assignedName = currentInvigMapping[roomName];
@@ -12282,9 +12278,9 @@ window.renderInvigilationPanel = function() {
         
         const roomInfo = currentRoomConfig[roomName] || {};
         const location = roomInfo.location || "";
-        const safeRoomName = roomName.replace(/'/g, "\\'"); // Escape for onclick
+        const safeRoomName = roomName.replace(/'/g, "\\'");
 
-        // Generate Stream Badges
+        // Badges
         const streamBadges = Array.from(room.streams).map(s => {
             let color = "bg-blue-100 text-blue-800 border-blue-200";
             if(s === "Scribe") color = "bg-orange-100 text-orange-800 border-orange-200";
@@ -12294,38 +12290,58 @@ window.renderInvigilationPanel = function() {
 
         const statusClass = assignedName ? "bg-green-50 border-green-200" : "bg-white border-gray-200";
         
-        const btnHtml = assignedName 
-            ? `<div class="flex items-center gap-2">
-                 <div class="flex flex-col items-end">
-                     <span class="text-xs font-bold text-green-700 flex items-center gap-1">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                        ${assignedName}
-                     </span>
-                     <button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="text-[10px] text-gray-400 hover:text-indigo-600 underline leading-none mt-0.5">Change</button>
-                 </div>
-               </div>`
-            : `<button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-3 py-1 rounded text-xs font-bold hover:bg-indigo-100 transition shadow-sm">Assign</button>`;
+        // Responsive Action Section
+        // Mobile: Full width button or spaced details
+        // Desktop: Aligned right
+        let actionHtml = "";
+        
+        if (assignedName) {
+            actionHtml = `
+                <div class="flex items-center justify-between w-full sm:w-auto sm:justify-end gap-2 bg-white sm:bg-transparent p-2 sm:p-0 rounded border sm:border-0 border-green-100 mt-2 sm:mt-0">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                         <span class="bg-green-100 text-green-700 p-1 rounded-full shrink-0">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                         </span>
+                         <span class="text-xs font-bold text-green-800 truncate max-w-[120px] sm:max-w-none">${assignedName}</span>
+                    </div>
+                    <button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline shrink-0">Change</button>
+                </div>
+            `;
+        } else {
+            actionHtml = `
+                <button type="button" onclick="window.openInvigModal('${safeRoomName}')" class="w-full sm:w-auto mt-2 sm:mt-0 bg-indigo-600 text-white border border-transparent px-4 py-1.5 rounded text-xs font-bold hover:bg-indigo-700 transition shadow-sm flex items-center justify-center gap-1">
+                    <span>+</span> Assign
+                </button>
+            `;
+        }
 
         list.innerHTML += `
-            <div class="flex justify-between items-center p-3 border rounded-lg shadow-sm ${statusClass} hover:shadow-md transition">
-                <div class="flex items-center gap-3">
-                    <div class="flex flex-col items-center justify-center w-9 h-9 bg-gray-100 text-gray-600 rounded font-bold text-xs border border-gray-200">
-                        <span>#${serial}</span>
+            <div class="p-3 border rounded-lg shadow-sm ${statusClass} hover:shadow-md transition mb-2">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3">
+                    
+                    <div class="flex items-start gap-3 min-w-0">
+                        <div class="flex flex-col items-center justify-center w-10 h-10 bg-gray-100 text-gray-600 rounded-lg font-bold text-xs border border-gray-200 shrink-0">
+                            <span class="text-[8px] text-gray-400 uppercase leading-none mb-0.5">Hall</span>
+                            <span>#${serial}</span>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-bold text-gray-800 text-sm flex flex-wrap items-baseline gap-1">
+                                <span class="truncate">${roomName}</span>
+                                <span class="text-xs text-gray-400 font-normal truncate">${location ? `(${location})` : ''}</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                                <span class="text-[10px] text-gray-500 font-semibold bg-white px-1.5 py-0.5 rounded border border-gray-200 shadow-sm whitespace-nowrap">
+                                    👥 ${room.count}
+                                </span>
+                                ${streamBadges}
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <div class="font-bold text-gray-800 text-sm flex items-baseline gap-2">
-                            ${roomName}
-                            <span class="text-xs text-gray-400 font-normal">${location ? `(${location})` : ''}</span>
-                        </div>
-                        <div class="flex items-center gap-2 mt-1">
-                            <span class="text-[10px] text-gray-500 font-semibold bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                                👥 ${room.count}
-                            </span>
-                            ${streamBadges}
-                        </div>
+
+                    <div class="sm:text-right min-w-[140px]">
+                        ${actionHtml}
                     </div>
                 </div>
-                ${btnHtml}
             </div>
         `;
     });
