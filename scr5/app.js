@@ -12570,7 +12570,7 @@ window.printInvigilatorList = function() {
                         <th style="width: 6%;">Asgd</th>
                         <th style="width: 6%;">Used</th>
                         <th style="width: 6%;">Retd</th>
-                        <th style="width: 19%;">Remarks</th>
+                        <th style="width: 10%;">Remarks</th>
                         <th style="width: 10%;">Sign</th>
                     </tr>
                 </thead>
