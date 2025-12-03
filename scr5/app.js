@@ -12802,7 +12802,154 @@ window.printInvigilatorList = function() {
     `);
     w.document.close();
 }
+
+
+
+    // ==========================================
+// ☁️ SUPER ADMIN: STORAGE MONITOR
+// ==========================================
+
+const btnStorageStats = document.getElementById('btn-storage-stats');
+const storageModal = document.getElementById('storage-stats-modal');
+const closeStorageModalBtn = document.getElementById('close-storage-modal');
+const storageList = document.getElementById('storage-stats-list');
+
+// Open Modal
+if (btnStorageStats) {
+    btnStorageStats.addEventListener('click', () => {
+        storageModal.classList.remove('hidden');
+        loadStorageStats();
+    });
+}
+
+// Close Modal
+if (closeStorageModalBtn) {
+    closeStorageModalBtn.addEventListener('click', () => {
+        storageModal.classList.add('hidden');
+    });
+}
+
+// Fetch & Calculate Stats
+async function loadStorageStats() {
+    if (!storageList) return;
     
+    storageList.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-12 text-gray-500">
+            <span class="animate-spin text-3xl mb-3">⏳</span>
+            <p class="text-sm font-medium">Scanning database clusters...</p>
+            <p class="text-xs text-gray-400">This may take a moment.</p>
+        </div>`;
+
+    const { db, collection, getDocs, doc, getDoc } = window.firebase;
+
+    try {
+        // 1. Get All Colleges
+        const colRef = collection(db, "colleges");
+        const snap = await getDocs(colRef);
+        
+        if (snap.empty) {
+            storageList.innerHTML = '<p class="text-center text-gray-400 py-10">No colleges found in database.</p>';
+            return;
+        }
+
+        let rowsHtml = "";
+        
+        // 2. Process in Parallel
+        const promises = snap.docs.map(async (collegeDoc) => {
+            const data = collegeDoc.data();
+            const name = data.examCollegeName || "Unnamed College";
+            const id = collegeDoc.id;
+            const limitBytes = data.storageLimitBytes || (15 * 1024 * 1024);
+            const limitMB = (limitBytes / (1024 * 1024)).toFixed(1);
+
+            // Calculate Usage via Chunk Metadata
+            let totalChunks = 0;
+            let sizeMB = 0;
+            let statusBadge = '<span class="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded">Empty</span>';
+
+            try {
+                // We only fetch 'chunk_0' to read the 'totalChunks' property
+                // This saves us from downloading the entire 15MB dataset just to check size
+                const chunkRef = doc(db, "colleges", id, "data", "chunk_0");
+                const chunkSnap = await getDoc(chunkRef);
+                
+                if (chunkSnap.exists()) {
+                    const chunkData = chunkSnap.data();
+                    totalChunks = chunkData.totalChunks || 1;
+                    // Each chunk is ~800,000 chars ≈ 0.76 MB
+                    sizeMB = (totalChunks * 0.76).toFixed(2);
+                    
+                    // Determine Status
+                    const percentage = (sizeMB / limitMB) * 100;
+                    if (percentage > 90) {
+                        statusBadge = `<span class="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded border border-red-200">CRITICAL (${Math.round(percentage)}%)</span>`;
+                    } else if (percentage > 75) {
+                        statusBadge = `<span class="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded border border-orange-200">Warning (${Math.round(percentage)}%)</span>`;
+                    } else {
+                        statusBadge = `<span class="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded border border-green-200">Healthy (${Math.round(percentage)}%)</span>`;
+                    }
+                }
+            } catch (e) {
+                console.error(`Access error for ${name}:`, e);
+                statusBadge = `<span class="bg-gray-100 text-red-500 text-[10px] px-2 py-0.5 rounded">Error</span>`;
+            }
+
+            return {
+                html: `
+                <tr class="hover:bg-gray-50 transition border-b border-gray-50 last:border-0">
+                    <td class="px-4 py-3">
+                        <div class="font-bold text-gray-800 text-sm">${name}</div>
+                        <div class="text-[10px] text-gray-400 font-mono truncate max-w-[150px]" title="${id}">${id}</div>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="text-xs font-mono font-bold text-gray-700">${sizeMB > 0 ? sizeMB + ' MB' : '-'}</div>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="text-xs text-gray-500">${limitMB} MB</div>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        ${statusBadge}
+                    </td>
+                </tr>`,
+                size: parseFloat(sizeMB)
+            };
+        });
+
+        const results = await Promise.all(promises);
+        
+        // Sort by Usage (Highest first)
+        results.sort((a, b) => b.size - a.size);
+
+        const tableHtml = `
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-2">College / ID</th>
+                            <th class="px-4 py-2 text-center">Usage</th>
+                            <th class="px-4 py-2 text-center">Limit</th>
+                            <th class="px-4 py-2 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 bg-white">
+                        ${results.map(r => r.html).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        storageList.innerHTML = tableHtml;
+
+    } catch (e) {
+        console.error("Stats Error:", e);
+        storageList.innerHTML = `
+            <div class="bg-red-50 border border-red-200 rounded p-4 text-center">
+                <p class="text-red-600 font-bold text-sm">Connection Failed</p>
+                <p class="text-red-500 text-xs mt-1">${e.message}</p>
+            </div>`;
+    }
+}
+
 // Initial Call (in case we start on settings page or refresh)
 updateStudentPortalLink();
 // --- NEW: Restore Last Active Tab ---
