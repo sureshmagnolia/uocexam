@@ -249,7 +249,7 @@ const BASE_DATA_KEY = 'examBaseData';
 const ROOM_ALLOTMENT_KEY = 'examRoomAllotment';
 const INVIG_MAPPING_KEY = 'examInvigilatorMapping';
 let currentInvigMapping = {}; // { "SessionKey": { "RoomName": "StaffName" } }
-
+const mobileSyncDot = document.getElementById('mobile-sync-dot');
 // *** MOVED HERE TO FIX ERROR ***
 const EXAM_RULES_KEY = 'examRulesConfig'; 
 let currentExamRules = []; 
@@ -401,23 +401,31 @@ if (window.firebase && window.firebase.auth) {
             currentUser = user;
             loginBtn.classList.add('hidden');
             logoutBtn.classList.remove('hidden');
-            userInfoDiv.classList.remove('hidden');
+            
+            // --- SHOW User Info & Sync Status ---
+            userInfoDiv.classList.add('md:block'); // Show on Desktop
+            if(mobileSyncDot) mobileSyncDot.classList.remove('hidden'); // Show on Mobile
+            
             userNameDisplay.textContent = user.displayName || "User";
             
             // START: Find or Create College
-            findMyCollege(user); // findMyCollege will call finalizeAppLoad on success/fail
+            findMyCollege(user); 
         } else {
             currentUser = null;
             loginBtn.classList.remove('hidden');
             logoutBtn.classList.add('hidden');
-            userInfoDiv.classList.add('hidden');
-            adminBtn.classList.add('hidden'); // Hide admin button
-            if (btnInvigilation) btnInvigilation.classList.add('hidden');
-            // --- FIX: Load Local Data even if not logged in ---
-            loadInitialData(); 
-            // -------------------------------------------------
+            
+            // --- HIDE User Info & Sync Status ---
+            userInfoDiv.classList.remove('md:block'); // Hide on Desktop
+            if(mobileSyncDot) mobileSyncDot.classList.add('hidden'); // Hide on Mobile
+            
+            adminBtn.classList.add('hidden'); 
 
-            // CRITICAL: Finalize if user is not authenticated
+            // Hide Invigilation Button
+            if (btnInvigilation) btnInvigilation.classList.add('hidden');
+
+            // Load Local Data & Finalize
+            loadInitialData(); 
             finalizeAppLoad(); 
         }
     });
