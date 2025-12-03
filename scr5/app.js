@@ -8273,14 +8273,19 @@ const modalCancelBtn = document.getElementById('modal-cancel-student');
 editSessionSelect.addEventListener('change', () => {
     currentEditSession = editSessionSelect.value;
     const sessionOpsContainer = document.getElementById('bulk-session-ops-container');
+    
+    // --- NEW: Select the badge element ---
+    const opsCountBadge = document.getElementById('session-ops-count-badge');
+
     if (sessionOpsContainer) {
         if (currentEditSession) {
             sessionOpsContainer.classList.remove('hidden');
-            // Reset Lock on change
             isSessionOpsLocked = true;
             updateSessionOpsLockUI();
         } else {
             sessionOpsContainer.classList.add('hidden');
+            // --- NEW: Hide badge if no session selected ---
+            if (opsCountBadge) opsCountBadge.classList.add('hidden');
         }
     }
  
@@ -8289,7 +8294,6 @@ editSessionSelect.addEventListener('change', () => {
     editSaveSection.classList.add('hidden');
     addNewStudentBtn.classList.add('hidden');
     
-    // Hide Bulk Container
     const bulkContainer = document.getElementById('bulk-course-update-container');
     if(bulkContainer) bulkContainer.classList.add('hidden');
 
@@ -8297,9 +8301,16 @@ editSessionSelect.addEventListener('change', () => {
         const [date, time] = currentEditSession.split(' | ');
         const sessionStudents = allStudentData.filter(s => s.Date === date && s.Time === time);
         
-        // Identify Unique Pairs: Course + Stream
+        // --- NEW: Update and Show Badge Count ---
+        if (opsCountBadge) {
+            opsCountBadge.textContent = `${sessionStudents.length} Students`;
+            opsCountBadge.classList.remove('hidden');
+        }
+        // ----------------------------------------
+        
         const uniquePairs = [];
         const seen = new Set();
+        // ... (rest of the existing logic continues unchanged) ...
         
         sessionStudents.forEach(s => {
             const strm = s.Stream || "Regular";
