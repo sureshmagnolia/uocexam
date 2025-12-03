@@ -12540,7 +12540,34 @@ window.autoAssignInvigilators = function() {
     }
 }
 
+// 6. Unassign All Invigilators
+window.unassignAllInvigilators = function() {
+    const sessionKey = allotmentSessionSelect.value;
+    if (!sessionKey) return;
 
+    // Count current assignments to show in confirmation
+    const currentCount = Object.keys(currentInvigMapping).length;
+    if (currentCount === 0) return alert("No invigilators assigned to clear.");
+
+    if (confirm(`Are you sure you want to REMOVE ALL ${currentCount} invigilator assignments for this session?\n\nThis action cannot be undone.`)) {
+        // Clear current session mapping
+        currentInvigMapping = {};
+        
+        // Update Global Storage
+        const allMappings = JSON.parse(localStorage.getItem(INVIG_MAPPING_KEY) || '{}');
+        allMappings[sessionKey] = currentInvigMapping;
+        localStorage.setItem(INVIG_MAPPING_KEY, JSON.stringify(allMappings));
+        
+        // Sync to Cloud
+        if(typeof syncDataToCloud === 'function') syncDataToCloud();
+        
+        // Refresh UI
+        renderInvigilationPanel();
+        alert("All invigilator assignments cleared for this session.");
+    }
+}
+    
+    
 // 5. Print List (Final: Stream-Wise Empty Rows + Invig Names + Dept + Mobile)
 window.printInvigilatorList = function() {
     const sessionKey = allotmentSessionSelect.value;
