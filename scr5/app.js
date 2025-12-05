@@ -6332,6 +6332,100 @@ if (smartBackupBtn) {
     });
 }
 
+
+// ==========================================
+// 🔄 SMART RESTORE (Auto-Find Latest File)
+// ==========================================
+
+const smartRestoreBtn = document.getElementById('smart-restore-btn');
+
+if (smartRestoreBtn) {
+    smartRestoreBtn.addEventListener('click', async () => {
+        // 1. Browser Support Check
+        if (!('showDirectoryPicker' in window)) {
+            alert("Your browser does not support folder scanning. Please use Chrome, Edge, or Opera.");
+            return;
+        }
+
+        try {
+            // 2. User selects Root Folder
+            smartRestoreBtn.textContent = "Scanning Folder...";
+            const rootHandle = await window.showDirectoryPicker({
+                id: 'examflow_backup_location',
+                mode: 'read',
+                startIn: 'documents'
+            });
+
+            // 3. Find the 'ExamFlow_Backups' subfolder
+            let projectFolderHandle;
+            try {
+                projectFolderHandle = await rootHandle.getDirectoryHandle('ExamFlow_Backups');
+            } catch (e) {
+                alert("No 'ExamFlow_Backups' folder found in the selected directory.");
+                smartRestoreBtn.innerHTML = `Sync/Restore Latest File`;
+                return;
+            }
+
+            // 4. Scan for the LATEST JSON file
+            let latestFile = null;
+            let latestTime = 0;
+
+            // Iterate through all files in the folder
+            for await (const entry of projectFolderHandle.values()) {
+                if (entry.kind === 'file' && entry.name.endsWith('.json') && entry.name.includes('ExamFlow_Backup')) {
+                    const file = await entry.getFile();
+                    if (file.lastModified > latestTime) {
+                        latestTime = file.lastModified;
+                        latestFile = file;
+                    }
+                }
+            }
+
+            if (!latestFile) {
+                alert("No valid backup files found in this folder.");
+                smartRestoreBtn.innerHTML = `Sync/Restore Latest File`;
+                return;
+            }
+
+            // 5. Confirm & Load
+            const dateStr = new Date(latestTime).toLocaleString();
+            if (!confirm(`Found latest backup:\n\n📄 ${latestFile.name}\n📅 ${dateStr}\n\nDo you want to restore this data? Current local data will be replaced.`)) {
+                smartRestoreBtn.innerHTML = `Sync/Restore Latest File`;
+                return;
+            }
+
+            smartRestoreBtn.textContent = "Restoring...";
+            const text = await latestFile.text();
+            const restoredData = JSON.parse(text);
+
+            // 6. Restore to LocalStorage (Wipe & Replace)
+            // (Optional: You can clear existing data first to be safe)
+            // localStorage.clear(); 
+
+            for (const key in restoredData) {
+                if (Object.hasOwnProperty.call(restoredData, key)) {
+                    localStorage.setItem(key, restoredData[key]);
+                }
+            }
+
+            alert(`✅ Restored Successfully!\nLoaded data from: ${latestFile.name}`);
+            window.location.reload(); // Reload to apply changes
+
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error("Restore Failed:", err);
+                alert("Failed to restore: " + err.message);
+            }
+        } finally {
+            if (smartRestoreBtn) {
+                smartRestoreBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Sync/Restore Latest File
+                `;
+            }
+        }
+    });
+}
     
     // ==========================================
     // 💍 MASTER CSV DOWNLOAD (ONE RING TO RULE THEM ALL)
