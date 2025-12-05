@@ -35,15 +35,7 @@ function disable_absentee_tab(disabled) {
 }
 window.disable_absentee_tab = disable_absentee_tab;
 
-// --- Helper to split large strings for Cloud Storage ---
-function chunkString(str, size) {
-    const numChunks = Math.ceil(str.length / size);
-    const chunks = [];
-    for (let i = 0, o = 0; i < numChunks; ++i, o += size) {
-        chunks.push(str.substr(o, size));
-    }
-    return chunks;
-}
+
 
 function populate_session_dropdown() {
     // This function's body is complex and relies on DOM elements.
