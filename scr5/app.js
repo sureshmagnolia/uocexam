@@ -6260,172 +6260,154 @@ filterAllRadio.addEventListener('change', () => {
 
 
 // ==========================================
-// 📂 SMART LOCAL/CLOUD BACKUP (File System API)
+// ☁️ SMART SYNC (ONE BUTTON LOGIC)
 // ==========================================
 
-const smartBackupBtn = document.getElementById('smart-backup-btn');
+const smartSyncBtn = document.getElementById('smart-sync-btn');
 
-if (smartBackupBtn) {
-    smartBackupBtn.addEventListener('click', async () => {
+if (smartSyncBtn) {
+    smartSyncBtn.addEventListener('click', async () => {
         // 1. Browser Support Check
         if (!('showDirectoryPicker' in window)) {
-            alert("Your browser does not support folder selection. Please use Chrome, Edge, or Opera.");
+            alert("Your browser does not support direct folder access. Please use Chrome, Edge, or Opera.");
             return;
         }
-
-        // 2. Prepare Data
-        const backupData = {};
-        const ALL_DATA_KEYS = [
-            'examRoomConfig', 'examStreamsConfig', 'examCollegeName',
-            'examAbsenteeList', 'examQPCodes', 'examBaseData',
-            'examRoomAllotment', 'examScribeList', 'examScribeAllotment',
-            'examRulesConfig', 'examInvigilatorMapping', 'examInvigilationSlots', 'examStaffData'
-        ];
-
-        ALL_DATA_KEYS.forEach(key => {
-            const data = localStorage.getItem(key);
-            if (data) backupData[key] = data;
-        });
-
-        if (Object.keys(backupData).length === 0) {
-            alert("No data found to back up.");
-            return;
-        }
-
-        const jsonString = JSON.stringify(backupData, null, 2);
-        const dateStr = new Date().toISOString().split('T')[0];
-        const fileName = `ExamFlow_Backup_${dateStr}.json`;
 
         try {
-            // 3. User selects Root Folder (e.g., "Google Drive")
-            smartBackupBtn.textContent = "Select Folder...";
+            // 2. Open Folder Picker (Browser remembers ID location)
+            smartSyncBtn.textContent = "Scanning Folder...";
             const rootHandle = await window.showDirectoryPicker({
-                id: 'examflow_backup_location', // Browser remembers this ID
+                id: 'examflow_backup_location', 
                 mode: 'readwrite',
                 startIn: 'documents'
             });
 
-            // 4. System Creates/Finds Specific Folder
-            // This satisfies the "if not available, create it" requirement
-            smartBackupBtn.textContent = "Saving...";
+            // 3. Get/Create Subfolder
             const projectFolderHandle = await rootHandle.getDirectoryHandle('ExamFlow_Backups', { create: true });
 
-            // 5. Write File
-            const fileHandle = await projectFolderHandle.getFileHandle(fileName, { create: true });
-            const writable = await fileHandle.createWritable();
-            await writable.write(jsonString);
-            await writable.close();
+            // 4. Find Latest Cloud File
+            let latestFileHandle = null;
+            let cloudTime = 0;
 
-            alert(`✅ Backup Saved Successfully!\n\nLocation: .../${projectFolderHandle.name}/${fileName}\n\nIf this folder is synced (e.g., Google Drive), your data is now in the cloud.`);
+            for await (const entry of projectFolderHandle.values()) {
+                if (entry.kind === 'file' && entry.name.endsWith('.json') && entry.name.includes('ExamFlow_Backup')) {
+                    const file = await entry.getFile();
+                    if (file.lastModified > cloudTime) {
+                        cloudTime = file.lastModified;
+                        latestFileHandle = entry;
+                    }
+                }
+            }
+
+            // 5. Get Local Timestamp
+            const localStr = localStorage.getItem('lastUpdated');
+            const localTime = localStr ? new Date(localStr).getTime() : 0;
+
+            // 6. Decision Logic
+            let userChoice = "";
+            
+            const dateOptions = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            const cloudDateStr = cloudTime > 0 ? new Date(cloudTime).toLocaleString('en-GB', dateOptions) : "None";
+            const localDateStr = localTime > 0 ? new Date(localTime).toLocaleString('en-GB', dateOptions) : "None";
+
+            if (cloudTime === 0) {
+                // Scenario A: No Backups found
+                if (confirm(`No backups found in this folder.\n\nCreate a new backup now?`)) userChoice = "BACKUP";
+            
+            } else if (localTime > cloudTime) {
+                // Scenario B: Local is Newer -> Suggest Backup
+                const msg = `📂 SYNC STATUS: LOCAL IS NEWER\n\n` +
+                            `💻 Local Data:  ${localDateStr} (Latest)\n` +
+                            `☁️ Cloud File:  ${cloudDateStr}\n\n` +
+                            `Do you want to UPDATE the backup?`;
+                if (confirm(msg)) userChoice = "BACKUP";
+            
+            } else if (cloudTime > localTime) {
+                // Scenario C: Cloud is Newer -> Suggest Restore
+                const msg = `📂 SYNC STATUS: BACKUP IS NEWER\n\n` +
+                            `☁️ Cloud File:  ${cloudDateStr} (Latest)\n` +
+                            `💻 Local Data:  ${localDateStr}\n\n` +
+                            `Do you want to RESTORE from backup? (Current data will be replaced)`;
+                if (confirm(msg)) userChoice = "RESTORE";
+            
+            } else {
+                // Scenario D: Synced
+                if (confirm(`✅ Data is already synced! (${localDateStr})\n\nForce create a new backup anyway?`)) userChoice = "BACKUP";
+            }
+
+            // 7. Execute Action
+            if (userChoice === "BACKUP") {
+                smartSyncBtn.textContent = "Backing Up...";
+                await performSmartBackup(projectFolderHandle);
+            } else if (userChoice === "RESTORE") {
+                smartSyncBtn.textContent = "Restoring...";
+                await performSmartRestore(latestFileHandle);
+            }
 
         } catch (err) {
             if (err.name !== 'AbortError') {
-                console.error("Backup Failed:", err);
-                alert("Failed to save to folder: " + err.message);
+                console.error("Sync Error:", err);
+                alert("Sync Error: " + err.message);
             }
         } finally {
-            smartBackupBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                Save to Cloud/Drive Folder
+            smartSyncBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                ☁️ Smart Sync (Backup / Restore)
             `;
         }
     });
 }
 
+// --- HELPER: PERFORM BACKUP ---
+async function performSmartBackup(folderHandle) {
+    const backupData = {};
+    const ALL_DATA_KEYS = [
+        'examRoomConfig', 'examStreamsConfig', 'examCollegeName',
+        'examAbsenteeList', 'examQPCodes', 'examBaseData',
+        'examRoomAllotment', 'examScribeList', 'examScribeAllotment',
+        'examRulesConfig', 'examInvigilatorMapping', 'examInvigilationSlots', 'examStaffData'
+    ];
 
-// ==========================================
-// 🔄 SMART RESTORE (Auto-Find Latest File)
-// ==========================================
-
-const smartRestoreBtn = document.getElementById('smart-restore-btn');
-
-if (smartRestoreBtn) {
-    smartRestoreBtn.addEventListener('click', async () => {
-        // 1. Browser Support Check
-        if (!('showDirectoryPicker' in window)) {
-            alert("Your browser does not support folder scanning. Please use Chrome, Edge, or Opera.");
-            return;
-        }
-
-        try {
-            // 2. User selects Root Folder
-            smartRestoreBtn.textContent = "Scanning Folder...";
-            const rootHandle = await window.showDirectoryPicker({
-                id: 'examflow_backup_location',
-                mode: 'read',
-                startIn: 'documents'
-            });
-
-            // 3. Find the 'ExamFlow_Backups' subfolder
-            let projectFolderHandle;
-            try {
-                projectFolderHandle = await rootHandle.getDirectoryHandle('ExamFlow_Backups');
-            } catch (e) {
-                alert("No 'ExamFlow_Backups' folder found in the selected directory.");
-                smartRestoreBtn.innerHTML = `Sync/Restore Latest File`;
-                return;
-            }
-
-            // 4. Scan for the LATEST JSON file
-            let latestFile = null;
-            let latestTime = 0;
-
-            // Iterate through all files in the folder
-            for await (const entry of projectFolderHandle.values()) {
-                if (entry.kind === 'file' && entry.name.endsWith('.json') && entry.name.includes('ExamFlow_Backup')) {
-                    const file = await entry.getFile();
-                    if (file.lastModified > latestTime) {
-                        latestTime = file.lastModified;
-                        latestFile = file;
-                    }
-                }
-            }
-
-            if (!latestFile) {
-                alert("No valid backup files found in this folder.");
-                smartRestoreBtn.innerHTML = `Sync/Restore Latest File`;
-                return;
-            }
-
-            // 5. Confirm & Load
-            const dateStr = new Date(latestTime).toLocaleString();
-            if (!confirm(`Found latest backup:\n\n📄 ${latestFile.name}\n📅 ${dateStr}\n\nDo you want to restore this data? Current local data will be replaced.`)) {
-                smartRestoreBtn.innerHTML = `Sync/Restore Latest File`;
-                return;
-            }
-
-            smartRestoreBtn.textContent = "Restoring...";
-            const text = await latestFile.text();
-            const restoredData = JSON.parse(text);
-
-            // 6. Restore to LocalStorage (Wipe & Replace)
-            // (Optional: You can clear existing data first to be safe)
-            // localStorage.clear(); 
-
-            for (const key in restoredData) {
-                if (Object.hasOwnProperty.call(restoredData, key)) {
-                    localStorage.setItem(key, restoredData[key]);
-                }
-            }
-
-            alert(`✅ Restored Successfully!\nLoaded data from: ${latestFile.name}`);
-            window.location.reload(); // Reload to apply changes
-
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.error("Restore Failed:", err);
-                alert("Failed to restore: " + err.message);
-            }
-        } finally {
-            if (smartRestoreBtn) {
-                smartRestoreBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    Sync/Restore Latest File
-                `;
-            }
-        }
+    // Update Timestamp before saving
+    const now = new Date().toISOString();
+    localStorage.setItem('lastUpdated', now);
+    
+    ALL_DATA_KEYS.forEach(key => {
+        const data = localStorage.getItem(key);
+        if (data) backupData[key] = data;
     });
+    backupData['lastUpdated'] = now; // Ensure it's in the file
+
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const dateStr = new Date().toISOString().split('T')[0];
+    const fileName = `ExamFlow_Backup_${dateStr}.json`;
+
+    const fileHandle = await folderHandle.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(jsonString);
+    await writable.close();
+
+    alert("✅ Backup Complete!");
 }
+
+// --- HELPER: PERFORM RESTORE ---
+async function performSmartRestore(fileHandle) {
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    const restoredData = JSON.parse(text);
+
+    // Wipe & Replace
+    // localStorage.clear(); // Optional: Safer to clear, but might lose unrelated keys.
+    // Better to overwrite known keys:
+    
+    for (const key in restoredData) {
+        localStorage.setItem(key, restoredData[key]);
+    }
+    
+    alert(`✅ Restored from ${file.name}.\nPage will reload.`);
+    window.location.reload();
+}
+
     
     // ==========================================
     // 💍 MASTER CSV DOWNLOAD (ONE RING TO RULE THEM ALL)
