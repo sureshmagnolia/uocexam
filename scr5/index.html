@@ -747,22 +747,47 @@
             </div>
         </div>
 
-        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">Room Capacity & Location</h2>
-            <div class="space-y-4">
-                <div class="hidden md:flex items-center gap-3 px-2 mb-2 border-b border-gray-200 pb-2">
-                    <label class="font-semibold text-gray-700 w-24 shrink-0 text-sm">Room Name</label>
-                    <label class="font-semibold text-gray-700 w-20 text-sm">Capacity</label>
-                    <label class="font-semibold text-gray-700 flex-grow text-sm">Location</label>
-                </div>
-                <div id="room-config-container" class="space-y-2 max-h-96 overflow-y-auto pr-2"></div>
-                <button id="add-room-button" class="w-full inline-flex justify-center items-center rounded-md border border-dashed border-gray-400 bg-gray-50 py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-100">+ Add New Room</button>
-                <hr class="my-4">
-                <button id="save-room-config-button" class="w-full inline-flex justify-center items-center rounded-md border border-transparent bg-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">Save Room Settings</button>
-                <div id="room-config-status" class="text-sm text-green-600 font-medium text-center h-5"></div>
+
+<div class="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
+    <h2 class="text-xl font-bold text-blue-800 mb-2 border-b border-blue-200 pb-2">
+        Room Capacity & Location
+    </h2>
+    <p class="text-sm text-blue-600 mb-4">
+        Define rooms and their capacities. This list is saved to your browser.
+    </p>
+
+    <div class="bg-white border border-blue-100 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+         <div class="flex items-center gap-4">
+            <div class="p-3 bg-blue-100 text-blue-600 rounded-full shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-800">Room Master List</h3>
+                <p class="text-sm text-gray-500">
+                    <span id="room-count-display" class="font-bold text-blue-600">0</span> Rooms Configured
+                </p>
             </div>
         </div>
+        
+        <button onclick="openRoomSettingsModal()" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-sm transition flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Manage Rooms
+        </button>
+    </div>
+</div>
 
+
+
+
+        
+
+
+
+        
         <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-lg mb-6">
             <h2 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-300">College Name</h2>
             <div class="mb-6 flex gap-2 items-end">
@@ -1767,6 +1792,57 @@
         </div>
     </div>
 </div>
+
+<div id="room-settings-modal" class="hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[90] flex justify-center items-center p-4 transition-opacity">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-slide-up">
+        
+        <div class="bg-blue-600 p-4 shrink-0 flex justify-between items-center text-white shadow-md z-10">
+            <div>
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <span class="bg-white/20 p-1.5 rounded-lg">🏫</span> 
+                    Room Configuration
+                </h3>
+                <p class="text-blue-100 text-xs mt-0.5">Set capacity and location for each hall.</p>
+            </div>
+            <button onclick="closeRoomSettingsModal()" class="text-white/80 hover:text-white hover:bg-white/20 p-2 rounded-full transition focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto custom-scroll bg-gray-50 flex-1">
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                <div class="hidden md:flex items-center gap-3 px-2 mb-2 border-b border-gray-200 pb-2 bg-gray-50/50 rounded-t-lg pt-2">
+                    <label class="font-bold text-gray-600 w-24 shrink-0 text-xs uppercase tracking-wider">Room Name</label>
+                    <label class="font-bold text-gray-600 w-20 text-xs uppercase tracking-wider">Capacity</label>
+                    <label class="font-bold text-gray-600 flex-grow text-xs uppercase tracking-wider">Location (e.g. Block / Floor)</label>
+                    <label class="w-[90px]"></label> </div>
+
+                <div id="room-config-container" class="space-y-2 max-h-[60vh] overflow-y-auto pr-2 custom-scroll">
+                    </div>
+
+                <button id="add-room-button" class="mt-4 w-full inline-flex justify-center items-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 py-3 px-4 text-sm font-bold text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add New Room
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-4 bg-white border-t border-gray-100 flex justify-between items-center gap-4 shrink-0">
+            <div id="room-config-status" class="text-sm text-green-600 font-bold"></div>
+            <div class="flex gap-2">
+                 <button onclick="closeRoomSettingsModal()" class="px-5 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-100 border border-gray-200">Close</button>
+                 <button id="save-room-config-button" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-md transition">
+                    Save Changes
+                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+    
+
+
+
+    
 <py-config class="hidden">
         packages = ["pandas", "pdfplumber==0.9.0"]
 </py-config>
