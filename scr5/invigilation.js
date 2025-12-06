@@ -5240,7 +5240,6 @@ window.filterManualStaff = function() {
         else noResults.classList.remove('hidden');
     }
 }
-// --- MANUAL ALLOCATION (Auto-Select Top N Candidates) ---
 window.openManualAllocationModal = function(key) {
     const slot = invigilationSlots[key];
     
@@ -5264,7 +5263,7 @@ window.openManualAllocationModal = function(key) {
     const requiredCount = parseInt(slot.required) || 0; 
     document.getElementById('manual-modal-req').textContent = requiredCount;
 
-    // --- 4. SMART SORTING ---
+    // --- 4. SMART SORTING & PRE-CALCULATIONS ---
     const targetDate = parseDate(key);
     const monthStr = targetDate.toLocaleString('default', { month: 'long', year: 'numeric' });
     const weekNum = getWeekOfMonth(targetDate);
@@ -5277,6 +5276,7 @@ window.openManualAllocationModal = function(key) {
     const staffContext = {}; 
     staffData.forEach(s => staffContext[s.email] = { weekCount: 0, hasSameDay: false, hasAdjacent: false });
 
+    // A. Context Calculation (Week/Day/Adjacent)
     Object.keys(invigilationSlots).forEach(k => {
         if (k === key) return; 
         const sSlot = invigilationSlots[k];
@@ -5298,6 +5298,28 @@ window.openManualAllocationModal = function(key) {
         });
     });
 
+    // B. Department Saturation Calculation (NEW)
+    const totalDeptCounts = {};
+    const slotDeptCounts = {};
+
+    // Count Total Staff per Dept
+    staffData.forEach(s => {
+        if (s.status !== 'archived') {
+            totalDeptCounts[s.dept] = (totalDeptCounts[s.dept] || 0) + 1;
+        }
+    });
+
+    // Count Assigned Staff per Dept (In CURRENT slot)
+    // Note: We check 'slot.assigned' to see who is currently in the list
+    if (slot.assigned) {
+        slot.assigned.forEach(email => {
+            const s = staffData.find(st => st.email === email);
+            if (s && s.dept) {
+                slotDeptCounts[s.dept] = (slotDeptCounts[s.dept] || 0) + 1;
+            }
+        });
+    }
+
     // Score Staff
     const rankedStaff = staffData
         .filter(s => s.status !== 'archived')
@@ -5317,6 +5339,19 @@ window.openManualAllocationModal = function(key) {
             if (ctx.hasSameDay) { score -= 2000; badges.push("Same Day"); }
             if (ctx.hasAdjacent) { score -= 1000; badges.push("Adjacent"); }
             
+            // --- Department Saturation Check (NEW) ---
+            const dTotal = totalDeptCounts[s.dept] || 0;
+            if (dTotal > 1) { // Only apply if dept has >1 person
+                const dAssigned = slotDeptCounts[s.dept] || 0;
+                // Check if adding this person (or if they are already there) hits the limit
+                // We use >= here to flag it if they ARE part of the saturation
+                if (dAssigned >= Math.ceil(dTotal * 0.6)) {
+                    score -= 4000;
+                    badges.push("Dept Saturation");
+                }
+            }
+            // ----------------------------------------
+
             return { ...s, pending, score, badges };
         })
         .sort((a, b) => b.score - a.score); // Highest Score First
@@ -5359,9 +5394,13 @@ window.openManualAllocationModal = function(key) {
         const rowClass = isChecked ? 'bg-indigo-50' : 'hover:bg-gray-50';
         const pendingColor = s.pending > 0 ? 'text-red-600' : 'text-green-600';
         
-        const warningHtml = s.badges.map(b => 
-            `<span class="ml-1 text-[9px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded border border-orange-200">${b}</span>`
-        ).join('');
+        const warningHtml = s.badges.map(b => {
+            // Distinct style for Saturation Badge
+            let bStyle = "bg-orange-100 text-orange-700 border-orange-200";
+            if (b === "Dept Saturation") bStyle = "bg-purple-100 text-purple-700 border-purple-200";
+            
+            return `<span class="ml-1 text-[9px] ${bStyle} px-1 py-0.5 rounded border">${b}</span>`;
+        }).join('');
 
         availList.innerHTML += `
             <tr class="${rowClass} border-b last:border-0 transition">
